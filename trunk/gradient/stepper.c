@@ -201,7 +201,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-			gOutputFlag = 1;
+		//	gOutputFlag = 1;
 				
 		inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
@@ -254,7 +254,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-	//		if( inState->totalVerts > 4*inState->ropelength )
+			if( inState->totalVerts > 4*inState->ropelength )
 			{
 				// we are DONE!
 				break;
@@ -302,7 +302,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		printf( "maxovermin: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf\n", 
 					maxmin, maxmaxmin, minthickness, inState->rcond );
 
-		if( inState->time >= nextMovieOutput )
+		if( inState->time >= nextMovieOutput && inState->batching == 0 )
 		{
 			char	fname[256];
 			FILE*   frame = NULL;

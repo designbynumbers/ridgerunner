@@ -35,6 +35,8 @@ enum GraphTypes
 
 typedef struct
 {
+	int		batching;			// in batch mode?
+
 	double  injrad;				// the user specified injectivity radius of the link
 	double  minrad;				// Rawdon's minimum radius of curvature
 	double  ropelength;			// the ropelength of the link
