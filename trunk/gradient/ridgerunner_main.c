@@ -192,6 +192,8 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 							fclose(linkFile);
 							
 							state->batching = 1;
+
+							printf( "operating on %s\n", path );
 							
 							strcpy(cmd, "mv ");
 							strcat(cmd, path);
@@ -202,6 +204,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 							system(cmd);
 							
 							fclose(fp);
+							
 							return;
 						}
 					}
