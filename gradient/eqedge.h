@@ -13,7 +13,12 @@
 #include<float.h>
 
 /*#include"cblas.h"*/
+#ifdef __APPLE__
 #include <vecLib/vBLAS.h>
+#include <vecLib/clapack.h>
+#else
+#include "gsl_cblas.h"
+#endif // __APPLE__
 
 #include"link.h"
 #include"vector.h"
