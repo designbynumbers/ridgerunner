@@ -112,6 +112,7 @@ main( int argc, char* argv[] )
 	// scale to thickness 1
 	if( autoscale == 1 )
 	{
+		printf( "autoscaling to thickness 1.0\n" );
 		link_scale(link, 1.0/octrope_thickness(link, 1, NULL, 0) );
 	}
 	
