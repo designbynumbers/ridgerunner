@@ -19,7 +19,7 @@
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
 
-#define kMinStepSize 1e-6
+#define kMinStepSize 1e-10
 //#define kMaxStepSize 1e-2
 
 
@@ -65,6 +65,7 @@ typedef struct
 	double	cstep_time;
 	
 	double  eqThreshold;		// the max/min edge value at which to eq. 0 means never eq.
+	double	lastMaxMin;			// max/min of last step
 	
 	int*	compOffsets;		// we need to know the component offsets 
 								// to index struts when there are multiple components
