@@ -209,8 +209,10 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		else
 		{
 			inState->curvature_step = 1;
-			cSteps++;
+			if( inState->eq_step == 0 )
+				cSteps++;
 		}
+		
 																		
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
@@ -267,7 +269,9 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			
 	//	if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
 	//		inState->curvature_step == 1/* && inState->time > 30*/ )
-		if( (inState->oldLengthTime + inState->checkDelta < inState->time) && fabs(inState->oldLength-inState->length) < 0.05 )
+		if( (inState->oldLengthTime + inState->checkDelta < inState->time) && 
+			fabs(inState->oldLength-inState->length) < 0.05 
+			/*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
 		{		
 			// if we're going to die, it'll be after this, so save our best
 			FILE* bestFile = NULL;
@@ -343,9 +347,16 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-		inState->eqMultiplier = pow(5,maxmin);
-		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
-				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
+		inState->eqMultiplier = 1;
+		
+		if( maxmin > 1.01 )
+			inState->eq_step = 1;
+		else
+			inState->eq_step = 0;
+		
+		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d eqstep: %d\n", 
+				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
+					inState->eq_step );
 		printf( "cstep/step ratio: %lf delta length: %lf next check: %lf\n", 
 				((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
 				inState->oldLengthTime+inState->checkDelta );
@@ -838,7 +849,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	inLink = workerLink;
 		
 	// we're good, double step size and continue jamming
-	if( stepAttempts == 1 && inState->curvature_step != 0 )
+	if( stepAttempts == 1 && inState->curvature_step != 0  )
 	{
 		inState->stepSize *= 2;
 	}
@@ -1847,7 +1858,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	if( dl == NULL )
 		dl = calloc(inState->totalVerts, sizeof(double));
 	
-	if( dlenStep != 0 )
+	if( dlenStep != 0 && inState->eq_step == 0 )
 		dlenForce(dl, inLink, inState);
 	
 //	dl = (octrope_vector*)calloc(inState->totalVerts, sizeof(struct octrope_vector_type));
@@ -1911,10 +1922,10 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	}
 
-	if( dlenStep != 0 )
+	if( dlenStep != 0 || inState->eq_step != 0 )
 	{
 		eqForce(dl, inLink, inState);
-		spinForce(dl, inLink, inState);
+	//	spinForce(dl, inLink, inState);
 	}
 //	specialForce(dl, inLink, inState);
 //	//	minradForce(dl, inLink, inState);
@@ -2184,8 +2195,11 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		
 		if( compressions == NULL )
 		{
-			// we've probably hit the rcond wall, save as best.vect and bail
-			exit(-1);
+			// we've probably hit the rcond wall, scaling should smooth transition
+			//exit(-1);
+			printf( "****** NULL compressions! Trying to smooth through scaling\n" );
+			link_scale(inLink, 1.001);
+			return;
 		}
 		
 		inState->tsnnls_evaluations++;

@@ -58,6 +58,11 @@ main( int argc, char* argv[] )
 	
 		link = octrope_link_read(linkFile);
 		
+		double	thick, mr, len;
+		link = octrope_fixlength(link);
+		octrope_ropelength( link, 1, &mr, &thick, &len, NULL, 0);
+		link_scale(link, 1.0/thick);
+		
 	//	link->cp[0].acyclic = 1;
 
 //		for( cItr=0; cItr<link->nc; cItr++ )
@@ -88,7 +93,7 @@ main( int argc, char* argv[] )
 //		state.graphing[0] = 1;
 
 		// realtime graphing! -- it is not advisable to do more than a few of these at once
-		state.graphing[kLength] = 0;
+		state.graphing[kLength] = 1;
 		state.graphing[kRopelength] = 0;
 		state.graphing[kStrutCount] = 0;
 		state.graphing[kStepSize] = 0;
@@ -239,8 +244,6 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 							{
 								octrope_link* adjusted;
 								double	thick, mr, len;
-								octrope_ropelength( *inLink, 1, &mr, &thick, &len, NULL, 0);
-								link_scale(*inLink, 1.05/thick);
 								
 								// 3 fixlengths should fix things up
 								adjusted = octrope_fixlength(*inLink);
@@ -252,6 +255,9 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 								adjusted = octrope_fixlength(*inLink);
 								free(*inLink);
 								*inLink = adjusted;
+							
+								octrope_ropelength( *inLink, 1, &mr, &thick, &len, NULL, 0);
+								link_scale(*inLink, 1.0/thick);
 							}
 							
 							if( strstr(path, "loop")!= NULL )

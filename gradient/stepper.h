@@ -70,6 +70,7 @@ typedef struct
 	
 	int		tsnnls_evaluations;
 	int		curvature_step;
+	int		eq_step;
 	
 	double* sideLengths;
 	
