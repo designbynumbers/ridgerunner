@@ -60,6 +60,8 @@ main( int argc, char* argv[] )
 		
 		double	thick, mr, len;
 		link = octrope_fixlength(link);
+		link = octrope_fixlength(link);
+		link = octrope_fixlength(link);
 		octrope_ropelength( link, 1, &mr, &thick, &len, NULL, 0);
 		link_scale(link, 1.0/thick);
 		
@@ -93,6 +95,7 @@ main( int argc, char* argv[] )
 //		state.graphing[0] = 1;
 
 		// realtime graphing! -- it is not advisable to do more than a few of these at once
+		// (or any, if you're not on a mac using fink installed gnuplot)
 		state.graphing[kLength] = 0;
 		state.graphing[kRopelength] = 0;
 		state.graphing[kStrutCount] = 0;
@@ -185,7 +188,7 @@ main( int argc, char* argv[] )
 		}
 	}*/
 		
-	bsearch_stepper(&link, 10000000, &state);
+	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
 	return kNoErr;
 }
@@ -303,7 +306,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		state->shortest = 2*state->injrad;
 		state->totalVerts = 0;
 		state->eqThreshold = 0;
-		state->eqMultiplier = 1;
+		state->eqMultiplier = 2;
 		state->factor = 1;
 		for( cItr=0; cItr<(*inLink)->nc; cItr++ )
 		{

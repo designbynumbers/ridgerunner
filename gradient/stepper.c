@@ -145,8 +145,10 @@ reloadDump( double* A, int rows, int cols, double* x, double* b )
 int gOutputFlag = 0;
 int gConditionCheck = 0;
 
+#define kOutputItrs 1
+
 void 
-bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* inState )
+bsearch_stepper( octrope_link** inLink, search_state* inState )
 {
 	unsigned int i, offset = 0;
 	int cItr;
@@ -196,7 +198,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 	}
 	
 	int stepItr;
-	for( stepItr=0; stepItr<inMaxSteps; stepItr++ )
+	for( stepItr=0; 1==1; stepItr++ )
 	{
 		int lastSet;
 	
@@ -235,12 +237,14 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		
 		if( inState->shortest < minthickness && inState->shortest != 0 )
 			minthickness = inState->shortest;
-			
-		printf( "s: %d ms: %d len: %lf r: %lf ssize: %lf dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
-					inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-					inState->length, inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-					inState->avgDvdtMag, inState->residual, inState->time );
 		
+		if( (stepItr%kOutputItrs) == 0 )
+		{
+			printf( "s: %d ms: %d len: %lf r: %lf ssize: %lf dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
+						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
+						inState->length, inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
+						inState->avgDvdtMag, inState->residual, inState->time );
+		}
 		
 	/*	if( firstRun )
 		{
@@ -295,10 +299,10 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-		//	if( inState->totalVerts > 4*inState->ropelength )
+			if( inState->totalVerts > 5*inState->ropelength )
 			{
 				// we are DONE!
-		//		break;
+				break;
 			}
 			
 			// the strut set can get violent after this change, so let's make sure none exist.
@@ -347,26 +351,29 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-		inState->eqMultiplier = 1;
+	//	inState->eqMultiplier = 1;
 		
-		if( maxmin > 1.05 )
+/*		if( maxmin > 1.0001 )
 			inState->eq_step = 1;
 		else
-			inState->eq_step = 0;
+*/			inState->eq_step = 0;
 		
-		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d eqstep: %d\n", 
-				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
-					inState->eq_step );
-		printf( "cstep/step ratio: %lf delta length: %lf next check: %lf cstep_time: %lf\n", 
-				((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
-				inState->oldLengthTime+inState->checkDelta, inState->cstep_time );
+		if( (stepItr%kOutputItrs) == 0 )
+		{
+			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d eqstep: %d\n", 
+						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
+						inState->eq_step );
+			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf cstep_time: %lf\n", 
+					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
+					inState->oldLengthTime+inState->checkDelta, inState->cstep_time );
+		}
 
 		if( inState->time >= nextMovieOutput )
 		{
 			char	fname[384];
 			FILE*   frame = NULL;
 			
-			if( inState->batching != 0 )
+		//	if( inState->batching != 0 )
 			{
 			    sprintf( fname, "restart_%s", inState->fname );
 			    (strstr(fname,".vect"))[0] = '\0';
@@ -377,7 +384,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			    
 			    nextMovieOutput += 0.05;
 			}
-			else
+		//	else
 			{
 			    sprintf( fname, "rmov.%lf_evals-%d_strts-%d_minrads-%d.vect", inState->time, 
 							    inState->tsnnls_evaluations, 
