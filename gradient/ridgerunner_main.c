@@ -264,7 +264,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		}
 		
 		state->residual = 0;
-		
+		 
 		state->checkDelta = 1.0;
 	}
 	
