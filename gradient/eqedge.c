@@ -12,8 +12,12 @@
 
 #include"eqedge.h"
 
+#ifdef __APPLE__
 #include <vecLib/vBLAS.h>
 #include <vecLib/clapack.h>
+#else
+#include "gsl_cblas.h"
+#endif // __APPLE__
 
 
 void    clapack_matrix_write(double val, double *A, int LDA, int i, int j)
