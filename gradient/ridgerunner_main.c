@@ -150,7 +150,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	char	line[1024];
 	FILE* fp = fopen(fname, "r"); // we would have failed earlier if this didn't exist
 	
-	if( *link == NULL )
+	if( *inLink == NULL )
 	{
 		while( rgetline( line, 1024, fp ) )
 		{
