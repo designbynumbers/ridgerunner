@@ -10,7 +10,7 @@
 #define _H_dlen
 
 #include "octrope.h"
-#include "stepper.h"
+#include "../stepper.h"
 
 // note that we return dlen as a concatenated list of dlen for 
 // each component in ascending order
