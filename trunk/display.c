@@ -129,10 +129,6 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	
 	fclose(kp);
 	fclose(fp);
-	
-	char cmd[1024];
-	sprintf(cmd, "cp /tmp/struts.vect struts.%lf.vect", time);
-	system(cmd);
 }
 
 void
