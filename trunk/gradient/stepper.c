@@ -203,7 +203,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-		//	gOutputFlag = 1;
+			gOutputFlag = 1;
 	
 		if( inState->shortest < .9999 )
 			inState->curvature_step = 0;
