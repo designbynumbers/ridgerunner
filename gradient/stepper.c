@@ -834,7 +834,33 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 	stepAttempts = 0;
 	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=0.25;
+	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=inState->stepSize;
+	short	improvedNorm = 0;
+	
+//	correctionStepSize = 1e-7;
+	
+	if( inState->curvature_step != 0 )
+	{
+		normalizeVects(dVdt, inState->totalVerts);
+	}
+	
+	octrope_mrloc*		minradSetInitial = NULL;
+	minradSetInitial = (octrope_mrloc*)malloc(100 * sizeof(octrope_mrloc));
+	int minradLocsInitial;
+
+	newmr = octrope_minrad(inLink, 0.5, 100, minradSetInitial, 100, &minradLocsInitial );
+	if( minradLocsInitial > 0 )
+	{
+		printf( "INITIAL minrad Locs: %d newMR: %3.16lf (%3.16lf)\n", minradLocsInitial, newmr, newmr-lastMR );
+		int i;
+		for( i=0; i<minradLocsInitial; i++ )
+		{
+			printf( "%d (%3.8lf) ", minradSetInitial[i].vert, minradSetInitial[i].mr );
+		}
+	}
+	free(minradSetInitial);
+	
+	double newNorm = 0;
 	do
 	{			
 		stepAttempts++;
@@ -852,7 +878,6 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 				
 		if( inState->curvature_step != 0 )
 		{
-			normalizeVects(dVdt, inState->totalVerts);
 			step(workerLink, inState->stepSize, dVdt);
 		}
 		else
@@ -867,17 +892,34 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			gOutputFlag = 0;
 		}
 
-		newmr = octrope_minradval(workerLink);
+	//	newmr = octrope_minradval(workerLink);
 	
-/*		octrope_mrloc*		minradSet = NULL;
+		octrope_mrloc*		minradSet = NULL;
 		minradSet = (octrope_mrloc*)malloc(100 * sizeof(octrope_mrloc));
 		int minradLocs;
 		
 		newmr = octrope_minrad(workerLink, 0.5, 100, minradSet, 100, &minradLocs );
-		printf( "minrad Locs: %d (0-th vert: %d) newMR: %3.16lf (%3.16lf)\n", minradLocs, minradSet[0].vert, newmr, newmr-lastMR );
+		if( minradLocs > 0 )
+			printf( "minrad Locs: %d newMR: %3.16lf (%3.16lf)\n", minradLocs, newmr, newmr-lastMR );
+		int i;
+		newNorm = 0;
+		for( i=0; i<minradLocs; i++ )
+		{
+			printf( "%d (%3.8lf) ", minradSet[i].vert, minradSet[i].mr );
+			if( inState->curvature_step == 0 )
+				newNorm += (0.5-minradSet[i].mr)*(0.5-minradSet[i].mr);
+		}
+		newNorm = sqrt(newNorm);
+		if( minradLocs > 0 )
+		{
+				if( newNorm < inState->ofvNorm && inState->curvature_step == 0 )
+					improvedNorm = 1;
+		
+			printf( " newNorm: %3.16lf\n", newNorm );
+		}
 
 		free(minradSet);
-*/
+
 		newpoca = octrope_poca(workerLink, NULL, 0);
 		
 		inState->minrad = newmr;
@@ -914,14 +956,6 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 				mr_error = max(lastMR - newmr, 0);
 				if( mr_error > MR_ERROR_BOUND )
 					correctionStepSize /= 2;
-				else if( newmr < 0.4999 )
-				{
-					correctionStepSize /= 2;
-					mr_error = 1;
-				}
-			/*	if( newmr > inState->injrad-(inState->overstepTol*inState->injrad) )
-					mr_error = 0; // correctable error
-			*/
 			}
 			if( inState->eq_step != 0 && maxovermin(workerLink) > inState->lastMaxMin )
 			{
@@ -942,6 +976,11 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
 	*/			
 	} while( (curr_error > ERROR_BOUND || mr_error > MR_ERROR_BOUND) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
+	
+	if(improvedNorm == 0 && inState->curvature_step == 0 && correctionStepSize < 1e-14  )
+		printf( "*** didn't improve norm for _ANY_ step size! lsqr residual: %e\n", inState->ofvResidual );
+	else if( inState->curvature_step == 0 )
+		printf( "[Improved norm -- good] ofv residual: %e\n", inState->ofvResidual );
 	
 	inState->minrad = newmr;
 	
@@ -2115,7 +2154,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 }
 
 static double*
-stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL )
+stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
 {
 	/* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR */
 	lsqr_input   *lsqr_in;
@@ -2157,6 +2196,9 @@ stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL )
 	result = (double*)malloc(sizeof(double)*sparseA->n);
 	for( bItr=0; bItr<sparseA->n; bItr++ ) // not really bItr here, but hey
 		result[bItr] = lsqr_out->sol_vec->elements[bItr];
+		
+	if( residual != NULL )
+		*residual = lsqr_out->resid_norm;
 	
 	free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );
 
@@ -2454,6 +2496,13 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				} // if minradlocs == 0
 												
 			} // for over struts
+	
+			inState->ofvNorm = 0;
+			for( sItr=0; sItr<strutCount+minradLocs; sItr++ )
+			{
+				inState->ofvNorm += ofvB[sItr]*ofvB[sItr];
+			}
+			inState->ofvNorm = sqrt(inState->ofvNorm);
 						
 			/*
 			 * Fact: The rigidity matrix A (compressions) = (resulting motions of verts).
@@ -2476,7 +2525,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 			double* ofv;
 						
-			ofv = stanford_lsqr(sparseAT, ofvB);
+			ofv = stanford_lsqr(sparseAT, ofvB, &inState->ofvResidual);
 			
 			/*octrope_vector* ofvVec;
 			ofvVec = (octrope_vector*)malloc(sizeof(octrope_vector)*inState->totalVerts);
@@ -2763,7 +2812,6 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		taucs_ccs_free(sparseA);
 		free(A);
 		free(compressions);
-		free(minusDL);
 		// we only free this if the user wasn't interested in keeping it
 		if( outStruts == NULL )
 			free(strutSet);
@@ -2781,11 +2829,24 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			dl[dlItr].c[2] = dVdt[dlItr].c[2];
 		}
 		
+		// let's try just moving along the ofv
+		if( dlenStep == 0 )
+		{
+			// minusDL has ofv at this point
+			for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+			{
+				dl[dlItr].c[0] = minusDL[3*dlItr+0];
+				dl[dlItr].c[1] = minusDL[3*dlItr+1];
+				dl[dlItr].c[2] = minusDL[3*dlItr+2];
+			}
+		}
+		
 		if( gOutputFlag == 1 )
 		{
 			exportVect(dVdt, inLink, "/tmp/dVdt.vect");
 		}
 		
+		free(minusDL);
 		free(dVdt);
 	}
 		
