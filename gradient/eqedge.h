@@ -2,7 +2,7 @@
 /*
 
    eqedge.h : Header file for demo equilateralization code using LAPACK. 
-
+sd
 */
 
 /************************* Include Files **************************/
