@@ -242,7 +242,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		{
 			printf( "s: %d ms: %d len: %lf r: %lf ssize: %lf dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-						inState->length, inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
+						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
 						inState->avgDvdtMag, inState->residual, inState->time );
 		}
 		
@@ -282,24 +282,14 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			char    fname[512];
 			char adjustedName[512];
 			
-			if( inState->batching == 0 )
-			{
-				strcpy(adjustedName, inState->fname);
-				sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
-				bestFile = fopen(fname, "w");
-			}
-			else
-			{
-				strcpy(adjustedName, inState->fname);
-				strstr(adjustedName,".vect")[0] = '\0';
-				sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
-				bestFile = fopen(fname, "w");
-			}
+			strcpy(adjustedName, inState->fname);
+			sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
+			bestFile = fopen(fname, "w");
 			
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-			if( inState->totalVerts > 5*inState->ropelength )
+		//	if( inState->totalVerts > 4*inState->ropelength )
 			{
 				// we are DONE!
 				break;
@@ -370,87 +360,86 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 
 		if( inState->time >= nextMovieOutput )
 		{
-			char	fname[384];
+			char	fname[512];
 			FILE*   frame = NULL;
 			
-		//	if( inState->batching != 0 )
+			nextMovieOutput += 0.05;
+			
+			sprintf( fname, "restart_%s", inState->fname );
+			(strstr(fname,".vect"))[0] = '\0';
+			printf( "saved restart: %s\n", fname );
+			frame = fopen( fname, "w" );
+			octrope_link_write(frame, *inLink);
+			fclose(frame);
+			
+			if( inState->movie != 0 )
 			{
-			    sprintf( fname, "restart_%s", inState->fname );
-			    (strstr(fname,".vect"))[0] = '\0';
-			    printf( "saved restart: %s\n", fname );
-			    frame = fopen( fname, "w" );
-			    octrope_link_write(frame, *inLink);
-			    fclose(frame);
-			    
-			    nextMovieOutput += 0.05;
+				sprintf( fname, "movie%s/rmov.%lf_evals-%d_strts-%d_length-%lf.vect", 
+								inState->fname,
+								inState->time, 
+								inState->tsnnls_evaluations, 
+								inState->lastStepStrutCount,
+								inState->length );
+				frame = fopen( fname, "w" );
+				octrope_link_write(frame, *inLink);
+				fclose(frame);
+								
+				printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
 			}
-		//	else
+			
+			gOutputFlag = 1;
+			
+			/* also do graph outputs */
+			for( i=0; i<kTotalGraphTypes; i++ )
 			{
-			    sprintf( fname, "rmov.%lf_evals-%d_strts-%d_minrads-%d.vect", inState->time, 
-							    inState->tsnnls_evaluations, 
-							    inState->lastStepStrutCount,
-							    inState->lastStepMinradStrutCount );
-			  /*  frame = fopen( fname, "w" );
-			    octrope_link_write(frame, *inLink);
-			    fclose(frame);
-			    */
-			    nextMovieOutput += 0.05;
-			    
-			    printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
-			    gOutputFlag = 1;
-			    
-			    /* also do graph outputs */
-			    for( i=0; i<kTotalGraphTypes; i++ )
-			    {
-				    if( inState->graphing[i] != 0 )
-				    {
-					    char fname[255];
-					    sprintf(fname, "%ddat", i);
-					    if( i != kConvergence )
-						    fprintf( gnuplotDataFiles[i], "%lf\t", inState->time );
-					    else
-						    fprintf( gnuplotDataFiles[i], "%u\t", inState->steps );
-					    switch( i )
-					    {
-						    case kLength: fprintf( gnuplotDataFiles[i], "%lf", inState->length ); break;
-						    case kConvergence: 
-						    case kRopelength: fprintf( gnuplotDataFiles[i], "%lf", inState->ropelength ); break;
-						    case kStrutCount: fprintf( gnuplotDataFiles[i], "%d", inState->lastStepStrutCount ); break;
-						    case kStepSize: fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); break;
-						    case kThickness: fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); break;
-						    case kMinrad: fprintf( gnuplotDataFiles[i], "%lf", inState->minrad ); break;
-						    case kResidual: fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); break;
-						    case kMaxOverMin: fprintf( gnuplotDataFiles[i], "%lf", maxmin ); break;
-						    case kRcond: fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); break;
-						    case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/(CLOCKS_PER_SEC / (double) 1000.0) ); break;
-						    case kMaxVertexForce: fprintf( gnuplotDataFiles[i], "%lf", (inState->maxPush)/(inState->length/(double)inState->totalVerts) ); break;
-					    }
-					    fprintf( gnuplotDataFiles[i], "\n" );
-					    fflush(gnuplotDataFiles[i]);
-					    // show only last 5 seconds
-				    //	fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
-					    
-					    fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
-					    switch( i )
-					    {
-						    case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
-						    case kRopelength: fprintf( gnuplotPipes[i], "Ropelength" ); break;
-						    case kStrutCount: fprintf( gnuplotPipes[i], "Strut count" ); break;
-						    case kStepSize: fprintf( gnuplotPipes[i], "Step size" ); break;
-						    case kThickness: fprintf( gnuplotPipes[i], "Thickness" ); break;
-						    case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
-						    case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
-						    case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
-						    case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A^T A" ); break;
-						    case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
-						    case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
-						    case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
-					    }
-					    fprintf( gnuplotPipes[i], "\'\n" ); 
-					    fflush( gnuplotPipes[i] );
-				    }
-			    }
-			} // if not batching
+				if( inState->graphing[i] != 0 )
+				{
+					char fname[255];
+					sprintf(fname, "%ddat", i);
+					if( i != kConvergence )
+						fprintf( gnuplotDataFiles[i], "%lf\t", inState->time );
+					else
+						fprintf( gnuplotDataFiles[i], "%u\t", inState->steps );
+					switch( i )
+					{
+						case kLength: fprintf( gnuplotDataFiles[i], "%lf", inState->length ); break;
+						case kConvergence: 
+						case kRopelength: fprintf( gnuplotDataFiles[i], "%lf", inState->ropelength ); break;
+						case kStrutCount: fprintf( gnuplotDataFiles[i], "%d", inState->lastStepStrutCount ); break;
+						case kStepSize: fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); break;
+						case kThickness: fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); break;
+						case kMinrad: fprintf( gnuplotDataFiles[i], "%lf", inState->minrad ); break;
+						case kResidual: fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); break;
+						case kMaxOverMin: fprintf( gnuplotDataFiles[i], "%lf", maxmin ); break;
+						case kRcond: fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); break;
+						case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/(CLOCKS_PER_SEC / (double) 1000.0) ); break;
+						case kMaxVertexForce: fprintf( gnuplotDataFiles[i], "%lf", (inState->maxPush)/(inState->length/(double)inState->totalVerts) ); break;
+					}
+					fprintf( gnuplotDataFiles[i], "\n" );
+					fflush(gnuplotDataFiles[i]);
+					// show only last 5 seconds
+				//	fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
+					
+					fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
+					switch( i )
+					{
+						case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
+						case kRopelength: fprintf( gnuplotPipes[i], "Ropelength" ); break;
+						case kStrutCount: fprintf( gnuplotPipes[i], "Strut count" ); break;
+						case kStepSize: fprintf( gnuplotPipes[i], "Step size" ); break;
+						case kThickness: fprintf( gnuplotPipes[i], "Thickness" ); break;
+						case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
+						case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
+						case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
+						case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A^T A" ); break;
+						case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
+						case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
+						case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
+					}
+					fprintf( gnuplotPipes[i], "\'\n" ); 
+					fflush( gnuplotPipes[i] );
+				}
+			} // for graph outputs
 		}
 		
 		if( gOutputFlag == 1 )
@@ -1913,7 +1902,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	} while( (strutCount == (strutStorageSize-10)) || (minradLocs==(strutStorageSize-10)) );
 	
 	strutStorageSize -= 10; // return it to its actual value
-	
+		
 	//gFeasibleThreshold = strutCount;
 	
 	//collapseStruts(&strutSet, &strutStorageSize);
@@ -2192,7 +2181,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	//	}
 		
 		if( gOutputFlag == 1 && dlenStep != 0 )
-			export_struts(inLink, strutSet, strutCount, compressions);
+			export_struts(inLink, strutSet, strutCount, compressions, inState->time);
 
 		// if we are graphing rcond, we should record it here
 		if( inState->graphing[kRcond] != 0 )

@@ -59,7 +59,7 @@ void refresh_display(octrope_link *L)
 }
 
 void 
-export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions)
+export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, double time)
 {
 	FILE* fp = fopen("/tmp/struts.vect", "w");
 	int i=0;
@@ -129,6 +129,10 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	
 	fclose(kp);
 	fclose(fp);
+	
+	char cmd[1024];
+	sprintf(cmd, "cp /tmp/struts.vect struts.%lf.vect", time);
+	system(cmd);
 }
 
 void
