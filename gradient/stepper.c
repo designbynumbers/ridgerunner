@@ -218,7 +218,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		// we need to eq if we're below threshold or if last step hasn't brough us back 
 		// within an acceptable range
-		if( inState->eqThreshold <= inState->lastMaxMin || 
+/*		if( inState->eqThreshold <= inState->lastMaxMin || 
 			(inState->eq_step == 1 && inState->lastMaxMin > (1+((inState->eqThreshold - 1)/2))) )
 		{
 			inState->eq_step = 1;
@@ -230,12 +230,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			
 			printf( "" );
 		}
-		else
+		else*/
 			inState->eq_step = 0;
-	
-		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
-			inState->minrad < inState->minminrad &&
-			(inState->eq_step == 0) )
+
+		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad)))	)
 		{
 			inState->curvature_step = 0;
 		}
@@ -259,7 +257,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			getrusage(RUSAGE_SELF, &startStepTime);
 		*/
 		
-		gOutputFlag = 1;
+	//	gOutputFlag = 1;
 		
 		*inLink = bsearch_step(*inLink, inState);
 		
@@ -814,7 +812,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	double  lastDCSD, lastMR, eps = inState->stepSize*inState->stepSize;
 	octrope_link* workerLink;
 	
-//	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/20;
+//	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/50;
 	double ERROR_BOUND = 1e-5;
 //	double MR_ERROR_BOUND = ((inState->overstepTol)*inState->injrad)/20;
 	double MR_ERROR_BOUND = 1e-6;
@@ -834,7 +832,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 	stepAttempts = 0;
 	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=inState->stepSize;
+	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=0.25;
 	short	improvedNorm = 0;
 	
 //	correctionStepSize = 1e-7;
@@ -844,21 +842,6 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		normalizeVects(dVdt, inState->totalVerts);
 	}
 	
-	octrope_mrloc*		minradSetInitial = NULL;
-	minradSetInitial = (octrope_mrloc*)malloc(100 * sizeof(octrope_mrloc));
-	int minradLocsInitial;
-
-	newmr = octrope_minrad(inLink, 0.5, 100, minradSetInitial, 100, &minradLocsInitial );
-	if( minradLocsInitial > 0 )
-	{
-		printf( "INITIAL minrad Locs: %d newMR: %3.16lf (%3.16lf)\n", minradLocsInitial, newmr, newmr-lastMR );
-		int i;
-		for( i=0; i<minradLocsInitial; i++ )
-		{
-			printf( "%d (%3.8lf) ", minradSetInitial[i].vert, minradSetInitial[i].mr );
-		}
-	}
-	free(minradSetInitial);
 	
 	double newNorm = 0;
 	do
@@ -892,34 +875,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			gOutputFlag = 0;
 		}
 
-	//	newmr = octrope_minradval(workerLink);
-	
-		octrope_mrloc*		minradSet = NULL;
-		minradSet = (octrope_mrloc*)malloc(100 * sizeof(octrope_mrloc));
-		int minradLocs;
-		
-		newmr = octrope_minrad(workerLink, 0.5, 100, minradSet, 100, &minradLocs );
-		if( minradLocs > 0 )
-			printf( "minrad Locs: %d newMR: %3.16lf (%3.16lf)\n", minradLocs, newmr, newmr-lastMR );
-		int i;
-		newNorm = 0;
-		for( i=0; i<minradLocs; i++ )
-		{
-			printf( "%d (%3.8lf) ", minradSet[i].vert, minradSet[i].mr );
-			if( inState->curvature_step == 0 )
-				newNorm += (0.5-minradSet[i].mr)*(0.5-minradSet[i].mr);
-		}
-		newNorm = sqrt(newNorm);
-		if( minradLocs > 0 )
-		{
-				if( newNorm < inState->ofvNorm && inState->curvature_step == 0 )
-					improvedNorm = 1;
-		
-			printf( " newNorm: %3.16lf\n", newNorm );
-		}
-
-		free(minradSet);
-
+		newmr = octrope_minradval(workerLink);
 		newpoca = octrope_poca(workerLink, NULL, 0);
 		
 		inState->minrad = newmr;
@@ -940,48 +896,11 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			else
 				inState->stepSize /= 2;		
 		}
-		else
-		{
-			if( lastMR < inState->minminrad &&
-				newmr < lastMR )
-			{
-				mr_error = 1;
-				correctionStepSize /= 2;
-			}
-			else
-				mr_error = 0;
-	
-			if( inState->eq_step != 0 && newmr < .5 )
-			{
-				mr_error = max(lastMR - newmr, 0);
-				if( mr_error > MR_ERROR_BOUND )
-					correctionStepSize /= 2;
-			}
-			if( inState->eq_step != 0 && maxovermin(workerLink) > inState->lastMaxMin )
-			{
-				mr_error = 1; // cause repeat
-				correctionStepSize /= 2;
-				
-				free(dVdt);
-				dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
-				firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
-			}
-									
-			if( correctionStepSize < 1e-14 )
-				break;
-		}
+		
+		mr_error = 0;
 			
-	/*	free(dVdt);
-		dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
-		firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
-	*/			
 	} while( (curr_error > ERROR_BOUND || mr_error > MR_ERROR_BOUND) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
-	
-	if(improvedNorm == 0 && inState->curvature_step == 0 && correctionStepSize < 1e-14  )
-		printf( "*** didn't improve norm for _ANY_ step size! lsqr residual: %e\n", inState->ofvResidual );
-	else if( inState->curvature_step == 0 )
-		printf( "[Improved norm -- good] ofv residual: %e\n", inState->ofvResidual );
-	
+		
 	inState->minrad = newmr;
 	
 	if( inState->stepSize < kMinStepSize )
@@ -2243,7 +2162,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	if( dl == NULL )
 		dl = calloc(inState->totalVerts, sizeof(double));
 	
-	if( dlenStep != 0 && inState->eq_step == 0 )
+	if( dlenStep != 0 )
 		dlenForce(dl, inLink, inState);
 	
 //	dl = (octrope_vector*)calloc(inState->totalVerts, sizeof(struct octrope_vector_type));
@@ -2291,7 +2210,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					
 					NULL, 0 );
 					
-//		minradLocs = 0; // these actually aren't helpful
+		minradLocs = 0; // these actually aren't helpful
 		gFeasibleThreshold = minradLocs + strutCount;
 		
 		strutStorageSize += 10; // increase if we have to repeat this loop
@@ -2316,15 +2235,15 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	}
 
-//	if( dlenStep != 0 )
-//		eqForce(dl, inLink, inState);
+	if( dlenStep != 0 )
+		eqForce(dl, inLink, inState);
 
 //	if( dlenStep != 0 || inState->eq_step != 0 )
-	if( inState->eq_step != 0 )
-	{
-		eqForce(dl, inLink, inState);
+//	if( inState->eq_step != 0 )
+//	{
+//		eqForce(dl, inLink, inState);
 	//	spinForce(dl, inLink, inState);
-	}
+//	}
 //	specialForce(dl, inLink, inState);
 	
 	// this actually doesn't DO anything except print minrad state right now (if gOutputFlag)
@@ -2830,7 +2749,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 		
 		// let's try just moving along the ofv
-		if( dlenStep == 0 )
+/*		if( dlenStep == 0 )
 		{
 			// minusDL has ofv at this point
 			for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
@@ -2840,7 +2759,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				dl[dlItr].c[2] = minusDL[3*dlItr+2];
 			}
 		}
-		
+*/		
 		if( gOutputFlag == 1 )
 		{
 			exportVect(dVdt, inLink, "/tmp/dVdt.vect");

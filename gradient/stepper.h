@@ -19,7 +19,7 @@
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
 
-#define kMinStepSize 1e-8
+#define kMinStepSize 1e-14
 //#define kMaxStepSize 1e-2
 
 
