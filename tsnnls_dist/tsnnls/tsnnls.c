@@ -592,7 +592,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		infeasible(G,y,sizeG,H2,&sizeH2)  ) 
 	{
 		//printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
-		detectCycles( cycles, n, F, sizeF, &prevF, &prevprevF );
+		//detectCycles( cycles, n, F, sizeF, &prevF, &prevprevF );
 
 		/* We found infeasible variables. We're going to swap them 
 		   between F and G according to one of the schemes below. */
@@ -718,14 +718,14 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 				return NULL; // matrix probably not positive definite
 				
 			// zero cycles
-			for( fItr=0; fItr<sizeF; fItr++ )
+	/*		for( fItr=0; fItr<sizeF; fItr++ )
 			{
 				if( cycles[F[fItr]] > n )
 				{
 					xf_raw[fItr] = 0;
 				}
 			}
-																		
+	*/																	
 			/* taucs_snnls requires us to handle in some way the case where values
 			 * returned from lsqr that are within error tolerance of zero get continually
 			 * swapped between x and y because our comparison to zero is numerically more 
@@ -769,14 +769,14 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		fix_zeros(yg_raw, sizeG, rcond, inPrintErrorWarnings);
 		
 		// zero cycles (note: really gItr, here)
-		for( fItr=0; fItr<sizeG; fItr++ )
+	/*	for( fItr=0; fItr<sizeG; fItr++ )
 		{
 			if( cycles[G[fItr]] > n )
 			{
 				yg_raw[fItr] = 0;
 			}
 		}
-
+	*/
 		/* We're now done. It remains to scatter the entries in xf_raw
 		 * and yg_raw over the x and y vectors, and free everything that
 		 * we can manage to free. 

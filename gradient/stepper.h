@@ -80,6 +80,10 @@ typedef struct
 	double  avgDvdtMag;   // avg of all dvdt norms
 	double  residual;		// residual of last snnls call
 	
+	double	oldRopelength;
+	double	oldRopeTime;
+	double	checkDelta;
+	
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
 	
 } search_state;

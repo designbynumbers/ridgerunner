@@ -203,7 +203,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-			gOutputFlag = 1;
+		//	gOutputFlag = 1;
 	
 		if( inState->shortest < .9999 )
 			inState->curvature_step = 0;
@@ -256,8 +256,15 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			}
 		}*/
 				
-		if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
-			inState->curvature_step == 1/* && inState->time > 30*/ )
+		if( inState->oldRopeTime == 0 )
+		{
+			inState->oldRopeTime = inState->time;
+			inState->oldRopelength = inState->ropelength;
+		}
+			
+	//	if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
+	//		inState->curvature_step == 1/* && inState->time > 30*/ )
+		if( (inState->oldRopeTime + inState->checkDelta < inState->time) && fabs(inState->oldRopelength-inState->ropelength) < .1 )
 		{		
 			// if we're going to die, it'll be after this, so save our best
 			FILE* bestFile = NULL;
@@ -322,6 +329,13 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			inState->residual = 500; // make this big
 		}
 		
+		if( (inState->oldRopeTime + inState->checkDelta) < inState->time )
+		{
+			inState->oldRopelength = inState->ropelength;
+			inState->oldRopeTime = inState->time;
+			printf( "* Checked delta rope and continuing\n" );
+		}
+		
 		double maxmin;
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
@@ -329,12 +343,16 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		//inState->eqMultiplier = pow(10,maxmin);
 		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
 				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
-		printf( "cstep/step ratio: %lf\n", ((double)cSteps)/((double)stepItr+1) );
+		printf( "cstep/step ratio: %lf delta rope: %lf next check: %lf\n", 
+				((double)cSteps)/((double)stepItr+1), fabs(inState->oldRopelength-inState->ropelength),
+				inState->oldRopeTime+inState->checkDelta );
 
 		if( inState->time >= nextMovieOutput )
 		{
 			char	fname[384];
 			FILE*   frame = NULL;
+			
+			
 			
 			if( inState->batching != 0 )
 			{
