@@ -203,7 +203,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-		//	gOutputFlag = 1;
+			gOutputFlag = 1;
 	
 		if( inState->shortest < .9999 )
 			inState->curvature_step = 0;
@@ -326,7 +326,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-//		inState->eqMultiplier = pow(10,maxmin);
+		//inState->eqMultiplier = pow(10,maxmin);
 		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
 				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
 		printf( "cstep/step ratio: %lf\n", ((double)cSteps)/((double)stepItr+1) );
@@ -516,7 +516,7 @@ dumpAxb( taucs_ccs_matrix* A, double* x, double* b )
 {
 	int i, j;
 	double* vals = taucs_convert_ccs_to_doubles(A);
-	FILE* fp = fopen("/Users/michaelp/examples", "a");
+	FILE* fp = fopen("/Users/michaelp/examples", "w");
 	
 	// out dims
 	fprintf( fp, "%d %d\n", A->m, A->n );
@@ -1886,10 +1886,12 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	}
 
 	if( dlenStep != 0 )
+	{
 		eqForce(dl, inLink, inState);
+		spinForce(dl, inLink, inState);
+	}
 //	specialForce(dl, inLink, inState);
-//	spinForce(dl, inLink, inState);
-//	minradForce(dl, inLink, inState);
+//	//	minradForce(dl, inLink, inState);
 
 	//specialForce(dl, inLink, inState);
 	
@@ -2081,7 +2083,11 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
 	//	taucs_print_ccs_matrix(sparseA);
 		//if( strutCount != 0 )
-		int foo;
+		
+	/*	double* foobear = (double*)malloc(sizeof(double)*sparseA->n);
+		dumpAxb( sparseA, foobear, minusDL );
+		free(foobear);
+	*/	
 			compressions = t_snnls(sparseA, minusDL, &inState->residual, 2, 0);
 	//		for( foo=0; foo<sparseA->n; foo++ )
 	//			printf( "(%d) %lf ", minradSet[foo].vert, compressions[foo] );
