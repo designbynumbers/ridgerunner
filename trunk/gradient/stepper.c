@@ -206,7 +206,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			
 		//if( (i%50)==0 )
 	
-		if( inState->shortest < .9999 )
+		if( inState->shortest < ((2*inState->injrad)-0.0001) )
 			inState->curvature_step = 0;
 		else
 		{

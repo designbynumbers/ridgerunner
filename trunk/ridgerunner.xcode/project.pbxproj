@@ -13,7 +13,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				HEADER_SEARCH_PATHS = "taucs/src mactrope taucs/build/darwin tnnls /sw/include tsnnls_dist/tsnnls";
+				HEADER_SEARCH_PATHS = "taucs/src liboctrope-1.0/src/octropesrc liboctrope-1.0/src/linklibsrc mactrope taucs/build/darwin tnnls /sw/include tsnnls_dist/tsnnls";
 				LIBRARY_SEARCH_PATHS = "mactrope taucs/lib/darwin taucs/external/lib/darwin tsnnls_dist/";
 				OPTIMIZATION_CFLAGS = "-O0";
 				OTHER_LDFLAGS = " -lMallocDebug";
