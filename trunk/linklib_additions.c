@@ -32,6 +32,74 @@ link_scale( octrope_link* inLink, double factor )
 } 
 
 octrope_link*
+octrope_double_component( octrope_link* inLink, int comp )
+{
+	/* double number of sides through bisection -- keeps things eq and shouldn't munger too much with
+	 * struts
+	 */
+	octrope_link*   doubled;
+	int*			newVerts = (int*)malloc(sizeof(int)*inLink->nc);
+	int*			cyclicity = (int*)malloc(sizeof(int)*inLink->nc);
+	int*			color_count = (int*)malloc(sizeof(int)*inLink->nc);
+	int				cItr, vItr;
+	
+	for( cItr=0; cItr<inLink->nc; cItr++ )
+	{
+		if( cItr == comp )
+			newVerts[cItr] = inLink->cp[cItr].nv * 2;
+		else
+			newVerts[cItr] = inLink->cp[cItr].nv;
+			
+		cyclicity[cItr] = inLink->cp[cItr].acyclic;
+		color_count[cItr] = 1;
+	}
+	
+	doubled = octrope_link_new( inLink->nc,
+						newVerts,
+						cyclicity, 
+						color_count );
+	
+	octrope_link_fix_wrap(inLink);
+						
+	for( cItr=0; cItr<inLink->nc; cItr++ )
+	{
+		// preserve color
+		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(octrope_color) );
+	
+		doubled->cp[cItr].clr[0].r = inLink->cp[cItr].clr[0].r;
+		doubled->cp[cItr].clr[0].g = inLink->cp[cItr].clr[0].g;
+		doubled->cp[cItr].clr[0].b = inLink->cp[cItr].clr[0].b;
+		doubled->cp[cItr].clr[0].alpha = inLink->cp[cItr].clr[0].alpha;
+	
+		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
+		{			
+			if( cItr == comp )
+			{
+				doubled->cp[cItr].vt[vItr*2+0].c[0] = inLink->cp[cItr].vt[vItr].c[0];
+				doubled->cp[cItr].vt[vItr*2+0].c[1] = inLink->cp[cItr].vt[vItr].c[1];
+				doubled->cp[cItr].vt[vItr*2+0].c[2] = inLink->cp[cItr].vt[vItr].c[2];
+
+				doubled->cp[cItr].vt[vItr*2+1].c[0] = 0.5*inLink->cp[cItr].vt[vItr].c[0] + 0.5*inLink->cp[cItr].vt[vItr+1].c[0];
+				doubled->cp[cItr].vt[vItr*2+1].c[1] = 0.5*inLink->cp[cItr].vt[vItr].c[1] + 0.5*inLink->cp[cItr].vt[vItr+1].c[1];
+				doubled->cp[cItr].vt[vItr*2+1].c[2] = 0.5*inLink->cp[cItr].vt[vItr].c[2] + 0.5*inLink->cp[cItr].vt[vItr+1].c[2];
+			}
+			else
+			{
+				doubled->cp[cItr].vt[vItr].c[0] = inLink->cp[cItr].vt[vItr].c[0];
+				doubled->cp[cItr].vt[vItr].c[1] = inLink->cp[cItr].vt[vItr].c[1];
+				doubled->cp[cItr].vt[vItr].c[2] = inLink->cp[cItr].vt[vItr].c[2];
+			}
+		}
+	}
+	
+	free(newVerts);
+	free(cyclicity);
+	free(color_count);
+
+	return doubled;
+}
+
+octrope_link*
 octrope_double_edges( octrope_link* inLink )
 {
 	/* double number of sides through bisection -- keeps things eq and shouldn't munger too much with

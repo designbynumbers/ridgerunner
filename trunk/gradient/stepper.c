@@ -203,7 +203,6 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-			gOutputFlag = 1;
 	
 		if( inState->shortest < .9999 )
 			inState->curvature_step = 0;
@@ -215,9 +214,13 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 																		
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
-							
+
+		gOutputFlag = 1;
+		
 		*inLink = bsearch_step(*inLink, inState);
 		inState->steps++;
+		
+		gOutputFlag = 1;
 				
 	//	if( lastSet != state.lastStepStrutCount || (i%50)==0 )
 		if( (i%50) == 0 ) // check things out every 50 steps
@@ -438,7 +441,8 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			octrope_link_draw(verts, *inLink);
 			fclose(verts);
 		}
-									
+
+																
 		// eq ourselves
 	//	maxovermin(*inLink);
 		//lapack_eqedge( *inLink, 4 );
