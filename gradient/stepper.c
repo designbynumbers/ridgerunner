@@ -13,6 +13,7 @@
 #include <time.h>
 
 #include "tsnnls.h"
+#include "lsqr.h"
 
 #include "octrope_vector.h"
 
@@ -26,7 +27,9 @@ octrope_link*		bsearch_step( octrope_link* inLink, search_state* inState );
 void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt );
 void				firstVariation( octrope_vector* inOutDvdt, octrope_link* inLink, search_state* inState,
 						octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
-						
+
+extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
+
 // lesser utility functions
 int					equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
 void				normalizeStruts( octrope_vector* strutDirections, 
@@ -142,10 +145,11 @@ reloadDump( double* A, int rows, int cols, double* x, double* b )
 }
 
 
-int gOutputFlag = 0;
+int gOutputFlag = 1;
 int gConditionCheck = 0;
 
 #define kOutputItrs 1
+#define SECS(tv)        (tv.tv_sec + tv.tv_usec / 1000000.0)
 
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
@@ -206,7 +210,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			
 		//if( (i%50)==0 )
 	
-		if( inState->shortest < ((2*inState->injrad)-0.0001) )
+		if( inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad)) )
 			inState->curvature_step = 0;
 		else
 		{
@@ -219,6 +223,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
 
+//		inState->maxStepSize = 1e-5;
 	//	gOutputFlag = 1;
 		
 		*inLink = bsearch_step(*inLink, inState);
@@ -343,8 +348,19 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			char	fname[512];
 			FILE*   frame = NULL;
 			
-			nextMovieOutput += 0.05;
+			struct rusage stopTime;
+			double user;
 			
+			// grab time for this frame and reset counter
+			getrusage(RUSAGE_SELF, &stopTime);
+			user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
+			printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
+			getrusage(RUSAGE_SELF, &inState->frameStart);
+			
+		//	nextMovieOutput += 0.05;
+			// make things 24 fps
+			nextMovieOutput += 0.041666666667;
+					
 			sprintf( fname, "restart_%s", inState->fname );
 		//	(strstr(fname,".vect"))[0] = '\0';
 			printf( "saved restart: %s\n", fname );
@@ -418,7 +434,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 						case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
 						case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
 						case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
-						case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A^T A" ); break;
+						case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A (rigidity matrix)" ); break;
 						case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
 						case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
 						case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
@@ -743,8 +759,138 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 	free(b);
 }
 
+static void
+normalizeVects( octrope_vector* dvdt, int size )
+{
+	double sum = 0;
+	int i;
+	for( i=0; i<size; i++ )
+	{
+		sum += dvdt[i].c[0]*dvdt[i].c[0];
+		sum += dvdt[i].c[1]*dvdt[i].c[1];
+		sum += dvdt[i].c[2]*dvdt[i].c[2];
+	}
+	
+	sum = sqrt(sum);
+	
+	for( i=0; i<size; i++ )
+	{
+		dvdt[i].c[0] = 10*(dvdt[i].c[0]/sum);
+		dvdt[i].c[1] = 10*(dvdt[i].c[1]/sum);
+		dvdt[i].c[2] = 10*(dvdt[i].c[2]/sum);
+	}
+}
+
 octrope_link*
 bsearch_step( octrope_link* inLink, search_state* inState )
+{	
+	int stepAttempts;
+	int dvdtItr;
+	double  lastDCSD, eps = inState->stepSize*inState->stepSize;
+	octrope_link* workerLink;
+	
+	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/200;
+
+	// create initial vector field for which we want to move along in this step
+	octrope_vector* dVdt;
+	
+	dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+	
+	firstVariation(dVdt, inLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
+	if( inState->shortest > 2*inState->injrad )
+		inState->shortest = 2*inState->injrad;
+			
+//	lastDCSD = octrope_poca(inLink, NULL, 0);
+	lastDCSD = inState->shortest;
+
+	stepAttempts = 0;
+	workerLink = NULL;
+	double curr_error = 0, newpoca = 0;
+	do
+	{			
+		stepAttempts++;
+		
+	/*	if( inState->stepSize == 0 )
+		{
+			inState->stepSize = kMinStepSize;
+			break;
+		}
+	*/	
+		// move along dVdt
+		if( workerLink != NULL )
+			octrope_link_free(workerLink);
+		workerLink = octrope_link_copy(inLink);
+		if( inState->curvature_step != 0 )
+		{
+		//	normalizeVects(dVdt, inState->totalVerts);
+			step(workerLink, inState->stepSize, dVdt);
+		}
+		else
+			step(workerLink, 0.25, dVdt);
+
+		if( gOutputFlag == 1 )
+		{
+			exportVect(dVdt, inLink, "/tmp/dVdt.vect");
+			printf( "visualization output\n" );
+			gOutputFlag = 0;
+		}
+		
+		// check our new thickness
+		newpoca = octrope_poca(workerLink, NULL, 0);
+		curr_error = max( lastDCSD-newpoca, 0 );
+		if( curr_error < ERROR_BOUND )
+			inState->stepSize *= 2;
+		else
+			inState->stepSize /= 2;		
+				
+	} while( /*fabs(curr_error-ERROR_BOUND) < (ERROR_BOUND/10.0)*/ curr_error > ERROR_BOUND && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
+				
+	if( inState->curvature_step != 0 && inState->eq_step == 0 )
+	{
+		inState->cstep_time += inState->stepSize;
+		inState->time += inState->stepSize;
+	}
+	
+	octrope_link_free(inLink);
+	inLink = workerLink;
+		
+	// we're good, double step size and continue jamming
+/*	if( stepAttempts == 1 && inState->curvature_step != 0  )
+	{
+		inState->stepSize *= 2;
+	}
+*/	
+	if( inState->stepSize > inState->maxStepSize )
+	{
+		inState->stepSize = inState->maxStepSize;
+	}
+	
+	// grab average dvdt now that we have finished mungering it
+	inState->avgDvdtMag=0;
+	for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ )
+	{
+		inState->avgDvdtMag += octrope_norm(dVdt[dvdtItr]);
+	}
+	inState->avgDvdtMag /= inState->totalVerts;
+
+	// we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
+	if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && inState->curvature_step != 0 &&
+		inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) // this keeps us from zeroing on corrector steps
+	{
+		inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+	}
+	
+	// also shouldn't be > 10% of edgelength
+	if( inState->stepSize > inState->length/inState->totalVerts*.1 )
+		inState->stepSize = inState->length/inState->totalVerts*.1;
+	
+	free(dVdt);
+	
+	return inLink;
+}
+
+static octrope_link*
+old_bsearch_step( octrope_link* inLink, search_state* inState )
 {	
 	int stepAttempts;
 	int dvdtItr;
@@ -839,9 +985,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		inState->stepSize *= 2;
 	}
 	
-	if( inState->stepSize > kMaxStepSize )
+	if( inState->stepSize > inState->maxStepSize )
 	{
-		inState->stepSize = kMaxStepSize;
+		inState->stepSize = inState->maxStepSize;
 	}
 	
 	// grab average dvdt now that we have finished mungering it
@@ -1393,6 +1539,9 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
+	if( gOutputFlag == 0 )
+		return;
+	
 	// note to self - this can be made much faster by not being dumb
 	
 	octrope_link_fix_wrap(inLink);
@@ -1810,7 +1959,58 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		exportVect( dlen, inLink, "/tmp/adjustedDL.vect" );
 }
 
+static double*
+stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL )
+{
+	/* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR */
+	lsqr_input   *lsqr_in;
+	lsqr_output  *lsqr_out;
+	lsqr_work    *lsqr_work;
+	lsqr_func    *lsqr_func;
+	int bItr;
+	double*		result;
+						
+	alloc_lsqr_mem( &lsqr_in, &lsqr_out, &lsqr_work, &lsqr_func, sparseA->m, sparseA->n );
+	
+	/* we let lsqr() itself handle the 0 values in this structure */
+	lsqr_in->num_rows = sparseA->m;
+	lsqr_in->num_cols = sparseA->n;
+	lsqr_in->damp_val = 0;
+	lsqr_in->rel_mat_err = kZeroThreshold;
+	lsqr_in->rel_rhs_err = 0;
+	lsqr_in->cond_lim = 0;
+	lsqr_in->max_iter = lsqr_in->num_rows + lsqr_in->num_cols + 5000;
+	lsqr_in->lsqr_fp_out = NULL;	
+	for( bItr=0; bItr<sparseA->m; bItr++ )
+	{
+		lsqr_in->rhs_vec->elements[bItr] = minusDL[bItr];
+	}
+	/* Here we set the initial solution vector guess, which is 
+	 * a simple 1-vector. You might want to adjust this value for fine-tuning
+	 * t_snnls() for your application
+	 */
+	for( bItr=0; bItr<sparseA->n; bItr++ )
+	{
+		lsqr_in->sol_vec->elements[bItr] = 1; 
+	}
+	
+	/* This is a function pointer to the matrix-vector multiplier */
+	lsqr_func->mat_vec_prod = sparse_lsqr_mult;
+	
+	lsqr( lsqr_in, lsqr_out, lsqr_work, lsqr_func, sparseA );
+	
+	result = (double*)malloc(sizeof(double)*sparseA->n);
+	for( bItr=0; bItr<sparseA->n; bItr++ ) // not really bItr here, but hey
+		result[bItr] = lsqr_out->sol_vec->elements[bItr];
+	
+	free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );
+
+	return result;
+}
+
 int gFeasibleThreshold = 0;
+
+int gFoo = 0;
 
 void
 firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
@@ -1884,7 +2084,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					&minradLocs,
 					
 					// strut info
-					.0001,
+					inState->overstepTol*2*inState->injrad,
 					strutSet,
 					strutStorageSize,
 					&strutCount,
@@ -1922,7 +2122,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	//	spinForce(dl, inLink, inState);
 	}
 //	specialForce(dl, inLink, inState);
-//	//	minradForce(dl, inLink, inState);
+	
+	// this actually doesn't DO anything except print minrad state right now (if gOutputFlag)
+	//minradForce(dl, inLink, inState);
 
 	//specialForce(dl, inLink, inState);
 	
@@ -2010,6 +2212,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	*/	
 			
+		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+			
 		// construct minusDL -- this is a column vector of size totalVerts
 		// we must operate using strictly doubles to interoperate with taucs_snnls
 		minusDL = (double*)calloc((3*inState->totalVerts), sizeof(double));
@@ -2024,12 +2228,15 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 		else
 		{
+			taucs_ccs_matrix* sparseAT = taucs_ccs_transpose(sparseA);
+			double*	ofvB = (double*)calloc(strutCount, sizeof(double));
+		
 			for( sItr=0; sItr<strutCount; sItr++ )
 			{
-				if( strutSet[sItr].length < thickness-0.0001 )
-//				if( strutSet[sItr].length < thickness )
+		//		if( strutSet[sItr].length < thickness - (thickness*inState->overstepTol) )
+				if( strutSet[sItr].length < thickness )
 				{
-					/* get the norm, distribute force over verts */
+					/* get the norm, distribute force over verts *
 					octrope_vector  ends[2];
 					double		norm;
 					int offset;
@@ -2067,10 +2274,75 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
 					minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
 					minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
-				}
-			}
+				*/
+					
+					ofvB[sItr] = thickness-strutSet[sItr].length;
+				
+				} // if < thickness
+				
+			} // for over struts
 			
-			for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+			/*
+			 * Fact: The rigidity matrix A (compressions) = (resulting motions of verts).
+			 * So it's also true that
+			 * 
+			 *		  A^T (a motion of verts) = (resulting change in edge length)
+			 *
+			 *	Now we _have_ a desired change in edge lengths, namely (1 - l_i), (1-l_j)
+			 *	and all that. Call it b. So we really ought to compute velocity for a
+			 *	correction step by
+			 *
+			 *		  A^T v = b.
+			 *
+			 *	Is this equation always solvable? Probably not. So we'll take the results
+			 *	of
+			 *
+			 *		 lsqr(A^T,b) = overstep fixing velocity (OFV)
+			 *
+			 */
+			
+			double* ofv;
+						
+			ofv = stanford_lsqr(sparseAT, ofvB);
+			
+		/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+			{
+				octrope_vector  vert;
+				double  norm;
+				vert.c[0] = ofv[3*dlItr+0];
+				vert.c[1] = ofv[3*dlItr+1];
+				vert.c[2] = ofv[3*dlItr+2];
+				norm = octrope_norm(vert);
+				if( norm != 0 )
+				{
+					ofv[3*dlItr+0] /= norm;
+					ofv[3*dlItr+1] /= norm;
+					ofv[3*dlItr+2] /= norm;
+				
+				/*	ofv[3*dlItr+0] *= 0.1;
+					ofv[3*dlItr+1] *= 0.1;
+					ofv[3*dlItr+2] *= 0.1;
+				*
+				}
+				else
+				{
+					ofv[3*dlItr+0] = 0;
+					ofv[3*dlItr+1] = 0;
+					ofv[3*dlItr+2] = 0;
+				}
+			}*/
+
+			
+			memcpy(minusDL, ofv, sizeof(double)*3*inState->totalVerts);
+			
+			free(ofv);
+			
+			//inState->stepSize = 0.5;
+			
+			free(ofvB);
+			taucs_ccs_free(sparseAT);
+			
+		/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 			{
 				octrope_vector  vert;
 				double  norm;
@@ -2094,7 +2366,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					minusDL[3*dlItr+1] = 0;
 					minusDL[3*dlItr+2] = 0;
 				}
-			}
+			}*/
 		
 	/*		if( gOutputFlag == 1 )
 			{
@@ -2111,7 +2383,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 							
 		// solve AX = -dl, x is strut compressions
-		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+//		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
 	//	taucs_print_ccs_matrix(sparseA);
 		//if( strutCount != 0 )
 		
@@ -2182,9 +2454,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		// if we are graphing rcond, we should record it here
 		if( inState->graphing[kRcond] != 0 )
 		{
-			taucs_ccs_matrix* apda = taucs_ccs_aprime_times_a(sparseA);
-			inState->rcond = taucs_rcond(apda);
-			taucs_ccs_free(apda);
+	//		taucs_ccs_matrix* apda = taucs_ccs_aprime_times_a(sparseA);
+			inState->rcond = taucs_rcond(sparseA);
+	//		taucs_ccs_free(apda);
 		}
 		
 		if( compressions == NULL )
