@@ -101,7 +101,7 @@ typedef struct
  * the link approximately equilateral.
  *
  */
-void bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* inState );
+void bsearch_stepper( octrope_link** inLink, search_state* inState );
 
 double				maxovermin( octrope_link* inLink );
 

@@ -65,6 +65,8 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	int i=0;
 	double maxCompression;
 	
+	FILE* kp = fopen("/tmp/struts.ascii", "w");
+	
 	if( inSize == 0 )
 	{
 		fclose(fp);
@@ -94,7 +96,17 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 			points[0].c[1], 
 			points[0].c[2] );
 		
+		fprintf(kp, "%lf %lf %lf\n",
+			points[0].c[0], 
+			points[0].c[1], 
+			points[0].c[2] );
+		
 		fprintf(fp, "%lf %lf %lf\n",
+			points[1].c[0], 
+			points[1].c[1], 
+			points[1].c[2] );
+			
+		fprintf(kp, "%lf %lf %lf\n\n",
 			points[1].c[0], 
 			points[1].c[1], 
 			points[1].c[2] );
@@ -115,6 +127,7 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 		fprintf(fp, "%f,%f,%f,0\n", compressions[i]/maxCompression, 0.0, 0.0);
 	}
 	
+	fclose(kp);
 	fclose(fp);
 }
 
