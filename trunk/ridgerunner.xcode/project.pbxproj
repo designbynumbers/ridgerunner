@@ -13,8 +13,8 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				HEADER_SEARCH_PATHS = "taucs/src liboctrope-1.0 taucs/build/darwin tnnls /sw/include tsnnls_dist/tsnnls";
-				LIBRARY_SEARCH_PATHS = "liboctrope-1.0 taucs/lib/darwin taucs/external/lib/darwin tsnnls_dist/";
+				HEADER_SEARCH_PATHS = "taucs/src mactrope taucs/build/darwin tnnls /sw/include tsnnls_dist/tsnnls";
+				LIBRARY_SEARCH_PATHS = "mactrope taucs/lib/darwin taucs/external/lib/darwin tsnnls_dist/";
 				OPTIMIZATION_CFLAGS = "-O0";
 				OTHER_LDFLAGS = " -lMallocDebug";
 				ZERO_LINK = NO;
@@ -205,6 +205,12 @@
 		34037BC806D1662300A0092E = {
 			children = (
 				34037C7206D167AE00A0092E,
+				34037DA606D172F300A0092E,
+				34037DA706D172F300A0092E,
+				34037DA806D172F300A0092E,
+				34037DA906D172F300A0092E,
+				34037DAA06D172F300A0092E,
+				34037DAB06D172F300A0092E,
 				34037C6A06D1679C00A0092E,
 				34037C3C06D1673600A0092E,
 				34037C3D06D1673600A0092E,
@@ -583,6 +589,90 @@
 			settings = {
 			};
 		};
+		34037DA606D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = taucs.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DA706D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = f2c.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DA806D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = colamd.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DA906D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = taucs_private.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DAA06D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = taucs_config_build.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DAB06D172F300A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = taucs_config_tests.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037DAC06D172F300A0092E = {
+			fileRef = 34037DA606D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037DAD06D172F300A0092E = {
+			fileRef = 34037DA706D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037DAE06D172F300A0092E = {
+			fileRef = 34037DA806D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037DAF06D172F300A0092E = {
+			fileRef = 34037DA906D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037DB006D172F300A0092E = {
+			fileRef = 34037DAA06D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037DB106D172F300A0092E = {
+			fileRef = 34037DAB06D172F300A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
 		340BD50A066F9D7800B257FE = {
 			fileEncoding = 4;
 			isa = PBXFileReference;
@@ -732,6 +822,12 @@
 				34037CD106D1697400A0092E,
 				34037CD206D1697400A0092E,
 				34037D0506D16B3900A0092E,
+				34037DAC06D172F300A0092E,
+				34037DAD06D172F300A0092E,
+				34037DAE06D172F300A0092E,
+				34037DAF06D172F300A0092E,
+				34037DB006D172F300A0092E,
+				34037DB106D172F300A0092E,
 			);
 			isa = PBXHeadersBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
