@@ -138,7 +138,47 @@ main( int argc, char* argv[] )
 	//link_scale(link,1.0001);
 	
 //	octrope_link_free(store);
-	
+
+/*	{
+		int maxComp=0, maxVerts = -1;
+		for( cItr=0; cItr<link->nc; cItr++ )
+		{
+			if( link->cp[cItr].nv > maxVerts )
+			{
+				maxComp = cItr;
+				maxVerts = link->cp[cItr].nv;
+			}
+		}
+		
+		for( cItr=0; cItr<link->nc; cItr++ )
+		{
+			if( cItr != maxComp )
+			{
+				octrope_link* old;
+				old = link;
+				link = octrope_double_component(old, cItr);
+				octrope_link_free(old);
+			}
+		}
+		
+		state.totalVerts = 0;
+		for( cItr=0; cItr<(link)->nc; cItr++ )
+		{
+			state.totalVerts += (link)->cp[cItr].nv;
+		}
+		
+		updateSideLengths(link, &state);
+		
+	//	state.stepSize = state.avgDvdtMag*state.avgDvdtMag;
+	//	if( kStepScale*octrope_link_short_edge(*inLink) < state.stepSize )
+	//		state.stepSize = kStepScale*octrope_link_short_edge(*inLink);
+		int offset = 0;
+		for( cItr=0; cItr<link->nc; cItr++ )
+		{
+			state.compOffsets[cItr] = offset;
+			offset += (link)->cp[cItr].nv;
+		}
+	}*/
 		
 	bsearch_stepper(&link, 10000000, &state);
 	octrope_link_free(link);

@@ -438,11 +438,12 @@ sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod )
 #endif
 
 static void
-detectCycles( int* counts, int n, int* F, int sizeF, int** prevFhandle, int** prevprevFhandle )
+detectCycles( int* counts, int n, int* F, int sizeF, int** prevFhandle, int** Fbar, int* FbarSize )
 {
-	int i, fItr, pItr, ppItr;
+	int i, ofItr, fItr, fbItr, pItr, ppItr;
+	int* ofb = (*Fbar);
 	
-	// these will be the case during the first 2 calls when cycling is not yet possible
+	// these will be the case during the first call when cycling is not yet possible
 	if( (*prevFhandle) == NULL )
 	{
 		(*prevFhandle) = (int*)calloc(n+1, sizeof(int));
@@ -452,50 +453,64 @@ detectCycles( int* counts, int n, int* F, int sizeF, int** prevFhandle, int** pr
 	
 		return;
 	}
-	
-	if( (*prevprevFhandle) == NULL )
-	{
-		(*prevprevFhandle) = (*prevFhandle);
-		(*prevFhandle) = (int*)calloc(n+1, sizeof(int));
-		for( i=0; i<sizeF; i++ )
-			(*prevFhandle)[i] = F[i];
-		(*prevFhandle)[i] = -1;
 		
-		return;
+	int* newFbar, found, nfbItr=0;
+	
+	newFbar = (int*)calloc(n, sizeof(int));
+	
+	// find guys in old F not in new F, put these in the new Fbar set of potential cyclers
+	for( pItr=0; (*prevFhandle)[pItr] != -1; pItr++ )
+	{
+		found = 0;
+		for( fItr=0; fItr<sizeF; fItr++ )
+		{
+			if( F[fItr] == (*prevFhandle)[pItr] )
+			{
+				found = 1;
+				break;
+			}
+		}
+		
+		// these could be potential cycles in the future, add them to Fbar
+		if( found == 0 )
+		{
+			newFbar[nfbItr++] = (*prevFhandle)[pItr];
+		}
 	}
 	
-	// since we have previous states, a cycle will occur if a variable is in prevprevF, not in prevF, 
-	// and is in F.
+	// search Fbar for elements of F, if found, increase their cycle count by 1 and 
+	// remove from Fbar
 	for( fItr=0; fItr<sizeF; fItr++ )
 	{
-		for( ppItr=0; (*prevprevFhandle)[ppItr] != -1; ppItr++ )
+		for( fbItr=0; fbItr<(*FbarSize); fbItr++ )
 		{
-			if( (*prevprevFhandle)[ppItr] == F[fItr] )
+			if( F[fItr] == (*Fbar)[fbItr] )
 			{
-				// so it was here two times previous, if it wasn't in F previously, then it 
-				// is a cycle
-				for( pItr=0; (*prevFhandle)[pItr] != -1; pItr++ )
-				{
-					// it was here before, no cycle
-					if( (*prevFhandle)[pItr] == F[fItr] )
-						break;
-				}
-				// we didn't find it, which implies cycle for F[fItr]
-				if( (*prevFhandle)[pItr] == -1 )
-				{
-					counts[F[fItr]] += 1;
-				}
+				counts[F[fItr]]++;
+				(*Fbar)[fbItr] = -1; // tombstone
+				
+				break;
 			}
 		}
 	}
 	
-	if( (*prevprevFhandle) != NULL )
-		free( (*prevprevFhandle) );
-	(*prevprevFhandle) = (*prevFhandle);
-	(*prevFhandle) = (int*)calloc(n+1, sizeof(int));
+	// we now have in F all the new guys, we need to add the old guys
+	// that weren't detected as cycles
+	for( fbItr=0; fbItr<(*FbarSize); fbItr++ )
+	{
+		if( (*Fbar)[fbItr] != -1 )
+			newFbar[nfbItr++] = (*Fbar)[fbItr];
+	}
+	
+	// update previous F to be F
 	for( i=0; i<sizeF; i++ )
 		(*prevFhandle)[i] = F[i];
 	(*prevFhandle)[i] = -1;
+			
+	// update Fbar and free old one
+	free(ofb);
+	*Fbar = newFbar;
+	*FbarSize = nfbItr;
 }
 
 taucs_double*
@@ -513,8 +528,8 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	int				lsqrStep=0;
 	double			rcond=1;
 	
-	int				*cycles, *prevF = NULL, *prevprevF = NULL;
-
+	int				*cycles, *prevF = NULL, *Fbar = NULL, FbarSize = 0;
+	
 	/* These variables are subsets of the column indices of the matrix A, 
 	 * always stored in sorted order, and sized by the corresponding
 	 * "size" integers. 
@@ -563,6 +578,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	H2  = calloc(n,sizeof(int));
 	
 	cycles = calloc(n, sizeof(int));
+	Fbar = calloc(n, sizeof(int));
 
 	x   = calloc(n,sizeof(taucs_double));
 	y   = calloc(m,sizeof(taucs_double));
@@ -599,8 +615,8 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		infeasible(F,x,sizeF,H1,&sizeH1),  
 		infeasible(G,y,sizeG,H2,&sizeH2)  ) 
 	{
-		//printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
-		detectCycles( cycles, n, F, sizeF, &prevF, &prevprevF );
+//		printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
+		detectCycles( cycles, n, F, sizeF, &prevF, &Fbar, &FbarSize );
 
 		/* We found infeasible variables. We're going to swap them 
 		   between F and G according to one of the schemes below. */
@@ -879,8 +895,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	free(cycles);
 	if( prevF != NULL )
 		free(prevF);
-	if( prevprevF != NULL )
-		free(prevprevF);
+	free(Fbar);
 
 	return x;
 }
