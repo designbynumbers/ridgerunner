@@ -269,7 +269,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-			if( inState->totalVerts > inState->refineUntil*inState->ropelength )
+			if( inState->totalVerts > inState->refineUntil*(2*inState->ropelength) )
 			{
 				// we are DONE!
 				break;
