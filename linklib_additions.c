@@ -3,7 +3,7 @@
 */
 
 #include"eqedge.h"
-#include "stepper.h"
+#include "gradient/stepper.h"
 
 int    octrope_pline_edges(octrope_pline *P)
 
