@@ -151,6 +151,8 @@ int gConditionCheck = 0;
 #define kOutputItrs 1
 #define SECS(tv)        (tv.tv_sec + tv.tv_usec / 1000000.0)
 
+int	gEQevents = 0;
+
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
 {
@@ -212,19 +214,27 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			
 		//if( (i%50)==0 )
 		
-		// we want to fix eq, but only if minrad is okay -- otherwise we will tend to royally
-		// screw up minrad
-		if( inState->eqThreshold <= inState->lastMaxMin && 
-			!(inState->minrad < inState->injrad-(inState->overstepTol*inState->injrad)) )
+		inState->curvature_step = 1;
+		
+		// we need to eq if we're below threshold or if last step hasn't brough us back 
+		// within an acceptable range
+		if( inState->eqThreshold <= inState->lastMaxMin || 
+			(inState->eq_step == 1 && inState->lastMaxMin > (1+((inState->eqThreshold - 1)/2))) )
 		{
 			inState->eq_step = 1;
 			inState->curvature_step = 0;
+			
+			FILE* verts = fopen("/tmp/verts.vect", "w");
+			octrope_link_draw(verts, *inLink);
+			fclose(verts);
+			
+			printf( "" );
 		}
 		else
 			inState->eq_step = 0;
 	
-		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad)) ||
-			inState->minrad < inState->injrad-(inState->overstepTol*inState->injrad)) &&
+		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
+			inState->minrad < inState->minminrad &&
 			(inState->eq_step == 0) )
 		{
 			inState->curvature_step = 0;
@@ -240,17 +250,16 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 																		
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
-	//	inState->curvature_step = 1;
-
+	
 //		inState->maxStepSize = 1e-5;
-	//	gOutputFlag = 1;
-		
 			
 	/*		double user;
 			
 			// grab time for this frame and reset counter
 			getrusage(RUSAGE_SELF, &startStepTime);
 		*/
+		
+		gOutputFlag = 1;
 		
 		*inLink = bsearch_step(*inLink, inState);
 		
@@ -259,6 +268,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			user = SECS(stopStepTime.ru_utime) - SECS(startStepTime.ru_utime);
 			printf( "STEP TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
 		*/
+
 		inState->steps++;
 		
 	//	gOutputFlag = 1;
@@ -805,9 +815,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	octrope_link* workerLink;
 	
 //	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/20;
-	double ERROR_BOUND = 1e-4;
+	double ERROR_BOUND = 1e-5;
 //	double MR_ERROR_BOUND = ((inState->overstepTol)*inState->injrad)/20;
-	double MR_ERROR_BOUND = 1e-4;
+	double MR_ERROR_BOUND = 1e-6;
 
 	// create initial vector field for which we want to move along in this step
 	octrope_vector* dVdt;
@@ -824,7 +834,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 	stepAttempts = 0;
 	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0;
+	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=0.25;
 	do
 	{			
 		stepAttempts++;
@@ -839,6 +849,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		if( workerLink != NULL )
 			octrope_link_free(workerLink);
 		workerLink = octrope_link_copy(inLink);
+				
 		if( inState->curvature_step != 0 )
 		{
 			normalizeVects(dVdt, inState->totalVerts);
@@ -846,12 +857,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		}
 		else
 		{
-			if( /*inState->eq_step == 0 && (newmr > .5 || (newmr == 0 && lastMR>.5))*/ true )
-				step(workerLink, .25, dVdt);
-			else
-			{
-				step(workerLink, inState->stepSize, dVdt);
-			}
+			step(workerLink, correctionStepSize, dVdt);
 		}
 
 		if( gOutputFlag == 1 )
@@ -860,24 +866,76 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			printf( "visualization output\n" );
 			gOutputFlag = 0;
 		}
-		
-		// check our new thickness
+
 		newmr = octrope_minradval(workerLink);
+	
+/*		octrope_mrloc*		minradSet = NULL;
+		minradSet = (octrope_mrloc*)malloc(100 * sizeof(octrope_mrloc));
+		int minradLocs;
+		
+		newmr = octrope_minrad(workerLink, 0.5, 100, minradSet, 100, &minradLocs );
+		printf( "minrad Locs: %d (0-th vert: %d) newMR: %3.16lf (%3.16lf)\n", minradLocs, minradSet[0].vert, newmr, newmr-lastMR );
+
+		free(minradSet);
+*/
 		newpoca = octrope_poca(workerLink, NULL, 0);
 		
 		inState->minrad = newmr;
 		inState->shortest = newpoca;
 		
-		curr_error = max( lastDCSD-newpoca, 0 );
-		if( newmr < 0.5 )
-			mr_error = max(lastMR - newmr, 0);
-		else
-			mr_error = 0;
+		if( inState->curvature_step != 0 )
+		{
+			// check our new thickness
 			
-		if( curr_error < ERROR_BOUND && mr_error < MR_ERROR_BOUND )
-			inState->stepSize *= 2;
+			curr_error = max( lastDCSD-newpoca, 0 );
+			if( newmr < 0.5 )
+				mr_error = max(lastMR - newmr, 0);
+			else
+				mr_error = 0;
+				
+			if( curr_error < ERROR_BOUND && mr_error < MR_ERROR_BOUND )
+				inState->stepSize *= 2;
+			else
+				inState->stepSize /= 2;		
+		}
 		else
-			inState->stepSize /= 2;		
+		{
+			if( lastMR < inState->minminrad &&
+				newmr < lastMR )
+			{
+				mr_error = 1;
+				correctionStepSize /= 2;
+			}
+			else
+				mr_error = 0;
+	
+			if( inState->eq_step != 0 && newmr < .5 )
+			{
+				mr_error = max(lastMR - newmr, 0);
+				if( mr_error > MR_ERROR_BOUND )
+					correctionStepSize /= 2;
+				else if( newmr < 0.4999 )
+				{
+					correctionStepSize /= 2;
+					mr_error = 1;
+				}
+			/*	if( newmr > inState->injrad-(inState->overstepTol*inState->injrad) )
+					mr_error = 0; // correctable error
+			*/
+			}
+			if( inState->eq_step != 0 && maxovermin(workerLink) > inState->lastMaxMin )
+			{
+				mr_error = 1; // cause repeat
+				correctionStepSize /= 2;
+				
+				free(dVdt);
+				dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+				firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
+			}
+									
+			if( correctionStepSize < 1e-14 )
+				break;
+		}
 			
 	/*	free(dVdt);
 		dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
@@ -2020,7 +2078,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			
 			scaleFactor *= inState->eqMultiplier;
 			
-			//scaleFactor = 1;
+	//		scaleFactor = 1;
 			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];
 			adjustments[(vItr+1)%edges].c[1] = (scaleFactor)*sides[vItr].c[1];
 			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*sides[vItr].c[2];
@@ -2132,6 +2190,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 	double*				A = NULL; // the rigidity matrix
 	
+	strutStorageSize = (inState->lastStepStrutCount != 0) ? (2*inState->lastStepStrutCount) : 10;
+	
 	if( outStrutsCount != NULL )
 		*outStrutsCount = 0;
 	if( outStruts != NULL )
@@ -2150,7 +2210,6 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	// beyond inState.lastStrutCount, so it's probably safe to assume that we can fit
 	// the strut set in 2*inState.lastStrutCount, but maybe not, so we loop over 
 	// strut finder until we have stored less than we possibly can.
-	strutStorageSize = (inState->lastStepStrutCount != 0) ? (2*inState->lastStepStrutCount) : 10;
 	strutSet = NULL;
 	do
 	{
@@ -2175,13 +2234,15 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					&inState->shortest,
 
 					// minrad struts
-					100000,
+					0.5,
+					100,
 					minradSet, 
 					strutStorageSize,
 					&minradLocs,
 					
 					// strut info
-					inState->overstepTol*2*inState->injrad,
+					thickness,
+					100,
 					strutSet,
 					strutStorageSize,
 					&strutCount,
@@ -2195,7 +2256,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	} while( (strutCount == (strutStorageSize-10)) || (minradLocs==(strutStorageSize-10)) );
 	
 	strutStorageSize -= 10; // return it to its actual value
-		
+			
 	//gFeasibleThreshold = strutCount;
 	
 	//collapseStruts(&strutSet, &strutStorageSize);
@@ -2212,6 +2273,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			minradLocs += octrope_pline_edges(&inLink->cp[cItr]);
 		}
 	}
+
+//	if( dlenStep != 0 )
+//		eqForce(dl, inLink, inState);
 
 //	if( dlenStep != 0 || inState->eq_step != 0 )
 	if( inState->eq_step != 0 )
@@ -2328,11 +2392,11 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		{
 			taucs_ccs_matrix* sparseAT = taucs_ccs_transpose(sparseA);
 			double*	ofvB = (double*)calloc(strutCount+minradLocs, sizeof(double));
-			short badStruts = 0;
 		
 			for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
 			{
-				ofvB[sItr] = ((thickness/2)-minradSet[sItr-strutCount].mr);
+				if( minradSet[sItr-strutCount].mr < 0.5-((0.5-inState->minminrad)/4) )
+					ofvB[sItr] = ((thickness/2)-minradSet[sItr-strutCount].mr);
 			}
 			
 		//	if( minradLocs == 0 )
@@ -2387,7 +2451,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						ofvB[sItr] = thickness-strutSet[sItr].length;
 					
 					} // if < thickness
-				}
+				} // if minradlocs == 0
 												
 			} // for over struts
 						
@@ -2414,6 +2478,18 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						
 			ofv = stanford_lsqr(sparseAT, ofvB);
 			
+			/*octrope_vector* ofvVec;
+			ofvVec = (octrope_vector*)malloc(sizeof(octrope_vector)*inState->totalVerts);
+			int i;
+			for( i=0; i<inState->totalVerts; i++ )
+			{
+				ofvVec[i].c[0] = ofv[3*i+0];
+				ofvVec[i].c[1] = ofv[3*i+1];
+				ofvVec[i].c[2] = ofv[3*i+2];
+			}
+			exportVect( ofvVec, inLink, "/tmp/ofv.vect" );
+			free(ofvVec);
+			*/
 		/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 			{
 				octrope_vector  vert;
@@ -2557,7 +2633,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );*/
 	//	}
 		
-		if( gOutputFlag == 1 && dlenStep != 0 )
+		if( gOutputFlag == 1 /*&& dlenStep != 0*/ )
 			export_struts(inLink, strutSet, strutCount, compressions, inState->time);
 
 		// if we are graphing rcond, we should record it here
@@ -2678,7 +2754,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					inState->maxPush = totalPushes[pItr];
 			}
 			
-			if( gOutputFlag && dlenStep != 0 )
+			if( gOutputFlag /*&& dlenStep != 0*/ )
 				export_pushed_edges(inLink, inState, totalPushes, "/tmp/compress_push.vect", 0);
 			free(totalPushes);
 		}
@@ -2749,6 +2825,7 @@ maxovermin( octrope_link* inLink )
 	octrope_vector s1, s2;
 	double max_maxovermin = 0, len=0;
 	int edges, totalEdges=0;
+	int maxVert, maxComp, minVert, minComp;
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		max = 0;
@@ -2781,17 +2858,27 @@ maxovermin( octrope_link* inLink )
 			len += norm;
 		
 			if( norm < min )
+			{
+				minVert = vItr;
+				minComp = cItr;
 				min = norm;
+			}
 			if( norm > max )
+			{
+				maxVert = vItr;
+				maxComp = cItr;
 				max = norm;
+			}
 		}
 		if( (max/min) > max_maxovermin )
 			max_maxovermin = (max/min);
 	}
 	
-	printf( "max edge: %f (%f/%f) / min edge: %f (%f/%f)\n", 
+	printf( "max edge: %f (%f/%f) at %d on %d / min edge: %f (%f/%f) at %d on %d\n", 
 		max, fabs(max-(len/totalEdges)), (fabs(max-(len/totalEdges))/(len/totalEdges))*100,
-		min, fabs(min-(len/totalEdges)), (fabs(min-(len/totalEdges))/(len/totalEdges))*100 );
+		maxVert, maxComp,
+		min, fabs(min-(len/totalEdges)), (fabs(min-(len/totalEdges))/(len/totalEdges))*100,
+		minVert, minComp );
 	
 	//printf( "max/min: %lf\n", max_maxovermin );
 	return max_maxovermin;

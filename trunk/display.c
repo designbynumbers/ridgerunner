@@ -165,9 +165,9 @@ exportVect( const octrope_vector* dl, octrope_link* link, const char* fname )
 				link->cp[cItr].vt[vItr].c[1],
 				link->cp[cItr].vt[vItr].c[2] );
 			fprintf( fp, "%lf %lf %lf\n", 
-				link->cp[cItr].vt[vItr].c[0] + dl[i].c[0],
-				link->cp[cItr].vt[vItr].c[1] + dl[i].c[1],
-				link->cp[cItr].vt[vItr].c[2] + dl[i].c[2] );
+				link->cp[cItr].vt[vItr].c[0] + .25*dl[i].c[0],
+				link->cp[cItr].vt[vItr].c[1] + .25*dl[i].c[1],
+				link->cp[cItr].vt[vItr].c[2] + .25*dl[i].c[2] );
 		}
 	}
 	

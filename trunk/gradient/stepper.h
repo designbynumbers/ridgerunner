@@ -19,7 +19,7 @@
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
 
-#define kMinStepSize 1e-10
+#define kMinStepSize 1e-8
 //#define kMaxStepSize 1e-2
 
 
@@ -97,6 +97,8 @@ typedef struct
 	double	oldLength;
 	double	oldLengthTime;
 	double	checkDelta;
+	
+	double	minminrad;
 	
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
 	
