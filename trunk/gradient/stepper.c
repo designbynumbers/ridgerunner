@@ -246,7 +246,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			}
 		}*/
 				
-		if( inState->residual < 0.2 && inState->residual > 0 && inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
+		if( inState->residual < 0.2 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
 			inState->curvature_step == 1 && inState->time > 30 )
 		{		
 			// if we're going to die, it'll be after this, so save our best
@@ -269,7 +269,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-		//	if( inState->totalVerts > 4*inState->ropelength )
+			if( inState->totalVerts > 4*inState->ropelength )
 			{
 				// we are DONE!
 				break;
@@ -314,8 +314,9 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-		printf( "maxovermin: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf\n", 
-					maxmin, maxmaxmin, minthickness, inState->rcond );
+		inState->eqMultiplier = pow(10,maxmin);
+		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf\n", 
+				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond );
 
 		if( inState->time >= nextMovieOutput )
 		{
@@ -1730,7 +1731,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			// scale the side by the amount we need to move
 		//	printf( "need to change %d by: %lf / position: %3.5lf v*avg: %3.5lf\n", procVert, scaleFactor, usedLength, ((vItr+1))*averageLength );
 			
-			scaleFactor *= 1;
+			scaleFactor *= inState->eqMultiplier;
 			
 			//scaleFactor = 1;
 			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];

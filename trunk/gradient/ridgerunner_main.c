@@ -132,6 +132,11 @@ main( int argc, char* argv[] )
 	fclose(verts);
 	
 	// 10000000
+	
+	octrope_link* store = link;
+	link = octrope_fixlength(link);
+	octrope_link_free(store);
+	link_scale(link,1.0001);
 		
 	bsearch_stepper(&link, 10000000, &state);
 	octrope_link_free(link);
@@ -225,6 +230,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		state->shortest = 2*state->injrad;
 		state->totalVerts = 0;
 		state->eqThreshold = 0;
+		state->eqMultiplier = 1;
 		state->factor = 1;
 		for( cItr=0; cItr<(*inLink)->nc; cItr++ )
 		{
