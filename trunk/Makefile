@@ -1,5 +1,6 @@
 
 # ridgerunner makefile -- needs made liboctrope-1.0 in its dir
+#
 
 CC=gcc
 CFLAGS=-O3 -Iliboctrope-1.0 -Itsnnls_dist/tsnnls -I.
