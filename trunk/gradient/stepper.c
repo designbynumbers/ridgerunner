@@ -1832,7 +1832,6 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	int					minradLocs;
 	int					dlItr;
 	double				dummyThick;
-	FILE*				foo = fopen("/tmp/foo", "w");
 			
 	double*				A = NULL; // the rigidity matrix
 	
@@ -1866,10 +1865,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 		strutSet = (octrope_strut*)calloc(strutStorageSize, sizeof(octrope_strut));
 		minradSet = (octrope_mrloc*)malloc(strutStorageSize * sizeof(octrope_mrloc));
-		
-		octrope_link_write(foo,inLink);
-		fclose(foo);
-		
+				
 		octrope(	inLink, 
 
 					1,	// factor 1
