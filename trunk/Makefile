@@ -3,7 +3,7 @@
 #
 
 CC=gcc
-CFLAGS= -O3 -Iliboctrope-1.0/src/linklibsrc -Iliboctrope-1.0/src/octropesrc -Itsnnls_dist/tsnnls -I.
+CFLAGS= -O3 -Iliboctrope-1.0 -Iliboctrope-1.0/src/linklibsrc -Iliboctrope-1.0/src/octropesrc -Itsnnls_dist/tsnnls -I.
 
 OBJS=	display.o errors.o linklib_additions.o settings.o \
 	dlen.o ridgerunner_main.o stepper.o
