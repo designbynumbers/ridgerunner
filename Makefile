@@ -3,7 +3,7 @@
 #
 
 CC=gcc
-CFLAGS=-O3 -Iliboctrope-1.0 -Itsnnls_dist/tsnnls -I.
+CFLAGS= -O3 -Iliboctrope-1.0 -Itsnnls_dist/tsnnls -I.
 
 OBJS=	display.o errors.o linklib_additions.o settings.o \
 	dlen.o ridgerunner_main.o stepper.o
@@ -13,6 +13,9 @@ all: tsnnls ridgerunner
 tsnnls:
 	(cd tsnnls_dist/tsnnls/ ; make libtsnnls)
 	cp tsnnls_dist/tsnnls/libtsnnls.a .
+
+clean: 
+	rm -f $(OBJS)
 
 ridgerunner: $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o ridgerunner -L. -Lliboctrope-1.0 -Ltsnnls_dist/external_libraries -loctrope -ltsnnls -lgslcblas -llapacklinux -lblaslinux -lf77blas -lcblas -latlas -lg2c -lm

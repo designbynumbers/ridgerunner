@@ -246,7 +246,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			}
 		}*/
 				
-		if( inState->residual < 0.1 && inState->residual > 0 && inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
+		if( inState->residual < 0.2 && inState->residual > 0 && inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
 			inState->curvature_step == 1 )
 		{		
 			// if we're going to die, it'll be after this, so save our best
@@ -736,7 +736,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 				
 		// move along dVdt
 		if( workerLink != NULL )
-			free(workerLink);
+			octrope_link_free(workerLink);
 		workerLink = octrope_link_copy(inLink);
 		step(workerLink, inState->stepSize, dVdt);
 		if( gOutputFlag == 1 )
@@ -781,7 +781,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	
 	inState->time += inState->stepSize;
 	
-	free(inLink);
+	octrope_link_free(inLink);
 	inLink = workerLink;
 		
 	// we're good, double step size and continue jamming

@@ -776,6 +776,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		ourtaucs_ccs_times_vec(A_original_ordering,x,finalresidual);
 		cblas_daxpy(m,-1.0,b, 1, finalresidual, 1);
 		*outResidualNorm = cblas_dnrm2(m, finalresidual, 1);
+		free(finalresidual);
 	}
 
 	/* We conclude with a little more memory freeing. */
