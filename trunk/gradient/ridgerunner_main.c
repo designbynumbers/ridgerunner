@@ -93,7 +93,7 @@ main( int argc, char* argv[] )
 //		state.graphing[0] = 1;
 
 		// realtime graphing! -- it is not advisable to do more than a few of these at once
-		state.graphing[kLength] = 1;
+		state.graphing[kLength] = 0;
 		state.graphing[kRopelength] = 0;
 		state.graphing[kStrutCount] = 0;
 		state.graphing[kStepSize] = 0;
