@@ -134,8 +134,8 @@ main( int argc, char* argv[] )
 	// 10000000
 	
 	octrope_link* store = link;
-	link = octrope_fixlength(link);
-	octrope_link_free(store);
+//	link = octrope_fixlength(link);
+//	octrope_link_free(store);
 	link_scale(link,1.0001);
 		
 	bsearch_stepper(&link, 10000000, &state);

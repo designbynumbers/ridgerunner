@@ -30,7 +30,7 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				HEADER_SEARCH_PATHS = "taucs/src liboctrope-1.0 taucs/build/darwin piasnnls/ /sw/include/";
-				LIBRARY_SEARCH_PATHS = "liboctrope-1.0 taucs/lib/darwin taucs/external/lib/darwin";
+				LIBRARY_SEARCH_PATHS = "liboctrope-1.0 taucs/lib/darwin taucs/external/lib/darwin mactrope";
 				OTHER_LDFLAGS = "";
 				ZERO_LINK = NO;
 			};
