@@ -250,7 +250,19 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			inState->curvature_step == 1 )
 		{		
 			// if we're going to die, it'll be after this, so save our best
-			FILE* bestFile = fopen("best.vect", "w");
+			FILE* bestFile = NULL;
+			
+			if( inState->batching == 0 )
+			{
+				bestFile = fopen("best.vect", "w");
+			}
+			else
+			{
+				char	fname[512];
+				sprintf( fname, "%s.%d.best", inState->fname, inState->totalVerts );
+				bestFile = fopen(fname, "w");
+			}
+			
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
