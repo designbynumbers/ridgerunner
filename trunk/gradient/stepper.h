@@ -13,8 +13,12 @@
 #define _H_stepper
 
 #define kStepScale 0.01
-#define kMinStepSize 1e-5
+//#define kMinStepSize 1e-5
+//#define kMaxStepSize 1e-3
+
+#define kMinStepSize 1e-4
 #define kMaxStepSize 1e-3
+
 
 enum GraphTypes
 {
@@ -36,7 +40,8 @@ enum GraphTypes
 
 typedef struct
 {
-	int		batching;			// in batch mode?
+	short	movie;				// are we generating movie frames?
+	
 	char	fname[512];
 
 	double  injrad;				// the user specified injectivity radius of the link
