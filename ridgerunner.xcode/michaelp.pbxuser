@@ -778,6 +778,13 @@
 			34037CAA06D168D300A0092E = 34037CAA06D168D300A0092E;
 			34037CAB06D168D300A0092E = 34037CAB06D168D300A0092E;
 			34037CB006D1690100A0092E = 34037CB006D1690100A0092E;
+			34037CB506D1694700A0092E = 34037CB506D1694700A0092E;
+			34037CB606D1697000A0092E = 34037CB606D1697000A0092E;
+			34037CB706D1697000A0092E = 34037CB706D1697000A0092E;
+			34037CB806D1697000A0092E = 34037CB806D1697000A0092E;
+			34037CD706D1699800A0092E = 34037CD706D1699800A0092E;
+			34037CD806D1699800A0092E = 34037CD806D1699800A0092E;
+			34037CD906D169AD00A0092E = 34037CD906D169AD00A0092E;
 		};
 		sourceControlManager = 34986CF8065A825C00B6D86E;
 		userBuildSettings = {
@@ -920,7 +927,7 @@
 	34037BC506D1662300A0092E = {
 		uiCtxt = {
 			sepNavIntBoundsRect = "{{0, 0}, {878, 11647}}";
-			sepNavSelRange = "{0, 0}";
+			sepNavSelRange = "{1117, 0}";
 			sepNavVisRect = "{{0, 0}, {580, 605}}";
 		};
 	};
@@ -969,6 +976,12 @@
 		vrLoc = 0;
 	};
 	34037C3006D1668000A0092E = {
+		fileEncoding = 30;
+		isa = PBXFileReference;
+		name = octrope.h;
+		path = "/Users/michaelp/Desktop/ridgerunner/liboctrope-1.0/octrope.h";
+		refType = 0;
+		sourceTree = "<absolute>";
 		uiCtxt = {
 			sepNavIntBoundsRect = "{{0, 0}, {580, 2393}}";
 			sepNavSelRange = "{229, 0}";
@@ -1269,6 +1282,76 @@
 		vrLen = 1844;
 		vrLoc = 0;
 	};
+	34037CB506D1694700A0092E = {
+		fRef = 34037BC506D1662300A0092E;
+		isa = PBXTextBookmark;
+		name = "lsqr.c: 25";
+		rLen = 0;
+		rLoc = 1117;
+		rType = 0;
+		vrLen = 1844;
+		vrLoc = 0;
+	};
+	34037CB606D1697000A0092E = {
+		fRef = 34037BC506D1662300A0092E;
+		isa = PBXTextBookmark;
+		name = "lsqr.c: 25";
+		rLen = 0;
+		rLoc = 1117;
+		rType = 0;
+		vrLen = 1844;
+		vrLoc = 0;
+	};
+	34037CB706D1697000A0092E = {
+		fRef = 34037BC506D1662300A0092E;
+		isa = PBXTextBookmark;
+		name = "lsqr.c: 25";
+		rLen = 0;
+		rLoc = 1117;
+		rType = 0;
+		vrLen = 1844;
+		vrLoc = 0;
+	};
+	34037CB806D1697000A0092E = {
+		fRef = 34DAD9830667FAD70019DC0C;
+		isa = PBXTextBookmark;
+		name = "ridgerunner_main.c: main";
+		rLen = 0;
+		rLoc = 492;
+		rType = 0;
+		vrLen = 944;
+		vrLoc = 26;
+	};
+	34037CD706D1699800A0092E = {
+		fRef = 34DAD9830667FAD70019DC0C;
+		isa = PBXTextBookmark;
+		name = "ridgerunner_main.c: main";
+		rLen = 0;
+		rLoc = 492;
+		rType = 0;
+		vrLen = 944;
+		vrLoc = 26;
+	};
+	34037CD806D1699800A0092E = {
+		fRef = 34DAD9830667FAD70019DC0C;
+		isa = PBXTextBookmark;
+		name = "ridgerunner_main.c: main";
+		rLen = 0;
+		rLoc = 492;
+		rType = 0;
+		vrLen = 944;
+		vrLoc = 26;
+	};
+	34037CD906D169AD00A0092E = {
+		fRef = 34DAD9830667FAD70019DC0C;
+		isa = PBXTextBookmark;
+		name = "ridgerunner_main.c: main";
+		rLen = 0;
+		rLoc = 492;
+		rType = 0;
+		vrLen = 944;
+		vrLoc = 26;
+	};
 	340BD50A066F9D7800B257FE = {
 		uiCtxt = {
 			sepNavIntBoundsRect = "{{0, 0}, {580, 605}}";
@@ -1485,7 +1568,7 @@
 		uiCtxt = {
 			sepNavIntBoundsRect = "{{0, 0}, {614, 3037}}";
 			sepNavSelRange = "{492, 0}";
-			sepNavVisRect = "{{0, 41}, {580, 605}}";
+			sepNavVisRect = "{{0, 28}, {580, 605}}";
 		};
 	};
 	8DD76F620486A84900D96B5E = {
