@@ -61,6 +61,9 @@ void refresh_display(octrope_link *L)
 void 
 export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, double time)
 {
+	if( inSize == 0 )
+		return;
+
 	FILE* fp = fopen("/tmp/struts.vect", "w");
 	int i=0;
 	double maxCompression;
