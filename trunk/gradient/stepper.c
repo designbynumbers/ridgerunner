@@ -201,9 +201,14 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-		//	gOutputFlag = 1;
-				
-		inState->curvature_step = ((inState->curvature_step+1)%2);
+			gOutputFlag = 1;
+	
+		if( inState->shortest < .9999 )
+			inState->curvature_step = 0;
+		else
+			inState->curvature_step = 1;
+										
+	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
 							
 		*inLink = bsearch_step(*inLink, inState);
@@ -246,30 +251,32 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			}
 		}*/
 				
-		if( inState->residual < 0.2 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
-			inState->curvature_step == 1 && inState->time > 30 )
+		if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
+			inState->curvature_step == 1/* && inState->time > 30*/ )
 		{		
 			// if we're going to die, it'll be after this, so save our best
 			FILE* bestFile = NULL;
+			char    fname[512];
+			char adjustedName[512];
 			
 			if( inState->batching == 0 )
 			{
-				bestFile = fopen("best.vect", "w");
+				strcpy(adjustedName, inState->fname);
+				sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
+				bestFile = fopen(fname, "w");
 			}
 			else
 			{
-				char    fname[512];
-                                char adjustedName[512];
-                                strcpy(adjustedName, inState->fname);
-                                strstr(adjustedName,".vect")[0] = '\0';
-                                sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
-                                bestFile = fopen(fname, "w");
+				strcpy(adjustedName, inState->fname);
+				strstr(adjustedName,".vect")[0] = '\0';
+				sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
+				bestFile = fopen(fname, "w");
 			}
 			
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-			if( inState->totalVerts > 4*inState->ropelength )
+		//	if( inState->totalVerts > 4*inState->ropelength )
 			{
 				// we are DONE!
 				break;
@@ -314,9 +321,9 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-		inState->eqMultiplier = pow(10,maxmin);
-		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf\n", 
-				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond );
+//		inState->eqMultiplier = pow(10,maxmin);
+		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
+				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
 
 		if( inState->time >= nextMovieOutput )
 		{
@@ -340,10 +347,10 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 							    inState->tsnnls_evaluations, 
 							    inState->lastStepStrutCount,
 							    inState->lastStepMinradStrutCount );
-			    frame = fopen( fname, "w" );
+			  /*  frame = fopen( fname, "w" );
 			    octrope_link_write(frame, *inLink);
 			    fclose(frame);
-			    
+			    */
 			    nextMovieOutput += 0.05;
 			    
 			    printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
@@ -820,7 +827,13 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	// we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
 	if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && inState->curvature_step != 0 &&
 		inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) // this keeps us from zeroing on corrector steps
+	{
 		inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+	}
+	
+	// also shouldn't be > 10% of edgelength
+	if( inState->stepSize > inState->length/inState->totalVerts*.1 )
+		inState->stepSize = inState->length/inState->totalVerts*.1;
 	
 	free(dVdt);
 	
