@@ -94,6 +94,7 @@
 		};
 		08FB7794FE84155DC02AAC07 = {
 			children = (
+				34037E4106D1B19100A0092E,
 				08FB7795FE84155DC02AAC07,
 				C6859E8C029090F304C91782,
 				0249A662FF388D9811CA2CEA,
@@ -673,6 +674,20 @@
 			settings = {
 			};
 		};
+		34037E4106D1B19100A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.make;
+			path = Makefile;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037E4206D1B19100A0092E = {
+			fileRef = 34037E4106D1B19100A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
 		340BD50A066F9D7800B257FE = {
 			fileEncoding = 4;
 			isa = PBXFileReference;
@@ -862,6 +877,7 @@
 				34037C5506D1673600A0092E,
 				34037C6B06D1679C00A0092E,
 				34037C7306D167AE00A0092E,
+				34037E4206D1B19100A0092E,
 			);
 			isa = PBXSourcesBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
