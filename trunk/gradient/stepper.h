@@ -88,6 +88,9 @@ typedef struct
 	
 	double  rcond;				// rcond from the last step, nonzero only if graphing[kRcond] == 1 && struts > 0
 	
+	double	ofvNorm;		// ofvB L2
+	double	ofvResidual;	// residual of the ofv lsqr call
+	
 	int		graphing[kTotalGraphTypes];
 	
 	double  maxPush;		// the maximum of all the strut force compression sums
