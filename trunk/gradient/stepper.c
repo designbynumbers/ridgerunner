@@ -215,12 +215,12 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
 
-		gOutputFlag = 1;
+	//	gOutputFlag = 1;
 		
 		*inLink = bsearch_step(*inLink, inState);
 		inState->steps++;
 		
-		gOutputFlag = 1;
+	//	gOutputFlag = 1;
 				
 	//	if( lastSet != state.lastStepStrutCount || (i%50)==0 )
 		if( (i%50) == 0 ) // check things out every 50 steps
@@ -343,7 +343,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		maxmin = maxovermin(*inLink);
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
-		//inState->eqMultiplier = pow(10,maxmin);
+		inState->eqMultiplier = pow(5,maxmin);
 		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
 				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
 		printf( "cstep/step ratio: %lf delta length: %lf next check: %lf\n", 
