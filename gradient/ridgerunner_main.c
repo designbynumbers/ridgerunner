@@ -90,6 +90,9 @@ main( int argc, char* argv[] )
 		}
 	}
 	
+	if( link == NULL )
+		usage();
+	
 	state.refineUntil = refineUntil;
 	state.checkDelta = checkDelta;
 	
