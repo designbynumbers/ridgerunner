@@ -1699,7 +1699,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			// scale the side by the amount we need to move
 		//	printf( "need to change %d by: %lf / position: %3.5lf v*avg: %3.5lf\n", procVert, scaleFactor, usedLength, ((vItr+1))*averageLength );
 			
-			scaleFactor *= 15;
+			scaleFactor *= 1;
 			
 			//scaleFactor = 1;
 			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];
