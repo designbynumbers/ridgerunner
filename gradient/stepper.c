@@ -263,13 +263,13 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 				
 		if( inState->oldLengthTime == 0 )
 		{
-			inState->oldLengthTime = inState->time;
+			inState->oldLengthTime = inState->cstep_time;
 			inState->oldLength = inState->length;
 		}
 			
 	//	if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
 	//		inState->curvature_step == 1/* && inState->time > 30*/ )
-		if( (inState->oldLengthTime + inState->checkDelta < inState->time) && 
+		if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
 			fabs(inState->oldLength-inState->length) < 0.05 
 			/*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
 		{		
@@ -298,13 +298,13 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		//	if( inState->totalVerts > 4*inState->ropelength )
 			{
 				// we are DONE!
-				break;
+		//		break;
 			}
 			
 			// the strut set can get violent after this change, so let's make sure none exist.
 			// it's a lot easier on the condition number if it reemerges quickly than if it's changing
 			// rapidly
-			link_scale(*inLink, 1.05*(2.0*inState->injrad)/inState->shortest);
+			link_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
 		
 			octrope_link* oldLink = *inLink;
 			*inLink = octrope_double_edges(*inLink);
@@ -336,10 +336,10 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			inState->residual = 500; // make this big
 		}
 		
-		if( (inState->oldLengthTime + inState->checkDelta) < inState->time )
+		if( (inState->oldLengthTime + inState->checkDelta) < inState->cstep_time )
 		{
 			inState->oldLength = inState->length;
-			inState->oldLengthTime = inState->time;
+			inState->oldLengthTime = inState->cstep_time;
 			printf( "* Checked delta rope and continuing\n" );
 		}
 		
@@ -349,7 +349,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			maxmaxmin = maxmin;
 		inState->eqMultiplier = 1;
 		
-		if( maxmin > 1.01 )
+		if( maxmin > 1.05 )
 			inState->eq_step = 1;
 		else
 			inState->eq_step = 0;
@@ -357,9 +357,9 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d eqstep: %d\n", 
 				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
 					inState->eq_step );
-		printf( "cstep/step ratio: %lf delta length: %lf next check: %lf\n", 
+		printf( "cstep/step ratio: %lf delta length: %lf next check: %lf cstep_time: %lf\n", 
 				((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
-				inState->oldLengthTime+inState->checkDelta );
+				inState->oldLengthTime+inState->checkDelta, inState->cstep_time );
 
 		if( inState->time >= nextMovieOutput )
 		{
@@ -844,6 +844,8 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	} while( 1==1 );
 	
 	inState->time += inState->stepSize;
+	if( inState->curvature_step != 0 && inState->eq_step == 0 )
+		inState->cstep_time += inState->stepSize;
 	
 	octrope_link_free(inLink);
 	inLink = workerLink;

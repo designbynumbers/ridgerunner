@@ -52,6 +52,7 @@ typedef struct
 	double  maxStepSize;		// as high as it's allowed to get
 	
 	double  time;
+	double	cstep_time;
 	
 	double  eqThreshold;		// the max/min edge value at which to eq. 0 means never eq.
 	
