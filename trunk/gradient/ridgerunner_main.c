@@ -236,6 +236,24 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 								continue; // someone else got it first
 							*inLink = octrope_link_read(linkFile);
 							
+							{
+								octrope_link* adjusted;
+								double	thick, mr, len;
+								octrope_ropelength( *inLink, 1, &mr, &thick, &len, NULL, 0);
+								link_scale(*inLink, 1.05/thick);
+								
+								// 3 fixlengths should fix things up
+								adjusted = octrope_fixlength(*inLink);
+								free(*inLink);
+								*inLink = adjusted;
+								adjusted = octrope_fixlength(*inLink);
+								free(*inLink);
+								*inLink = adjusted;
+								adjusted = octrope_fixlength(*inLink);
+								free(*inLink);
+								*inLink = adjusted;
+							}
+							
 							if( strstr(path, "loop")!= NULL )
 							{
 								octrope_link* store = *inLink;

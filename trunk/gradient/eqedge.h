@@ -39,6 +39,7 @@ double maxError(octrope_link *L, int comp, search_state* inState);
 
 void			link_scale( octrope_link* inLink, double factor );
 octrope_link* octrope_fixlength( octrope_link* inLink );
+octrope_link*	octrope_equilize_density( octrope_link* inLink, search_state* inState );
 octrope_link* octrope_double_edges( octrope_link* inLink );
 octrope_link*	octrope_double_component( octrope_link* inLink, int comp );
 

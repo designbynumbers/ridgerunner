@@ -822,6 +822,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 				inState->stepSize *= 2;
 				break;
 			}
+			
 			continue;
 		}
 		else
@@ -840,6 +841,11 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	if( stepAttempts == 1 && inState->curvature_step != 0 )
 	{
 		inState->stepSize *= 2;
+	}
+	
+	if( inState->stepSize > kMaxStepSize )
+	{
+		inState->stepSize = kMaxStepSize;
 	}
 	
 	// grab average dvdt now that we have finished mungering it
@@ -2179,7 +2185,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( compressions == NULL )
 		{
 			// we've probably hit the rcond wall, save as best.vect and bail
-			exit(0);
+			exit(-1);
 		}
 		
 		inState->tsnnls_evaluations++;

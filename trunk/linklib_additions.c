@@ -3,6 +3,7 @@
 */
 
 #include"eqedge.h"
+#include "stepper.h"
 
 int    octrope_pline_edges(octrope_pline *P)
 
@@ -32,24 +33,23 @@ link_scale( octrope_link* inLink, double factor )
 } 
 
 octrope_link*
-octrope_double_component( octrope_link* inLink, int comp )
+octrope_equalize_density( octrope_link* inLink, search_state* inState )
 {
-	/* double number of sides through bisection -- keeps things eq and shouldn't munger too much with
-	 * struts
-	 */
-	octrope_link*   doubled;
+/*	octrope_link*   doubled;
 	int*			newVerts = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			cyclicity = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			color_count = (int*)malloc(sizeof(int)*inLink->nc);
 	int				cItr, vItr;
+	double			length_i;
 	
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
-		if( cItr == comp )
-			newVerts[cItr] = inLink->cp[cItr].nv * 2;
-		else
-			newVerts[cItr] = inLink->cp[cItr].nv;
-			
+		
+	//	newVerts[cItr] = inLink->cp[cItr].nv * 2;
+		length_i = 0;
+		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
+			length_i += inState->sideLengths[vItr + inState->compOffsets[cItr]];
+										
 		cyclicity[cItr] = inLink->cp[cItr].acyclic;
 		color_count[cItr] = 1;
 	}
@@ -96,7 +96,9 @@ octrope_double_component( octrope_link* inLink, int comp )
 	free(cyclicity);
 	free(color_count);
 
-	return doubled;
+	return doubled;*/
+	
+	return NULL;
 }
 
 octrope_link*
