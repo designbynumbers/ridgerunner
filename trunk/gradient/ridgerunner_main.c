@@ -214,6 +214,8 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		// zero all those pointers
 		bzero(state, sizeof(search_state));
 		
+		strncpy(state->fname, fname, sizeof(state->fname)-1);
+		
 		state->injrad = 0.5; // fix this for now
 		state->maxStepSize = .01;
 		state->stepSize = state->maxStepSize;
