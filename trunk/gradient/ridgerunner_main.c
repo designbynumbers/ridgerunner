@@ -133,10 +133,12 @@ main( int argc, char* argv[] )
 	
 	// 10000000
 	
-	octrope_link* store = link;
 //	link = octrope_fixlength(link);
 //	octrope_link_free(store);
-	link_scale(link,1.0001);
+	//link_scale(link,1.0001);
+	
+//	octrope_link_free(store);
+	
 		
 	bsearch_stepper(&link, 10000000, &state);
 	octrope_link_free(link);
@@ -193,6 +195,10 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 							if( linkFile == NULL )
 								continue; // someone else got it first
 							*inLink = octrope_link_read(linkFile);
+							
+							octrope_link* store = *inLink;
+							*inLink = octrope_double_edges(store);
+							
 							initializeState(state,inLink, path);
 							fclose(linkFile);
 							

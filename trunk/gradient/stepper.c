@@ -151,6 +151,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 	unsigned int i, offset = 0;
 	int cItr;
 	int lastEq = 0;
+	unsigned int cSteps = 0;
 	
 	double maxmaxmin = 0;
 	double minthickness = 500;
@@ -193,21 +194,25 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 			gnuplotDataFiles[i] = fopen(fname, "w");
 		} 
 	}
-		
-	for( i=0; i<inMaxSteps; i++ )
+	
+	int stepItr;
+	for( stepItr=0; stepItr<inMaxSteps; stepItr++ )
 	{
 		int lastSet;
 	
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
-			gOutputFlag = 1;
+		//	gOutputFlag = 1;
 	
 		if( inState->shortest < .9999 )
 			inState->curvature_step = 0;
 		else
+		{
 			inState->curvature_step = 1;
-										
+			cSteps++;
+		}
+																		
 	//	inState->curvature_step = ((inState->curvature_step+1)%2);
 	//	inState->curvature_step = 1;
 							
@@ -324,6 +329,7 @@ bsearch_stepper( octrope_link** inLink, unsigned int inMaxSteps, search_state* i
 //		inState->eqMultiplier = pow(10,maxmin);
 		printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d\n", 
 				    maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step );
+		printf( "cstep/step ratio: %lf\n", ((double)cSteps)/((double)stepItr+1) );
 
 		if( inState->time >= nextMovieOutput )
 		{
@@ -1783,6 +1789,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 }
 
 int gFeasibleThreshold = 0;
+
 void
 firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		octrope_strut** outStruts, int* outStrutsCount, int dlenStep )
