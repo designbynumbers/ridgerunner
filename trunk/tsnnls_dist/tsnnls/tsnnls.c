@@ -534,7 +534,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		infeasible(F,x,sizeF,H1,&sizeH1),  
 		infeasible(G,y,sizeG,H2,&sizeH2)  ) 
 	{
-		
+		//printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
 
 		/* We found infeasible variables. We're going to swap them 
 		   between F and G according to one of the schemes below. */

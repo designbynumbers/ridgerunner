@@ -13,7 +13,7 @@
 #define _H_stepper
 
 #define kStepScale 0.01
-#define kMinStepSize 1e-4
+#define kMinStepSize 1e-5
 
 enum GraphTypes
 {
