@@ -12,12 +12,15 @@
 #ifndef _H_stepper
 #define _H_stepper
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #define kStepScale 0.01
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
 
-#define kMinStepSize 1e-4
-#define kMaxStepSize 1e-3
+#define kMinStepSize 1e-6
+//#define kMaxStepSize 1e-2
 
 
 enum GraphTypes
@@ -43,6 +46,8 @@ typedef struct
 	short	movie;				// are we generating movie frames?
 	
 	char	fname[512];
+
+	double	overstepTol;		// the amount we are willing to overstep before correcting strut length
 
 	double  injrad;				// the user specified injectivity radius of the link
 	double  minrad;				// Rawdon's minimum radius of curvature
@@ -95,6 +100,8 @@ typedef struct
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
 	
 	int		refineUntil;	// keep running until discretization at refineuntil x ropelength
+	
+	struct rusage	frameStart;
 	
 } search_state;
 

@@ -34,21 +34,37 @@ main( int argc, char* argv[] )
 	search_state	state;
 	char			opt;
 	char			cmd[1024];
-	short			autoscale = 0, fixlengths = 0;
+	short			autoscale = 0, fixlengths = 0, movie = 0;
 	int				checkDelta = 1, refineUntil = 0;
-	double			injrad = 0.5;
+	double			injrad = 0.5, overstepTol=0.0001;
+	double			eqMult = 2.0;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "lf:mac:r:i:")) != -1 )
+	while( (opt = getopt(argc, argv, "lf:mac:r:i:o:e:")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'o': // min overstep, percentage of thickness
+				if( optarg == NULL )
+					usage();
+				else
+					overstepTol = atof(optarg);
+				break;
+			
 			case 'r': // refine until discretization at x(times)rope
 				if( optarg == NULL )
 					usage();
 				refineUntil = atoi(optarg);
 				if( refineUntil < 0 )
+					usage();
+				break;
+			
+			case 'e':
+				if( optarg == NULL )
+					usage();
+				eqMult = atof(optarg);
+				if( eqMult < 0 )
 					usage();
 				break;
 			
@@ -86,7 +102,7 @@ main( int argc, char* argv[] )
 				break;
 				
 			case 'm': // movie
-				state.movie = 1;
+				movie = 1;
 				break;
 			
 			case 'a':
@@ -104,8 +120,14 @@ main( int argc, char* argv[] )
 	
 	state.refineUntil = refineUntil;
 	state.checkDelta = checkDelta;
+	state.movie = movie;
 	
 	state.injrad = injrad;
+	state.overstepTol = overstepTol;
+	state.eqMultiplier = eqMult;
+	
+	printf( "Overstep tolerance: %f of thickness %f (%f)\n", state.overstepTol, state.injrad*2, 
+				state.injrad*2 - state.overstepTol*state.injrad*2 );
 	
 	if( fixlengths == 1 )
 	{
@@ -194,8 +216,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	strncpy(state->fname, fname, sizeof(state->fname)-1);
 	
 	state->injrad = 0.5; // fix this for now
-	state->maxStepSize = .01;
-	state->stepSize = state->maxStepSize;
+	state->maxStepSize = 0.1*octrope_link_short_edge(*inLink);
 	state->shortest = 2*state->injrad;
 	state->totalVerts = 0;
 	state->eqThreshold = 0;
@@ -206,7 +227,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		state->totalVerts += (*inLink)->cp[cItr].nv;
 	}
 	
-	state->stepSize = kStepScale*octrope_link_short_edge(*inLink);
+	state->stepSize = 0.5*state->maxStepSize;
 	if( ((double)1)/(double)state->totalVerts < state->stepSize )
 	{
 		state->stepSize = ((double)1/(double)state->totalVerts);
@@ -228,6 +249,8 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	state->checkDelta = 1.0;	// default check delta
 	
 	fclose(fp);
+	
+	getrusage(RUSAGE_SELF, &state->frameStart);
 }
 
 void
