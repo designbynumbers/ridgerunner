@@ -14,7 +14,7 @@
 
 #include "tsnnls.h"
 
-#include "vector.h"
+#include "octrope_vector.h"
 
 #include "stepper.h"
 #include "dlen.h"
@@ -246,24 +246,6 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 						inState->avgDvdtMag, inState->residual, inState->time );
 		}
 		
-	/*	if( firstRun )
-		{
-			firstRun = 0;
-			if( inState->shortest != 0 )
-			{
-				link_scale(*inLink, (2.0*inState->injrad)/inState->shortest);
-				*inLink = octrope_fixlength(*inLink);
-			}
-			secondRun=1;
-		}
-		/*if( secondRun )
-		{
-			secondRun = 0;
-			if( inState->shortest != 0 )
-			{
-				link_scale(*inLink, (2.0*inState->injrad)/inState->shortest);
-			}
-		}*/
 				
 		if( inState->oldLengthTime == 0 )
 		{
@@ -271,8 +253,6 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			inState->oldLength = inState->length;
 		}
 			
-	//	if( inState->residual < 0.1 && inState->residual > 0 /*inState->minrad >= 0.5 /*&& inState->avgDvdtMag < 0.01*/ &&
-	//		inState->curvature_step == 1/* && inState->time > 30*/ )
 		if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
 			fabs(inState->oldLength-inState->length) < 0.05 
 			/*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
@@ -289,7 +269,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			octrope_link_write(bestFile, *inLink);
 			fclose(bestFile);
 		
-		//	if( inState->totalVerts > 4*inState->ropelength )
+			if( inState->totalVerts > inState->refineUntil*inState->ropelength )
 			{
 				// we are DONE!
 				break;
@@ -366,7 +346,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			nextMovieOutput += 0.05;
 			
 			sprintf( fname, "restart_%s", inState->fname );
-			(strstr(fname,".vect"))[0] = '\0';
+		//	(strstr(fname,".vect"))[0] = '\0';
 			printf( "saved restart: %s\n", fname );
 			frame = fopen( fname, "w" );
 			octrope_link_write(frame, *inLink);
@@ -383,6 +363,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				frame = fopen( fname, "w" );
 				octrope_link_write(frame, *inLink);
 				fclose(frame);
+				
+				char cmd[1024];
+				sprintf(cmd, "cp /tmp/struts.vect movie%s/struts.%lf.vect", inState->fname, time);
+				system(cmd);
 								
 				printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
 			}
@@ -1844,6 +1828,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	int					cItr, sItr; // loop iterators over components, verticies, and struts
 	int					minradLocs;
 	int					dlItr;
+	double				dummyThick;
+	FILE*				foo = fopen("/tmp/foo", "w");
 			
 	double*				A = NULL; // the rigidity matrix
 	
@@ -1877,22 +1863,33 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 		strutSet = (octrope_strut*)calloc(strutStorageSize, sizeof(octrope_strut));
 		minradSet = (octrope_mrloc*)malloc(strutStorageSize * sizeof(octrope_mrloc));
+		
+		octrope_link_write(foo,inLink);
+		fclose(foo);
+		
 		octrope(	inLink, 
-					DBL_MAX,		// epsilon is inf here
-					thickness,		// all struts less than thickness
-					1,  // factor 1
+
+					1,	// factor 1
 					&inState->ropelength,
-					// minrad struts
-					minradSet, strutStorageSize,
-					// minrad info
+					&dummyThick,		
+					
+					&inState->length,
+					
 					&inState->minrad,
+					&inState->shortest,
+
+					// minrad struts
+					0,
+					minradSet, 
+					strutStorageSize,
 					&minradLocs,
+					
 					// strut info
+					.0001,
 					strutSet,
 					strutStorageSize,
-					&inState->shortest,
 					&strutCount,
-					&inState->length,
+					
 					NULL, 0 );
 					
 		minradLocs = 0; // these actually aren't helpful

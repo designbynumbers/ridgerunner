@@ -20,8 +20,8 @@
 #include "gsl_cblas.h"
 #endif // __APPLE__
 
-#include"link.h"
-#include"vector.h"
+#include "octrope_link.h"
+#include "octrope_vector.h"
 #include "stepper.h"
 
 /************************* Global Variables ***********************/

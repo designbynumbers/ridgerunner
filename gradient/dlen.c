@@ -23,7 +23,7 @@
 
 #include "dlen.h"
 #include "../errors.h"
-#include "link.h"
+#include "octrope_link.h"
 #include "eqedge.h"
 
 /*

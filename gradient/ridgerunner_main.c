@@ -30,18 +30,40 @@ main( int argc, char* argv[] )
 {
 	octrope_link*	link = NULL;
 	FILE*			linkFile = NULL;
-	int				aItr=1, cItr=0;
+	int				cItr=0;
 	search_state	state;
 	char			opt;
 	char			cmd[1024];
+	short			autoscale = 0, fixlengths = 0;
+	int				checkDelta = 1, refineUntil = 0;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "f:m")) != -1 )
+	while( (opt = getopt(argc, argv, "lf:mac:r:")) != -1 )
 	{
 		switch(opt)
 		{
-			case 'f':
+			case 'r': // refine until discretization at x(times)rope
+				if( optarg == NULL )
+					usage();
+				refineUntil = atoi(optarg);
+				if( refineUntil < 0 )
+					usage();
+				break;
+		
+			case 'c': // check delta
+				if( optarg == NULL )
+					usage();
+				checkDelta = atoi(optarg);
+				if( checkDelta < 0 )
+					usage();
+				break;
+				
+			case 'l': // fixlengths
+				fixlengths = 1;
+				break;
+		
+			case 'f': // file
 				linkFile = fopen(optarg, "r");
 				if( linkFile == NULL )
 				{
@@ -54,14 +76,40 @@ main( int argc, char* argv[] )
 				fclose(linkFile);
 				break;
 				
-			case 'm':
+			case 'm': // movie
 				state.movie = 1;
+				break;
+			
+			case 'a':
+				autoscale = 1;
 				break;
 				
 			default:
 				usage();
 				break;
 		}
+	}
+	
+	state.refineUntil = refineUntil;
+	state.checkDelta = checkDelta;
+	
+	if( fixlengths == 1 )
+	{
+		octrope_link* tempLink = link;
+		link = octrope_fixlength(tempLink);
+		octrope_link_free(tempLink);
+		tempLink = link;
+		link = octrope_fixlength(tempLink);
+		octrope_link_free(tempLink);
+		tempLink = link;
+		link = octrope_fixlength(tempLink);
+		octrope_link_free(tempLink);
+	}
+	
+	// scale to thickness 1
+	if( autoscale == 1 )
+	{
+		link_scale(link, 1.0/octrope_thickness(link, 1, NULL, 0) );
 	}
 	
 	// Create directory to store movie frames if we're making a movie
@@ -162,7 +210,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	
 	state->residual = 0;
 	 
-	state->checkDelta = 2.0;
+	state->checkDelta = 1.0;	// default check delta
 	
 	fclose(fp);
 }

@@ -94,6 +94,8 @@ typedef struct
 	
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
 	
+	int		refineUntil;	// keep running until discretization at refineuntil x ropelength
+	
 } search_state;
 
 /*
