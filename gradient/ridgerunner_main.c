@@ -36,10 +36,11 @@ main( int argc, char* argv[] )
 	char			cmd[1024];
 	short			autoscale = 0, fixlengths = 0;
 	int				checkDelta = 1, refineUntil = 0;
+	double			injrad = 0.5;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "lf:mac:r:")) != -1 )
+	while( (opt = getopt(argc, argv, "lf:mac:r:i:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -48,6 +49,14 @@ main( int argc, char* argv[] )
 					usage();
 				refineUntil = atoi(optarg);
 				if( refineUntil < 0 )
+					usage();
+				break;
+			
+			case 'i':
+				if( optarg == NULL )
+					usage();
+				injrad = atof(optarg);
+				if( injrad < 0 )
 					usage();
 				break;
 		
@@ -96,6 +105,8 @@ main( int argc, char* argv[] )
 	state.refineUntil = refineUntil;
 	state.checkDelta = checkDelta;
 	
+	state.injrad = injrad;
+	
 	if( fixlengths == 1 )
 	{
 		octrope_link* tempLink = link;
@@ -112,8 +123,8 @@ main( int argc, char* argv[] )
 	// scale to thickness 1
 	if( autoscale == 1 )
 	{
-		printf( "autoscaling to thickness 1.0\n" );
-		link_scale(link, 1.0/octrope_thickness(link, 1, NULL, 0) );
+		printf( "autoscaling with injrad %f\n", state.injrad );
+		link_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
 	}
 	
 	// Create directory to store movie frames if we're making a movie
