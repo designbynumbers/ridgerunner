@@ -106,7 +106,7 @@
 		};
 		08FB7795FE84155DC02AAC07 = {
 			children = (
-				34037C2E06D1666700A0092E,
+				34037CB906D1697400A0092E,
 				34DAD9830667FAD70019DC0C,
 				34DAD93C0667F99D0019DC0C,
 				34DAD93D0667F99D0019DC0C,
@@ -287,61 +287,6 @@
 		};
 		34037C1E06D1662400A0092E = {
 			fileRef = 34037BF106D1662300A0092E;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-		34037C2E06D1666700A0092E = {
-			children = (
-				34037C3006D1668000A0092E,
-				34037C3106D1668000A0092E,
-				34037C3206D1668000A0092E,
-			);
-			isa = PBXGroup;
-			name = octrope;
-			refType = 4;
-			sourceTree = "<group>";
-		};
-		34037C3006D1668000A0092E = {
-			fileEncoding = 30;
-			isa = PBXFileReference;
-			lastKnownFileType = sourcecode.c.h;
-			name = octrope.h;
-			path = "liboctrope-1.0/octrope.h";
-			refType = 4;
-			sourceTree = "<group>";
-		};
-		34037C3106D1668000A0092E = {
-			fileEncoding = 30;
-			isa = PBXFileReference;
-			lastKnownFileType = sourcecode.c.h;
-			name = vector.h;
-			path = "liboctrope-1.0/vector.h";
-			refType = 4;
-			sourceTree = "<group>";
-		};
-		34037C3206D1668000A0092E = {
-			isa = PBXFileReference;
-			lastKnownFileType = archive.ar;
-			name = liboctrope.a;
-			path = "liboctrope-1.0/liboctrope.a";
-			refType = 4;
-			sourceTree = "<group>";
-		};
-		34037C3306D1668000A0092E = {
-			fileRef = 34037C3006D1668000A0092E;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-		34037C3406D1668000A0092E = {
-			fileRef = 34037C3106D1668000A0092E;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-		34037C3506D1668000A0092E = {
-			fileRef = 34037C3206D1668000A0092E;
 			isa = PBXBuildFile;
 			settings = {
 			};
@@ -556,6 +501,73 @@
 			settings = {
 			};
 		};
+		34037CB906D1697400A0092E = {
+			children = (
+				34037CCB06D1697400A0092E,
+				34037CCC06D1697400A0092E,
+				34037CCD06D1697400A0092E,
+				34037CCE06D1697400A0092E,
+			);
+			isa = PBXGroup;
+			path = mactrope;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037CCB06D1697400A0092E = {
+			isa = PBXFileReference;
+			lastKnownFileType = archive.ar;
+			path = liboctrope.a;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037CCC06D1697400A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = link.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037CCD06D1697400A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = octrope.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037CCE06D1697400A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = vector.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037CCF06D1697400A0092E = {
+			fileRef = 34037CCB06D1697400A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037CD006D1697400A0092E = {
+			fileRef = 34037CCC06D1697400A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037CD106D1697400A0092E = {
+			fileRef = 34037CCD06D1697400A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037CD206D1697400A0092E = {
+			fileRef = 34037CCE06D1697400A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
 		340BD50A066F9D7800B257FE = {
 			fileEncoding = 4;
 			isa = PBXFileReference;
@@ -701,8 +713,9 @@
 				34037BF206D1662400A0092E,
 				34037BF406D1662400A0092E,
 				34037C1E06D1662400A0092E,
-				34037C3306D1668000A0092E,
-				34037C3406D1668000A0092E,
+				34037CD006D1697400A0092E,
+				34037CD106D1697400A0092E,
+				34037CD206D1697400A0092E,
 			);
 			isa = PBXHeadersBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
@@ -753,7 +766,7 @@
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_UNKNOWN_PRAGMAS = NO;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = "/usr/lib/gcc/darwin/3.3 /Users/michaelp/Desktop/ridgerunner/taucs/lib/darwin /Users/michaelp/Desktop/ridgerunner/taucs/external/lib/darwin /Users/michaelp/Desktop/ridgerunner/liboctrope-1.0 /Users/michaelp/Desktop/ridgerunner/csnnls/taucs_basic /Users/piatek/Desktop/ridgerunner/csnnls /Users/piatek/Desktop/ridgerunner/liboctrope-1.0 /Users/piatek/Desktop/ridgerunner/tsnnls/taucs_basic /Users/piatek/Desktop/ridgerunner /Users/piatek/Desktop/ridgerunner/tsnnls_dist";
+				LIBRARY_SEARCH_PATHS = "/usr/lib/gcc/darwin/3.3 /Users/michaelp/Desktop/ridgerunner/taucs/lib/darwin /Users/michaelp/Desktop/ridgerunner/taucs/external/lib/darwin /Users/michaelp/Desktop/ridgerunner/liboctrope-1.0 /Users/michaelp/Desktop/ridgerunner/csnnls/taucs_basic /Users/piatek/Desktop/ridgerunner/csnnls /Users/piatek/Desktop/ridgerunner/liboctrope-1.0 /Users/piatek/Desktop/ridgerunner/tsnnls/taucs_basic /Users/piatek/Desktop/ridgerunner /Users/piatek/Desktop/ridgerunner/tsnnls_dist /Users/michaelp/Desktop/ridgerunner/mactrope";
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "";
@@ -782,7 +795,7 @@
 			files = (
 				34DAD8F10667F8490019DC0C,
 				34DAD8F20667F8490019DC0C,
-				34037C3506D1668000A0092E,
+				34037CCF06D1697400A0092E,
 			);
 			isa = PBXFrameworksBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
