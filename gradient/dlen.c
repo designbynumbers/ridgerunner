@@ -22,7 +22,7 @@
 #endif // __APPLE__
 
 #include "dlen.h"
-#include "errors.h"
+#include "../errors.h"
 #include "link.h"
 #include "eqedge.h"
 
