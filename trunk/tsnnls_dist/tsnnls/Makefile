@@ -2,21 +2,21 @@
 OBJS=   tlsqr.o \
         tsnnls.o \
 	lsqr.o
-	
-TAUCS_OBJS=tsnnls/taucs_basic/taucs_logging.o \
-	tsnnls/taucs_basic/taucs_malloc.o \
-	tsnnls/taucs_basic/taucs_ccs_order.o \
-	tsnnls/taucs_basic/taucs_ccs_ops.o \
-	tsnnls/taucs_basic/taucs_vec_base.o \
-	tsnnls/taucs_basic/taucs_complex.o \
-	tsnnls/taucs_basic/colamd.o \
-	tsnnls/taucs_basic/amdbar.o \
-	tsnnls/taucs_basic/amdexa.o \
-	tsnnls/taucs_basic/amdtru.o \
-	tsnnls/taucs_basic/genmmd.o \
-	tsnnls/taucs_basic/taucs_timer.o \
-	tsnnls/taucs_basic/taucs_sn_llt.o \
-	tsnnls/taucs_basic/taucs_ccs_base.o
+
+TAUCS_OBJS=taucs_basic/taucs_logging.o \
+	taucs_basic/taucs_malloc.o \
+	taucs_basic/taucs_ccs_order.o \
+	taucs_basic/taucs_ccs_ops.o \
+	taucs_basic/taucs_vec_base.o \
+	taucs_basic/taucs_complex.o \
+	taucs_basic/colamd.o \
+	taucs_basic/amdbar.o \
+	taucs_basic/amdexa.o \
+	taucs_basic/amdtru.o \
+	taucs_basic/genmmd.o \
+	taucs_basic/taucs_timer.o \
+	taucs_basic/taucs_sn_llt.o \
+	taucs_basic/taucs_ccs_base.o
 
 all: taucs_basic_objs $(OBJS)
 
