@@ -19,7 +19,7 @@
 #include "dlen.h"
 #include "eqedge.h"
 #include "settings.h"
-#include "errors.h"
+#include "../errors.h"
 
 octrope_link*		bsearch_step( octrope_link* inLink, search_state* inState );
 void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt );
