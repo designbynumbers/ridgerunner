@@ -2,7 +2,7 @@
    Functions to be included in the octrope_link library.
 */
 
-#include"eqedge.h"
+#include"gradient/eqedge.h"
 #include "gradient/stepper.h"
 
 int    octrope_pline_edges(octrope_pline *P)
