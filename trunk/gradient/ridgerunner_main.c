@@ -196,8 +196,11 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 								continue; // someone else got it first
 							*inLink = octrope_link_read(linkFile);
 							
-							octrope_link* store = *inLink;
-							*inLink = octrope_double_edges(store);
+							if( strstr(path, "loop")!= NULL )
+							{
+								octrope_link* store = *inLink;
+								*inLink = octrope_double_edges(store);
+							}
 							
 							initializeState(state,inLink, path);
 							fclose(linkFile);
