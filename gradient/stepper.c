@@ -365,9 +365,12 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				fclose(frame);
 				
 				char cmd[1024];
-				sprintf(cmd, "cp /tmp/struts.vect movie%s/struts.%lf.vect", inState->fname, time);
-				system(cmd);
-								
+				if( inState->lastStepStrutCount != 0 )
+				{
+					sprintf(cmd, "cp /tmp/struts.vect movie%s/struts.%lf.vect", inState->fname, inState->time);
+					system(cmd);
+				}
+											
 				printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
 			}
 			
