@@ -41,7 +41,7 @@ extern "C" {
  * solution may not be the best for all possible applications. This value in the zero
  * error tolerance.
  */
-#define kZeroThreshold  0 //1e-12
+#define kZeroThreshold  1e-12 //1e-12
 
 /* Utility Functions for CCS matrices */
 void				taucs_ccs_submatrix( const taucs_ccs_matrix* A, const int* keptCols, 
