@@ -225,6 +225,9 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	state->eqThreshold = 1.05;
 	state->eqMultiplier = 1;
 	state->factor = 1;
+	
+	state->minminrad = 0.499975;
+	
 	state->minrad = octrope_minradval(*inLink);
 	for( cItr=0; cItr<(*inLink)->nc; cItr++ )
 	{
