@@ -217,6 +217,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	
 	state->injrad = 0.5; // fix this for now
 	state->maxStepSize = 0.1*octrope_link_short_edge(*inLink);
+//	state->maxStepSize = 1e-4;
 	state->shortest = 2*state->injrad;
 	state->totalVerts = 0;
 	state->eqThreshold = 0;
