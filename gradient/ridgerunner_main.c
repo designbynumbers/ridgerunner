@@ -12,6 +12,10 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/dir.h>
+
 #include "errors.h"
 #include "stepper.h"
 #include "eqedge.h"
@@ -106,6 +110,14 @@ main( int argc, char* argv[] )
 		link = NULL;
 		// try to parse runfile
 		initializeState(&state, &link, argv[1]);
+		
+		if( link == NULL )
+		{
+			printf( "no knots to process!\n" );
+			return 0;
+		}
+		
+		updateSideLengths(link, &state);
 	}
 		
 /*	printf( "%f\n", maxovermin(link) );
@@ -152,9 +164,49 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	
 	if( *inLink == NULL )
 	{
-		while( rgetline( line, 1024, fp ) )
+		// for now just assume dirscanning and get first *.vect in the dir
+		// and call ourselves again
+		struct dirent* dp;
+		DIR* workingDir = opendir(".");
+		if( workingDir != NULL ) 
 		{
-			
+			while( (dp = readdir(workingDir)) != NULL )
+			{
+				char	path[512];
+				sprintf( path, "%s", dp->d_name );
+
+				struct stat finfo;
+				if( stat( path, &finfo ) == 0 )
+				{
+					if( !(finfo.st_mode & S_IFDIR) )	// if this isn't a directory...
+					{
+						char* vectPortion = strstr(path, ".vect");
+						if( vectPortion != NULL )
+						{
+							char cmd[1024];
+							FILE* linkFile = fopen(path,"r");
+							if( linkFile == NULL )
+								continue; // someone else got it first
+							*inLink = octrope_link_read(linkFile);
+							initializeState(state,inLink, path);
+							fclose(linkFile);
+							
+							state->batching = 1;
+							
+							strcpy(cmd, "mv ");
+							strcat(cmd, path);
+							strcat(cmd, " ");
+							vectPortion[0] = '\0';
+							strcat(cmd, path);
+							strcat(cmd, ".working");
+							system(cmd);
+							
+							fclose(fp);
+							return;
+						}
+					}
+				}
+			}
 		}
 	}
 	else
@@ -193,6 +245,8 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 		
 		state->residual = 0;
 	}
+	
+	fclose(fp);
 }
 
 void
