@@ -507,6 +507,7 @@
 				34037CCC06D1697400A0092E,
 				34037CCD06D1697400A0092E,
 				34037CCE06D1697400A0092E,
+				34037D0406D16B3900A0092E,
 			);
 			isa = PBXGroup;
 			path = mactrope;
@@ -564,6 +565,20 @@
 		};
 		34037CD206D1697400A0092E = {
 			fileRef = 34037CCE06D1697400A0092E;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		34037D0406D16B3900A0092E = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = truefalse.h;
+			refType = 4;
+			sourceTree = "<group>";
+		};
+		34037D0506D16B3900A0092E = {
+			fileRef = 34037D0406D16B3900A0092E;
 			isa = PBXBuildFile;
 			settings = {
 			};
@@ -716,6 +731,7 @@
 				34037CD006D1697400A0092E,
 				34037CD106D1697400A0092E,
 				34037CD206D1697400A0092E,
+				34037D0506D16B3900A0092E,
 			);
 			isa = PBXHeadersBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;

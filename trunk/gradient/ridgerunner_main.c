@@ -33,6 +33,8 @@ main( int argc, char* argv[] )
 	// no real arg processing for now, just assume grad evolve on specified link
 	if( argc < 2 )
 		usage();
+	
+	printf( "cvs client\n" );
 		
 	// use amd column ordering if the user hasn't specified something else
 	setenv("COL_ORDERING", "amd", 0);
