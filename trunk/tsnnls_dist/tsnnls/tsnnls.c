@@ -437,13 +437,66 @@ sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod )
 #define __DBL_EPSILON__ 2.2204460492503131e-16
 #endif
 
+static void
+detectCycles( int* counts, int n, int* F, int sizeF, int** prevFhandle, int** prevprevFhandle )
+{
+	int i, fItr, pItr, ppItr;
+	
+	// these will be the case during the first 2 calls when cycling is not yet possible
+	if( (*prevFhandle) == NULL )
+	{
+		(*prevFhandle) = (int*)calloc(n+1, sizeof(int));
+		for( i=0; i<sizeF; i++ )
+			(*prevFhandle)[i] = F[i];
+		(*prevFhandle)[i] = -1;
+	
+		return;
+	}
+	
+	if( (*prevprevFhandle) == NULL )
+	{
+		(*prevprevFhandle) = (*prevFhandle);
+		(*prevFhandle) = (int*)calloc(n+1, sizeof(int));
+		for( i=0; i<sizeF; i++ )
+			(*prevFhandle)[i] = F[i];
+		(*prevFhandle)[i] = -1;
+		
+		return;
+	}
+	
+	// since we have previous states, a cycle will occur if a variable is in prevprevF, not in prevF, 
+	// and is in F.
+	for( fItr=0; fItr<sizeF; fItr++ )
+	{
+		for( ppItr=0; (*prevprevFhandle)[ppItr] != -1; ppItr++ )
+		{
+			if( (*prevprevFhandle)[ppItr] == F[fItr] )
+			{
+				// so it was here two times previous, if it wasn't in F previously, then it 
+				// is a cycle
+				for( pItr=0; (*prevFhandle)[pItr] != -1; pItr++ )
+				{
+					// it was here before, no cycle
+					if( (*prevFhandle)[pItr] == F[fItr] )
+						break;
+				}
+				// we didn't find it, which implies cycle for F[fItr]
+				if( (*prevFhandle)[pItr] == -1 )
+				{
+					counts[F[fItr]] += 1;
+				}
+			}
+		}
+	}
+}
+
 taucs_double*
 t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b, 
 		 double* outResidualNorm, double inRelErrTolerance, int inPrintErrorWarnings )
 {
 	taucs_ccs_matrix  *Af;
 	int               p, ninf, pbar = {3};
-	int               m,n,i, maxSize;
+	int               m,n,i, maxSize, fItr;
 	
 	int				A_rows, A_cols;
 
@@ -451,6 +504,8 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	int              sizeF, sizeG, sizeH1, sizeH2, sizeSCR = {1};
 	int				lsqrStep=0;
 	double			rcond=1;
+	
+	int				*cycles, *prevF = NULL, *prevprevF = NULL;
 
 	/* These variables are subsets of the column indices of the matrix A, 
 	 * always stored in sorted order, and sized by the corresponding
@@ -498,6 +553,8 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	G   = calloc(n,sizeof(int));
 	H1  = calloc(n,sizeof(int));
 	H2  = calloc(n,sizeof(int));
+	
+	cycles = calloc(n, sizeof(int));
 
 	x   = calloc(n,sizeof(taucs_double));
 	y   = calloc(m,sizeof(taucs_double));
@@ -535,6 +592,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		infeasible(G,y,sizeG,H2,&sizeH2)  ) 
 	{
 		//printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
+		detectCycles( cycles, n, F, sizeF, &prevF, &prevprevF );
 
 		/* We found infeasible variables. We're going to swap them 
 		   between F and G according to one of the schemes below. */
@@ -658,6 +716,15 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 			}
 			if( xf_raw == NULL )
 				return NULL; // matrix probably not positive definite
+				
+			// zero cycles
+			for( fItr=0; fItr<sizeF; fItr++ )
+			{
+				if( cycles[F[fItr]] > n )
+				{
+					xf_raw[fItr] = 0;
+				}
+			}
 																		
 			/* taucs_snnls requires us to handle in some way the case where values
 			 * returned from lsqr that are within error tolerance of zero get continually
@@ -700,6 +767,15 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		taucs_transpose_vec_times_matrix(residual, A_original_ordering, G, sizeG, yg_raw);
 		
 		fix_zeros(yg_raw, sizeG, rcond, inPrintErrorWarnings);
+		
+		// zero cycles (note: really gItr, here)
+		for( fItr=0; fItr<sizeG; fItr++ )
+		{
+			if( cycles[G[fItr]] > n )
+			{
+				yg_raw[fItr] = 0;
+			}
+		}
 
 		/* We're now done. It remains to scatter the entries in xf_raw
 		 * and yg_raw over the x and y vectors, and free everything that
@@ -789,6 +865,12 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 	taucs_ccs_free(lsqrApA);
   
 	free(y);
+	
+	free(cycles);
+	if( prevF != NULL )
+		free(prevF);
+	if( prevprevF != NULL )
+		free(prevprevF);
 
 	return x;
 }
