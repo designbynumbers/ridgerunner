@@ -211,9 +211,21 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		lastSet = inState->lastStepStrutCount;
 			
 		//if( (i%50)==0 )
+		
+		// we want to fix eq, but only if minrad is okay -- otherwise we will tend to royally
+		// screw up minrad
+		if( inState->eqThreshold <= inState->lastMaxMin && 
+			!(inState->minrad < inState->injrad-(inState->overstepTol*inState->injrad)) )
+		{
+			inState->eq_step = 1;
+			inState->curvature_step = 0;
+		}
+		else
+			inState->eq_step = 0;
 	
-		if( inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad)) ||
-			inState->minrad < inState->injrad-(inState->overstepTol*inState->injrad) )
+		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad)) ||
+			inState->minrad < inState->injrad-(inState->overstepTol*inState->injrad)) &&
+			(inState->eq_step == 0) )
 		{
 			inState->curvature_step = 0;
 		}
@@ -222,6 +234,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			inState->curvature_step = 1;
 			if( inState->eq_step == 0 )
 				cSteps++;
+			else
+				inState->curvature_step = 0;
 		}
 		
 																		
@@ -229,7 +243,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	//	inState->curvature_step = 1;
 
 //		inState->maxStepSize = 1e-5;
-		gOutputFlag = 1;
+	//	gOutputFlag = 1;
 		
 			
 	/*		double user;
@@ -342,6 +356,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		double maxmin;
 		maxmin = maxovermin(*inLink);
+		inState->lastMaxMin = maxmin;
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
 	//	inState->eqMultiplier = 1;
@@ -349,11 +364,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 /*		if( maxmin > 1.0001 )
 			inState->eq_step = 1;
 		else
-*/			inState->eq_step = 0;
-		
+			inState->eq_step = 0;
+*/		
 		if( (stepItr%kOutputItrs) == 0 )
 		{
-			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %lf ssize: %f cstep: %d eqstep: %d\n", 
+			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqstep: %d\n", 
 						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
 						inState->eq_step );
 			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf cstep_time: %lf\n", 
@@ -425,7 +440,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					{
 						case kLength: fprintf( gnuplotDataFiles[i], "%lf", inState->length ); break;
 						case kConvergence: 
-						case kRopelength: fprintf( gnuplotDataFiles[i], "%lf", inState->ropelength ); break;
+						case kRopelength: fprintf( gnuplotDataFiles[i], "%lf", 2*inState->ropelength ); break;
 						case kStrutCount: fprintf( gnuplotDataFiles[i], "%d", inState->lastStepStrutCount ); break;
 						case kStepSize: fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); break;
 						case kThickness: fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); break;
@@ -476,24 +491,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		//lapack_eqedge( *inLink, 4 );
 	
 		//lapack_eqedge(*inLink, 4);		
-		
-		if( inState->eqThreshold != 0 && maxmin > inState->eqThreshold )
-		{
-			int eqsteps;
-			octrope_link* oldlink;
-			
-			lastEq = i;
-		
-			printf( "**\tEqing\t**\n" );
-			
-			for( eqsteps=0; eqsteps<4; eqsteps++ )
-			{
-				oldlink = *inLink;
-				*inLink = octrope_fixlength(oldlink);
-				octrope_link_free(oldlink);
-			}
-		}
-		
+				
 	//	maxovermin(*inLink);
 	}
 	
@@ -806,8 +804,10 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	double  lastDCSD, lastMR, eps = inState->stepSize*inState->stepSize;
 	octrope_link* workerLink;
 	
-	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/200;
-	double MR_ERROR_BOUND = ((inState->overstepTol)*inState->injrad)/100;
+//	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/20;
+	double ERROR_BOUND = 1e-4;
+//	double MR_ERROR_BOUND = ((inState->overstepTol)*inState->injrad)/20;
+	double MR_ERROR_BOUND = 1e-4;
 
 	// create initial vector field for which we want to move along in this step
 	octrope_vector* dVdt;
@@ -824,7 +824,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 	stepAttempts = 0;
 	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr;
+	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0;
 	do
 	{			
 		stepAttempts++;
@@ -845,7 +845,14 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			step(workerLink, inState->stepSize, dVdt);
 		}
 		else
-			step(workerLink, 0.25, dVdt);
+		{
+			if( /*inState->eq_step == 0 && (newmr > .5 || (newmr == 0 && lastMR>.5))*/ true )
+				step(workerLink, .25, dVdt);
+			else
+			{
+				step(workerLink, inState->stepSize, dVdt);
+			}
+		}
 
 		if( gOutputFlag == 1 )
 		{
@@ -855,8 +862,12 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		}
 		
 		// check our new thickness
-		newpoca = octrope_poca(workerLink, NULL, 0);
 		newmr = octrope_minradval(workerLink);
+		newpoca = octrope_poca(workerLink, NULL, 0);
+		
+		inState->minrad = newmr;
+		inState->shortest = newpoca;
+		
 		curr_error = max( lastDCSD-newpoca, 0 );
 		if( newmr < 0.5 )
 			mr_error = max(lastMR - newmr, 0);
@@ -867,8 +878,14 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			inState->stepSize *= 2;
 		else
 			inState->stepSize /= 2;		
-				
+			
+	/*	free(dVdt);
+		dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+		firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
+	*/			
 	} while( (curr_error > ERROR_BOUND || mr_error > MR_ERROR_BOUND) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
+	
+	inState->minrad = newmr;
 	
 	if( inState->stepSize < kMinStepSize )
 		inState->stepSize = kMinStepSize;
@@ -1367,14 +1384,7 @@ placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts,
 		{
 			angle = acos(value);
 		}
-		
-		/* In from of the As, Bs, and Cs, we have flipped sign because the 
-		 * minrad grad struts need to play with the thickness struts for which
-		 * dl is flipped. So we flip the sign of the rigidity matrix entries, which
-		 * doesn't change compressions, but would screw up the movement when we add compressions
-		 * to form dvdt. So we'll flip back then.
-		 */
-		
+				
 		if( octrope_norm(prevSide) < octrope_norm(thisSide) )
 		{
 			dlda.c[0] = (a.c[0] - v.c[0])/prevLen;
@@ -1459,6 +1469,18 @@ placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts,
 			Cs.c[2] = ( -2*thisLen *   (dxdb.c[2] * dtanconst)     + 2*dldb.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
 
 		}
+		
+		As.c[0] /= octrope_norm(As);
+		As.c[1] /= octrope_norm(As);
+		As.c[2] /= octrope_norm(As);
+		
+		Bs.c[0] /= octrope_norm(Bs);
+		Bs.c[1] /= octrope_norm(Bs);
+		Bs.c[2] /= octrope_norm(Bs);
+		
+		Cs.c[0] /= octrope_norm(Cs);
+		Cs.c[1] /= octrope_norm(Cs);
+		Cs.c[2] /= octrope_norm(Cs);
 		
 		
 		// temporarily increment the strut's verts based on their component interactions
@@ -2166,7 +2188,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					
 					NULL, 0 );
 					
-	//	minradLocs = 0; // these actually aren't helpful
+//		minradLocs = 0; // these actually aren't helpful
 		gFeasibleThreshold = minradLocs + strutCount;
 		
 		strutStorageSize += 10; // increase if we have to repeat this loop
@@ -2191,7 +2213,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	}
 
-	if( dlenStep != 0 || inState->eq_step != 0 )
+//	if( dlenStep != 0 || inState->eq_step != 0 )
+	if( inState->eq_step != 0 )
 	{
 		eqForce(dl, inLink, inState);
 	//	spinForce(dl, inLink, inState);
@@ -2292,7 +2315,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		// construct minusDL -- this is a column vector of size totalVerts
 		// we must operate using strictly doubles to interoperate with taucs_snnls
 		minusDL = (double*)calloc((3*inState->totalVerts), sizeof(double));
-		if( dlenStep != 0 )
+		if( dlenStep != 0 || inState->eq_step != 0 )
 		{
 			for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 			{
@@ -2305,63 +2328,69 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		{
 			taucs_ccs_matrix* sparseAT = taucs_ccs_transpose(sparseA);
 			double*	ofvB = (double*)calloc(strutCount+minradLocs, sizeof(double));
+			short badStruts = 0;
 		
-			for( sItr=0; sItr<strutCount; sItr++ )
-			{
-				if( strutSet[sItr].length < thickness - (thickness*inState->overstepTol)*.5 )
-		//		if( strutSet[sItr].length < thickness )
-				{
-					/* get the norm, distribute force over verts *
-					octrope_vector  ends[2];
-					double		norm;
-					int offset;
-					octrope_strut_ends(inLink, &strutSet[sItr], ends);
-					octrope_vsub(ends[0], ends[1]);
-					norm = octrope_norm(ends[0]);
-					ends[0].c[0] /= norm;
-					ends[0].c[0] /= norm;
-					ends[0].c[0] /= norm;
-					
-					offset = 3*(inState->compOffsets[strutSet[sItr].component[0]] + strutSet[sItr].lead_vert[0]);
-					minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[0];
-					minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[1];
-					minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[2];
-					
-					if( strutSet[sItr].lead_vert[0] == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
-						(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
-					{
-						offset = (3*inState->compOffsets[strutSet[sItr].component[0]]) - 3;
-					}
-					minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[0];
-					minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[1];
-					minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[2];
-					
-					offset = 3*(inState->compOffsets[strutSet[sItr].component[1]] + strutSet[sItr].lead_vert[1]);
-					minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
-					minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
-					minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
-					
-					if( strutSet[sItr].lead_vert[1] == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
-						(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
-					{
-						offset = (3*inState->compOffsets[strutSet[sItr].component[1]]) - 3;
-					}
-					minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
-					minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
-					minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
-				*/
-					
-					ofvB[sItr] = thickness-strutSet[sItr].length;
-				
-				} // if < thickness
-								
-			} // for over struts
-			
 			for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
 			{
-				ofvB[sItr] = 10*((thickness/2)-minradSet[sItr-strutCount].mr);
+				ofvB[sItr] = ((thickness/2)-minradSet[sItr-strutCount].mr);
 			}
 			
+		//	if( minradLocs == 0 )
+			{
+				for( sItr=0; sItr<strutCount; sItr++ )
+				{
+					if( strutSet[sItr].length < thickness - (thickness*inState->overstepTol)*.5 )
+			//		if( strutSet[sItr].length < thickness )
+					{
+	//					badStruts++;
+						
+						/* get the norm, distribute force over verts *
+						octrope_vector  ends[2];
+						double		norm;
+						int offset;
+						octrope_strut_ends(inLink, &strutSet[sItr], ends);
+						octrope_vsub(ends[0], ends[1]);
+						norm = octrope_norm(ends[0]);
+						ends[0].c[0] /= norm;
+						ends[0].c[0] /= norm;
+						ends[0].c[0] /= norm;
+						
+						offset = 3*(inState->compOffsets[strutSet[sItr].component[0]] + strutSet[sItr].lead_vert[0]);
+						minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[0];
+						minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[1];
+						minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[2];
+						
+						if( strutSet[sItr].lead_vert[0] == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
+							(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
+						{
+							offset = (3*inState->compOffsets[strutSet[sItr].component[0]]) - 3;
+						}
+						minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[0];
+						minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[1];
+						minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[2];
+						
+						offset = 3*(inState->compOffsets[strutSet[sItr].component[1]] + strutSet[sItr].lead_vert[1]);
+						minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
+						minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
+						minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
+						
+						if( strutSet[sItr].lead_vert[1] == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
+							(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
+						{
+							offset = (3*inState->compOffsets[strutSet[sItr].component[1]]) - 3;
+						}
+						minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
+						minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
+						minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
+					*/
+						
+						ofvB[sItr] = thickness-strutSet[sItr].length;
+					
+					} // if < thickness
+				}
+												
+			} // for over struts
+						
 			/*
 			 * Fact: The rigidity matrix A (compressions) = (resulting motions of verts).
 			 * So it's also true that
@@ -2484,7 +2513,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				F[i] = i;
 			compressions = t_snnlslsqr(sparseA, minusDL, taucs_ccs_aprime_times_a(sparseA), F, 1, 1);
 			free(F);
-		
+	*/	
 			/* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR *
 			lsqr_input   *lsqr_in;
 			lsqr_output  *lsqr_out;
@@ -2584,7 +2613,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			{
 				if( sItr < strutCount )
 					partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
-				else // we're in minrad land
+				else // we're in minrad land (-- actually this means nothing now)
 					partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
 			}
 			dVdt[dlItr].c[0] = dl[dlItr].c[0] + partialMult;

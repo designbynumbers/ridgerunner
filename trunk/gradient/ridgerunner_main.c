@@ -217,12 +217,15 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	
 	state->injrad = 0.5; // fix this for now
 	state->maxStepSize = 0.1*octrope_link_short_edge(*inLink);
+	if( state->maxStepSize > 1e-3 )
+		state->maxStepSize = 1e-3;
 //	state->maxStepSize = 1e-4;
 	state->shortest = 2*state->injrad;
 	state->totalVerts = 0;
-	state->eqThreshold = 0;
-	state->eqMultiplier = 2;
+	state->eqThreshold = 1.05;
+	state->eqMultiplier = 1;
 	state->factor = 1;
+	state->minrad = octrope_minradval(*inLink);
 	for( cItr=0; cItr<(*inLink)->nc; cItr++ )
 	{
 		state->totalVerts += (*inLink)->cp[cItr].nv;
