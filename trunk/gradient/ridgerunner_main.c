@@ -136,10 +136,7 @@ main( int argc, char* argv[] )
 	
 	if( link == NULL )
 		usage();
-	
-	printf( "Overstep tolerance: %f of thickness %f (%f)\n", state.overstepTol, state.injrad*2, 
-				state.injrad*2 - state.overstepTol*state.injrad*2 );
-	
+		
 	if( fixlengths == 1 )
 	{
 		octrope_link* tempLink = link;
@@ -174,6 +171,8 @@ main( int argc, char* argv[] )
 	
 	state.residualThreshold = residualThreshold;
 
+	printf( "Overstep tolerance: %f of thickness %f (%f)\n", state.overstepTol, state.injrad*2, 
+			state.injrad*2 - state.overstepTol*state.injrad*2 );
 	
 	// scale to thickness 1
 	if( autoscale == 1 )
