@@ -19,7 +19,7 @@
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
 
-#define kMinStepSize 1e-14
+#define kMinStepSize 1e-8
 //#define kMaxStepSize 1e-2
 
 
@@ -105,7 +105,11 @@ typedef struct
 	
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
 	
+	double	residualThreshold;	// threshold for residual stopping, will use if nonzero
+	
 	int		refineUntil;	// keep running until discretization at refineuntil x ropelength
+	
+	int		ignore_minrad; // control minrad
 	
 	struct rusage	frameStart;
 	

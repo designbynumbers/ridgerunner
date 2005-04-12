@@ -35,16 +35,24 @@ main( int argc, char* argv[] )
 	char			opt;
 	char			cmd[1024];
 	short			autoscale = 0, fixlengths = 0, movie = 0;
-	int				checkDelta = 1, refineUntil = 0;
+	int				refineUntil = 0, ignorecurvature=0;
+	double			checkDelta = 1;
 	double			injrad = 0.5, overstepTol=0.0001;
+	double			residualThreshold = 65000;
 	double			eqMult = 2.0;
+	int				doubleCount = 0;
+	char			fname[1024];
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "lf:mac:r:i:o:e:")) != -1 )
+	while( (opt = getopt(argc, argv, "lf:mnat:dc:r:i:o:e:")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'd':
+				doubleCount++;
+				break;
+				
 			case 'o': // min overstep, percentage of thickness
 				if( optarg == NULL )
 					usage();
@@ -57,6 +65,14 @@ main( int argc, char* argv[] )
 					usage();
 				refineUntil = atoi(optarg);
 				if( refineUntil < 0 )
+					usage();
+				break;
+			
+			case 't':
+				if( optarg == NULL )
+					usage();
+				residualThreshold = atof(optarg);
+				if( residualThreshold < 0 )
 					usage();
 				break;
 			
@@ -79,7 +95,7 @@ main( int argc, char* argv[] )
 			case 'c': // check delta
 				if( optarg == NULL )
 					usage();
-				checkDelta = atoi(optarg);
+				checkDelta = atof(optarg);
 				if( checkDelta < 0 )
 					usage();
 				break;
@@ -96,13 +112,16 @@ main( int argc, char* argv[] )
 					return -1;
 				}
 				link = octrope_link_read(linkFile);
-				initializeState( &state, &link, optarg);
-				updateSideLengths(link, &state);
+				strcpy(fname, optarg);
 				fclose(linkFile);
 				break;
 				
 			case 'm': // movie
 				movie = 1;
+				break;
+			
+			case 'n':
+				ignorecurvature = 1;
 				break;
 			
 			case 'a':
@@ -117,14 +136,6 @@ main( int argc, char* argv[] )
 	
 	if( link == NULL )
 		usage();
-	
-	state.refineUntil = refineUntil;
-	state.checkDelta = checkDelta;
-	state.movie = movie;
-	
-	state.injrad = injrad;
-	state.overstepTol = overstepTol;
-	state.eqMultiplier = eqMult;
 	
 	printf( "Overstep tolerance: %f of thickness %f (%f)\n", state.overstepTol, state.injrad*2, 
 				state.injrad*2 - state.overstepTol*state.injrad*2 );
@@ -142,10 +153,32 @@ main( int argc, char* argv[] )
 		octrope_link_free(tempLink);
 	}
 	
+	int dItr;
+	for( dItr=0; dItr<doubleCount; dItr++ )
+	{
+		octrope_link* tempLink = link;
+		link = octrope_double_edges(tempLink);
+		octrope_link_free(tempLink);
+	}
+	
+	initializeState( &state, &link, fname);
+	updateSideLengths(link, &state);
+	
+	state.refineUntil = refineUntil;
+	state.checkDelta = checkDelta;
+	state.movie = movie;
+	
+	state.injrad = injrad;
+	state.overstepTol = overstepTol;
+	state.eqMultiplier = eqMult;
+	
+	state.residualThreshold = residualThreshold;
+
+	
 	// scale to thickness 1
 	if( autoscale == 1 )
 	{
-		printf( "autoscaling with injrad %f\n", state.injrad );
+		printf( "autoscaling with injrad %f, scale factor: %e\n", state.injrad, ((2*state.injrad)/octrope_thickness(link, 1, NULL, 0))-(2*state.injrad) );
 		link_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
 	}
 	
@@ -180,6 +213,9 @@ main( int argc, char* argv[] )
 	state.graphing[kWallTime] = 0;
 	state.graphing[kMaxVertexForce] = 0;
 	state.graphing[kConvergence] = 0;
+	
+	if( ignorecurvature != 0 )
+		state.ignore_minrad = 1;
 		
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
@@ -216,7 +252,9 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	strncpy(state->fname, fname, sizeof(state->fname)-1);
 	
 	state->injrad = 0.5; // fix this for now
+		
 	state->maxStepSize = 0.1*octrope_link_short_edge(*inLink);
+		
 	if( state->maxStepSize > 1e-3 )
 		state->maxStepSize = 1e-3;
 //	state->maxStepSize = 1e-4;
@@ -264,9 +302,21 @@ void
 usage()
 {
 	fprintf( stdout, 
-			"Options information is as follows\n"
-            "ridgerunner [runfile|vectfile] options\n\n"
-            "    -h, -help			       Print this message\n");
+"ridgerunner \n\n \
+-h\t\t Print this message\n \
+-d count\t Divides edges count times before running (can be numerically unstable)\n \
+-o tolerance\t Overstep tolerance (probably broken)\n \
+-r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \
+-e mult\t Sets the eq-force multiplier\n \
+-i injrad\t Sets injrad constraint (probably broken)\n \
+-c delta\t Stop if in delta timestep time, we haven't improved length more than 0.05\n \
+-l\t\t Forces edge lengths to be approximately equal via Rawdon's tangential runaround\n \
+-f file\t Specifies runtile knot (required!)\n \
+-m\t\t Will create a directory with timestep frames and strut sets to facilitate movie creation\n \
+-n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
+-a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
+-t threshold\t Sets additional residual stopping requirement that residual < threshold\n "
+);
 	exit(kNoErr);
 }
 
