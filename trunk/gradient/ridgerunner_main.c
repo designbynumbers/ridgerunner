@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -42,13 +43,18 @@ main( int argc, char* argv[] )
 	double			eqMult = 2.0;
 	int				doubleCount = 0;
 	char			fname[1024];
+	int				equalizeDensity = 0;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "lf:mnat:dc:r:i:o:e:")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'v':
+				equalizeDensity=1;
+				break;
+				
 			case 'd':
 				doubleCount++;
 				break;
@@ -180,7 +186,7 @@ main( int argc, char* argv[] )
 		printf( "autoscaling with injrad %f, scale factor: %e\n", state.injrad, ((2*state.injrad)/octrope_thickness(link, 1, NULL, 0))-(2*state.injrad) );
 		link_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
 	}
-	
+		
 	// Create directory to store movie frames if we're making a movie
 	if( state.movie != 0 )
 	{
@@ -215,7 +221,34 @@ main( int argc, char* argv[] )
 	
 	if( ignorecurvature != 0 )
 		state.ignore_minrad = 1;
+				
+	if( equalizeDensity != 0 )
+	{
+		printf("eq density\n");
 		
+		int bigC = -1;
+		int bigCverts = 0,cItr;
+		for( cItr=0; cItr<link->nc; cItr++ )
+		{
+			if( link->cp[cItr].nv > bigCverts )
+				bigC = cItr;
+		}
+		
+		for( cItr=0; cItr<link->nc; cItr++ )
+		{
+			// screw memory, we're quitting anyway
+			if( cItr != bigC )
+				link = octrope_double_component(link, cItr);
+		}
+		
+		char	newfname[512];
+		sprintf(newfname, "%s.ref", fname);
+		FILE* newfp = fopen(newfname,"w");
+		octrope_link_write(newfp, link); 
+		
+		exit(0);
+	}
+				
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
 	return kNoErr;
@@ -314,7 +347,8 @@ usage()
 -m\t\t Will create a directory with timestep frames and strut sets to facilitate movie creation\n \
 -n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
--t threshold\t Sets additional residual stopping requirement that residual < threshold\n "
+-t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
+-v equalize density\n"
 );
 	exit(kNoErr);
 }
