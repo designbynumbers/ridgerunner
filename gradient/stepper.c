@@ -27,6 +27,8 @@ octrope_link*		bsearch_step( octrope_link* inLink, search_state* inState );
 void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt );
 void				firstVariation( octrope_vector* inOutDvdt, octrope_link* inLink, search_state* inState,
 						octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
+void				computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
+						octrope_mrloc* minradSet, int strutCount, int minradLocs );
 
 extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
 
@@ -573,7 +575,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			getrusage(RUSAGE_SELF, &startStepTime);
 		*/
 		
-		if( (stepItr%100)==0 )
+		if( (stepItr%10)==0 )
 			gOutputFlag = 1;
 		
 		*inLink = bsearch_step(*inLink, inState);
@@ -3060,6 +3062,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( gOutputFlag )
 		{
 			int next0, next1, pItr;
+			
+			computeCompressPush( inLink, strutSet, minradSet, strutCount, minradLocs );
 		
 			totalPushes = (double*)calloc(inState->totalVerts, sizeof(double));
 			inState->maxPush = 0;
@@ -3236,4 +3240,11 @@ maxovermin( octrope_link* inLink )
 	
 	//printf( "max/min: %lf\n", max_maxovermin );
 	return max_maxovermin;
+}
+
+void
+computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
+				octrope_mrloc* minradSet, int strutCount, int minradLocs )
+{
+	
 }
