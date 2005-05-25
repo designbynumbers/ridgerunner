@@ -58,17 +58,27 @@ void refresh_display(octrope_link *L)
 
 }
 
+extern short gSuppressOutput;
 void 
-export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, double time)
+export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
 {
 	if( inSize == 0 )
 		return;
+	
+	if( gSuppressOutput == 1 )
+		return;
+		
+	double time = inState->time;
 
-	FILE* fp = fopen("/tmp/struts.vect", "w");
+	char	fname[1024];
+
+	preptmpname(fname, "struts.vect", inState);
+	FILE* fp = fopen(fname, "w");
 	int i=0;
 	double maxCompression;
 	
-	FILE* kp = fopen("/tmp/struts.ascii", "w");
+	preptmpname(fname, "struts.ascii", inState);
+	FILE* kp = fopen(fname, "w");
 	
 	if( inSize == 0 )
 	{
@@ -172,9 +182,9 @@ exportVect( const octrope_vector* dl, octrope_link* link, const char* fname )
 	}
 	
 	// Deep sky blue <- according to Rawdon 8)
-	if( strcmp( fname, "/tmp/dVdt.vect") == 0 )
+/*	if( strcmp( fname, "/tmp/dVdt.vect") == 0 )
 		fprintf( fp, "0,0,0,0\n");
-	else
+	else*/
 		fprintf( fp, "0,0.7461,0.9661,.5\n" );
 	
 	fclose(fp);
