@@ -9,5 +9,14 @@
 
 #include "settings.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+
 RSettings   gRidgeSettings;
+
+void
+preptmpname( char* outName, const char* inName, search_state* inState )
+{
+	sprintf( outName, "/tmp/%d.%s-%s", getpid(), inState->fname, inName );
+}
 

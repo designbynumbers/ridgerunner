@@ -461,6 +461,8 @@ glom( octrope_link* inLink, search_state* inState )
 	free(A);
 }
 
+extern short gSuppressOutput;
+
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
 {
@@ -575,8 +577,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			getrusage(RUSAGE_SELF, &startStepTime);
 		*/
 		
-		if( (stepItr%10)==0 )
+		if( (stepItr%50)==0 )
 			gOutputFlag = 1;
+		
+		if( gSuppressOutput == 1 )
+			gOutputFlag = 0;
 		
 		*inLink = bsearch_step(*inLink, inState);
 		
@@ -744,7 +749,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				char cmd[1024];
 				if( inState->lastStepStrutCount != 0 )
 				{
-					sprintf(cmd, "cp /tmp/struts.vect movie%s/struts.%lf.vect", inState->fname, inState->time);
+					char	foobear[1024];
+					preptmpname(foobear,"struts.vect",inState);
+					sprintf(cmd, "cp %s movie%s/struts.%lf.vect", foobear, inState->fname, inState->time);
 					system(cmd);
 				}
 											
@@ -806,9 +813,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			} // for graph outputs
 		}
 		
-		if( gOutputFlag == 1 )
+		if( gOutputFlag == 1 && gSuppressOutput == 0 )
 		{
-			FILE* verts = fopen("/tmp/verts.vect", "w");
+			char	fname[1024];
+			preptmpname(fname,"verts.vect",inState);
+			FILE* verts = fopen(fname, "w");
 			octrope_link_draw(verts, *inLink);
 			fclose(verts);
 		}
@@ -1096,7 +1105,9 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 	}
 	
 	// debug code!
-	exportVect(dVdt, inLink, "/tmp/dVdt.vect");
+	char	fname[1024];
+	preptmpname(fname,"dVdt.vect",inState);
+	exportVect(dVdt, inLink, fname);
 
 	free(A);
 	free(b);
@@ -1192,7 +1203,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 		if( gOutputFlag == 1 )
 		{
-			exportVect(dVdt, inLink, "/tmp/dVdt.vect");
+			char fname[1024];
+			preptmpname(fname,"dVdt.vect", inState);
+			exportVect(dVdt, inLink, fname);
 			printf( "visualization output\n" );
 			gOutputFlag = 0;
 		}
@@ -1317,7 +1330,9 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 		step(workerLink, inState->stepSize, dVdt);
 		if( gOutputFlag == 1 )
 		{
-			exportVect(dVdt, inLink, "/tmp/dVdt.vect");
+			char	fname[1024];
+			preptmpname(fname,"dVdt.vect",inState);
+			exportVect(dVdt, inLink, fname);
 			printf( "visualization output\n" );
 			gOutputFlag = 0;
 		}
@@ -2174,7 +2189,9 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			else
 				pushes[pItr] = 1.0/pushes[pItr];
 		}	
-		export_pushed_edges( inLink, inState, pushes, "/tmp/curvature.vect", 1 );
+		char fname[1024];
+		preptmpname(fname,"curvature.vect",inState);
+		export_pushed_edges( inLink, inState, pushes, fname, 1 );
 	}
 	free(pushes);
 	
@@ -2248,7 +2265,9 @@ spinForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		free(sides);
 		free(adjustments);
 	}
-	exportVect( dlen, inLink, "/tmp/adjustedDL.vect" );
+	char fname[1024];
+	preptmpname(fname,"adjustedDL.vect",inState);
+	exportVect( dlen, inLink, fname );
 }
 
 void
@@ -2282,7 +2301,11 @@ specialForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState 
 	dlen[8].c[1] += -1;
 
 	if( gOutputFlag )
-		exportVect( dlen, inLink, "/tmp/adjustedDL.vect" );
+	{
+		char fname[1024];
+		preptmpname(fname,"adjustedDL.vect",inState);
+		exportVect( dlen, inLink, fname );
+	}
 }
 
 static void
@@ -2295,7 +2318,11 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 	octrope_link_fix_wrap(inLink);
 	
 	if( gOutputFlag )
-		exportVect( dlen, inLink, "/tmp/originalDL.vect" );
+	{
+		char fname[1024];
+		preptmpname(fname,"originalDL.vect",inState);
+		exportVect( dlen, inLink, fname );
+	}
 	
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
@@ -2397,7 +2424,11 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 	}
 	
 	if( gOutputFlag )
-		exportVect( dlen, inLink, "/tmp/adjustedDL.vect" );
+	{
+		char	fname[1024];
+		preptmpname(fname,"adjustedDL.vect",inState);
+		exportVect( dlen, inLink, fname );
+	}
 }
 
 static double*
@@ -2978,7 +3009,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	//	}
 		
 		if( gOutputFlag == 1 /*&& dlenStep != 0*/ )
-			export_struts(inLink, strutSet, strutCount, compressions, inState->time);
+			export_struts(inLink, strutSet, strutCount, compressions, inState);
 
 		// if we are graphing rcond, we should record it here
 		if( inState->graphing[kRcond] != 0 )
@@ -3101,7 +3132,11 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			}
 			
 			if( gOutputFlag /*&& dlenStep != 0*/ )
-				export_pushed_edges(inLink, inState, totalPushes, "/tmp/compress_push.vect", 0);
+			{
+				char	fname[1024];
+				preptmpname(fname,"compress_push.vect",inState);
+				export_pushed_edges(inLink, inState, totalPushes, fname, 0);
+			}
 			free(totalPushes);
 		}
 		
@@ -3115,8 +3150,10 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		free(minradSet);
 		// we free this here and not outside the else{} since dVdt _IS_ dl if
 		// strutCount == 0, which is the other case.
-		if( gOutputFlag == 1 )
+	/*	if( gOutputFlag == 1 )
+		{
 			exportVect(dl, inLink, "/tmp/dl.vect");
+		}*/
 		//free(dl);
 		// throw dVdt back into dl, which on output, now includes dVdt
 		for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
@@ -3140,7 +3177,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 */		
 		if( gOutputFlag == 1 )
 		{
-			exportVect(dVdt, inLink, "/tmp/dVdt.vect");
+			char	fname[1024];
+			preptmpname(fname,"dVdt.vect",inState);
+			exportVect(dVdt, inLink, fname);
 		}
 		
 		free(minusDL);
