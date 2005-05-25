@@ -7,9 +7,18 @@
  *
  */
 
+#ifndef _H_settings
+#define _H_settings
+
+#include "stepper.h"
+
 typedef struct
 {
 	double  rescaleThreshold;
 } RSettings;
 
 extern RSettings gRidgeSettings;
+
+void preptmpname( char* outName, const char* inName, search_state* inState );
+
+#endif // _H_settings
