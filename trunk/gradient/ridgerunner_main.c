@@ -26,6 +26,8 @@ void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, octrope_link** inLink, const char* fname );
 
+short gSuppressOutput=0;
+
 int
 main( int argc, char* argv[] )
 {
@@ -47,12 +49,16 @@ main( int argc, char* argv[] )
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:s")) != -1 )
 	{
 		switch(opt)
 		{
 			case 'v':
 				equalizeDensity=1;
+				break;
+				
+			case 's':
+				gSuppressOutput=1;
 				break;
 				
 			case 'd':
@@ -199,10 +205,14 @@ main( int argc, char* argv[] )
 				
 	// install signal handler
 	signal(SIGUSR1, reload_handler);
-			
-	FILE* verts = fopen("/tmp/orig.vect", "w");
-	octrope_link_draw(verts, link);
-	fclose(verts);
+	
+	if( gSuppressOutput == 0 )
+	{
+		preptmpname(fname, "orig.vect", &state);
+		FILE* verts = fopen(fname, "w");
+		octrope_link_draw(verts, link);
+		fclose(verts);
+	}
 
 	// realtime graphing! -- it is not advisable to do more than a few of these at once
 	// (or any, if you're not on a mac using fink installed gnuplot)
@@ -348,7 +358,8 @@ usage()
 -n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
--v equalize density\n"
+-s suppress out\tSuppresses the progress files in /tmp\n \
+-v equalize density (does not work)\n"
 );
 	exit(kNoErr);
 }
