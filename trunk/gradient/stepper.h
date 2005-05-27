@@ -44,6 +44,8 @@ enum GraphTypes
 typedef struct
 {
 	short	movie;				// are we generating movie frames?
+	short	fancyVisualization;	// fancy visualization stuff w/ geomview, gnuplot, and tube
+	FILE*	fancyPipe;			// geomview pipe if we're fancy
 	
 	char	fname[512];
 
