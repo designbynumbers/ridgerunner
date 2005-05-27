@@ -5,22 +5,7 @@
 
 void init_display()
 {
-	gclpipe = fopen("/tmp/OOGL","w");
-	fatalifnull_(gclpipe);
 	
-	system("rm -f rmov.*");
-
-	system("rm -f /tmp/struts.vect");
-	system("touch /tmp/struts.vect");
-	
-	system("rm -f /tmp/dl.vect");
-	system("touch /tmp/dl.vect");
-	
-	system("rm -f /tmp/dVdt.vect");
-	system("touch /tmp/dVdt.vect");
-	
-	fprintf(gclpipe,"(normalization g0 none)\n");
-	fprintf(gclpipe,"(bbox-draw g0 no)\n");
 }
 
 void

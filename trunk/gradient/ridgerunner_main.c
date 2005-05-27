@@ -27,6 +27,7 @@ void reload_handler( int sig );
 void initializeState( search_state* state, octrope_link** inLink, const char* fname );
 
 short gSuppressOutput=0;
+short gQuiet = 0;
 
 int
 main( int argc, char* argv[] )
@@ -46,13 +47,18 @@ main( int argc, char* argv[] )
 	int				doubleCount = 0;
 	char			fname[1024];
 	int				equalizeDensity = 0;
+	short			fancyViz = 0;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:s")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:sgq")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'q':
+				gQuiet = 1;
+				break;
+				
 			case 'v':
 				equalizeDensity=1;
 				break;
@@ -139,7 +145,11 @@ main( int argc, char* argv[] )
 			case 'a':
 				autoscale = 1;
 				break;
-				
+			
+			case 'g':
+				fancyViz = 1;
+				break;
+			
 			default:
 				usage();
 				break;
@@ -206,17 +216,34 @@ main( int argc, char* argv[] )
 	// install signal handler
 	signal(SIGUSR1, reload_handler);
 	
+	state.fancyVisualization = fancyViz;
+	
 	if( gSuppressOutput == 0 )
 	{
 		preptmpname(fname, "orig.vect", &state);
 		FILE* verts = fopen(fname, "w");
 		octrope_link_draw(verts, link);
 		fclose(verts);
+		
+		if( state.fancyVisualization != 0 )
+		{
+			// create fancypipe
+			preptmpname(fname, "fancypipe", NULL );
+			char cmd[1024];
+			sprintf(cmd, "togeomview %s geomview -nopanels < /dev/null", fname );
+			system(cmd);
+			state.fancyPipe = fopen(fname,"w");
+			fprintf(state.fancyPipe, "(normalization g0 none)\n");
+			fprintf(state.fancyPipe, "(bbox-draw g0 no)\n");
+			fprintf(state.fancyPipe, "(merge-ap g0 appearance {*shading smooth} )\n");
+			fflush(state.fancyPipe);
+		}
 	}
 
 	// realtime graphing! -- it is not advisable to do more than a few of these at once
 	// (or any, if you're not on a mac using fink installed gnuplot)
-	state.graphing[kLength] = 0;
+	if( fancyViz != 0 )
+		state.graphing[kLength] = 1;
 	state.graphing[kRopelength] = 0;
 	state.graphing[kStrutCount] = 0;
 	state.graphing[kStepSize] = 0;
@@ -261,6 +288,7 @@ main( int argc, char* argv[] )
 				
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
+		
 	return kNoErr;
 }
 
@@ -359,7 +387,8 @@ usage()
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
 -s suppress out\tSuppresses the progress files in /tmp\n \
--v equalize density (does not work)\n"
+-v equalize density (does not work)\n \
+-g\t\t Enables geomview visualization fanciness, req. tube, gnuplot, geomview on path"
 );
 	exit(kNoErr);
 }
