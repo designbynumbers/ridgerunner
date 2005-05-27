@@ -40,6 +40,8 @@ void				normalizeStruts( octrope_vector* strutDirections,
 void		placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState );
 int displayEveryFrame = 0;
 
+extern short gQuiet;
+
 static void
 export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
 {
@@ -506,7 +508,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			// open the pipe for our input
 			gnuplotPipes[i] = fopen(fname, "w");
 		
-			fprintf( gnuplotPipes[i], "set term aqua\n" );
+			fprintf( gnuplotPipes[i], "set term x11\n" );
 		
 			sprintf(fname, "%ddat", i);
 			gnuplotDataFiles[i] = fopen(fname, "w");
@@ -545,7 +547,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			
 		if( inState->curvature_step == 0 )
 		{
-			printf( "last correction step lsqr residual: %lf\n", inState->ofvResidual );
+			if( gQuiet == 0 )
+				printf( "last correction step lsqr residual: %lf\n", inState->ofvResidual );
 		}
 
 		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
@@ -607,7 +610,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		if( inState->shortest < minthickness && inState->shortest != 0 )
 			minthickness = inState->shortest;
 		
-		if( (stepItr%kOutputItrs) == 0 )
+		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
 			printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
@@ -684,7 +687,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		{
 			inState->oldLength = inState->length;
 			inState->oldLengthTime = inState->cstep_time;
-			printf( "* Checked delta rope and continuing\n" );
+			if( gQuiet == 0 )
+				printf( "* Checked delta rope and continuing\n" );
 		}
 		
 		double maxmin;
@@ -699,7 +703,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		else
 			inState->eq_step = 0;
 */		
-		if( (stepItr%kOutputItrs) == 0 )
+		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
 			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqstep: %d\n", 
 						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
@@ -720,7 +724,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			// grab time for this frame and reset counter
 			getrusage(RUSAGE_SELF, &stopTime);
 			user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
-			printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
+			if( gQuiet == 0 )
+				printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			
 		//	nextMovieOutput += 0.05;
@@ -729,7 +734,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					
 			sprintf( fname, "restart_%s", inState->fname );
 		//	(strstr(fname,".vect"))[0] = '\0';
-			printf( "saved restart: %s\n", fname );
+			if( gQuiet == 0 )
+				printf( "saved restart: %s\n", fname );
 			frame = fopen( fname, "w" );
 			octrope_link_write(frame, *inLink);
 			fclose(frame);
@@ -754,8 +760,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					sprintf(cmd, "cp %s movie%s/struts.%lf.vect", foobear, inState->fname, inState->time);
 					system(cmd);
 				}
-											
-				printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
+				
+				if( gQuiet == 0 )
+					printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
+
 			}
 			
 			gOutputFlag = 1;
@@ -789,7 +797,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					fprintf( gnuplotDataFiles[i], "\n" );
 					fflush(gnuplotDataFiles[i]);
 					// show only last 5 seconds
-				//	fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
+			//		fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
+					if( i == kLength )
+						fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-1, inState->time );
+					
 					
 					fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
 					switch( i )
@@ -1206,7 +1217,24 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			char fname[1024];
 			preptmpname(fname,"dVdt.vect", inState);
 			exportVect(dVdt, inLink, fname);
-			printf( "visualization output\n" );
+			
+			if( inState->fancyVisualization != 0 )
+			{
+				fprintf(inState->fancyPipe, "(load %s)\n",fname);
+				preptmpname(fname,"struts.vect",inState);
+				fprintf(inState->fancyPipe, "(load %s)\n", fname);
+				fflush(inState->fancyPipe);
+			}
+			if( gQuiet == 0 )
+				printf( "visualization output\n" );
+			else
+			{
+				// same stats when quiet, but not just once / viz output
+				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
+						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
+						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
+						inState->avgDvdtMag, inState->residual, inState->time );
+			}
 			gOutputFlag = 0;
 		}
 
@@ -3136,6 +3164,13 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				char	fname[1024];
 				preptmpname(fname,"compress_push.vect",inState);
 				export_pushed_edges(inLink, inState, totalPushes, fname, 0);
+				if( inState->fancyVisualization != 0 )
+				{
+					fprintf(inState->fancyPipe, "(delete g0)\n");
+					fprintf(inState->fancyPipe, "(load %s)\n", fname);
+					fprintf(inState->fancyPipe, "(look g0)\n");
+					fflush(inState->fancyPipe);
+				}
 			}
 			free(totalPushes);
 		}
@@ -3271,11 +3306,14 @@ maxovermin( octrope_link* inLink )
 			max_maxovermin = (max/min);
 	}
 	
-	printf( "max edge: %f (%f/%f) at %d on %d / min edge: %f (%f/%f) at %d on %d\n", 
-		max, fabs(max-(len/totalEdges)), (fabs(max-(len/totalEdges))/(len/totalEdges))*100,
-		maxVert, maxComp,
-		min, fabs(min-(len/totalEdges)), (fabs(min-(len/totalEdges))/(len/totalEdges))*100,
-		minVert, minComp );
+	if( gQuiet == 0 )
+	{
+		printf( "max edge: %f (%f/%f) at %d on %d / min edge: %f (%f/%f) at %d on %d\n", 
+			max, fabs(max-(len/totalEdges)), (fabs(max-(len/totalEdges))/(len/totalEdges))*100,
+			maxVert, maxComp,
+			min, fabs(min-(len/totalEdges)), (fabs(min-(len/totalEdges))/(len/totalEdges))*100,
+			minVert, minComp );
+	}
 	
 	//printf( "max/min: %lf\n", max_maxovermin );
 	return max_maxovermin;
