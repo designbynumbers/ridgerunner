@@ -26,7 +26,7 @@ void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, octrope_link** inLink, const char* fname );
 
-short gSuppressOutput=0;
+short gSuppressOutput = 0;
 short gQuiet = 0;
 
 int
@@ -51,7 +51,7 @@ main( int argc, char* argv[] )
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:sgq")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:gqs")) != -1 )
 	{
 		switch(opt)
 		{
@@ -62,13 +62,13 @@ main( int argc, char* argv[] )
 			case 'v':
 				equalizeDensity=1;
 				break;
-				
-			case 's':
-				gSuppressOutput=1;
-				break;
-				
+								
 			case 'd':
 				doubleCount++;
+				break;
+				
+			case 's':
+				gSuppressOutput = 1;
 				break;
 				
 			case 'o': // min overstep, percentage of thickness
@@ -388,7 +388,7 @@ usage()
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
 -s suppress out\tSuppresses the progress files in /tmp\n \
 -v equalize density (does not work)\n \
--g\t\t Enables geomview visualization fanciness, req. tube, gnuplot, geomview on path"
+-g\t\t Enables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n"
 );
 	exit(kNoErr);
 }

@@ -747,7 +747,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 				if( cycles[F[fItr]] > n )
 				{
 					xf_raw[fItr] = 0;
-					printf( "* zeroed!\n" );
+					//printf( "* zeroed!\n" );
 				}
 			}
 																		
@@ -799,7 +799,7 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 			if( cycles[G[fItr]] > n )
 			{
 				yg_raw[fItr] = 0;
-				printf( "* zeroed!\n" );
+				//printf( "* zeroed!\n" );
 			}
 		}
 	
