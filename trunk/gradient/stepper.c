@@ -635,7 +635,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 			
 		if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
-			fabs(inState->oldLength-inState->length) < 0.05 &&
+			fabs(inState->oldLength-inState->length) < inState->checkThreshold &&
 			inState->residualThreshold >= inState->residual
 			/*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
 		{
@@ -717,9 +717,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqstep: %d\n", 
 						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
 						inState->eq_step );
-			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf cstep_time: %lf\n", 
+			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf check threshold: %lf\n", 
 					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
-					inState->oldLengthTime+inState->checkDelta, inState->cstep_time );
+					inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
 		}
 
 		if( inState->time >= nextMovieOutput )
@@ -738,10 +738,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			else
 			{
 				// same stats when quiet, but not just once / viz output
-				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
+				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf maxmin: %lf residual: %e time: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
 						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						inState->avgDvdtMag, inState->residual, inState->time );
+						maxmin, inState->residual, inState->time );
 			}
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			

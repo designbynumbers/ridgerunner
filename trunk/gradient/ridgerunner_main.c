@@ -44,6 +44,7 @@ main( int argc, char* argv[] )
 	double			checkDelta = 1;
 	double			injrad = 0.5, overstepTol=0.0001;
 	double			residualThreshold = 65000;
+	double			checkThreshold = 0.05;
 	double			eqMult = 2.0;
 	int				doubleCount = 0;
 	char			fname[1024];
@@ -51,7 +52,7 @@ main( int argc, char* argv[] )
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:gqs")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:gqsh:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -76,6 +77,13 @@ main( int argc, char* argv[] )
 					usage();
 				else
 					overstepTol = atof(optarg);
+				break;
+				
+			case 'h': // check delta threshold
+				if( optarg == NULL )
+					usage();
+				else
+					checkThreshold = atof(optarg);
 				break;
 			
 			case 'r': // refine until discretization at x(times)rope
@@ -185,6 +193,7 @@ main( int argc, char* argv[] )
 	
 	state.refineUntil = refineUntil;
 	state.checkDelta = checkDelta;
+	state.checkThreshold = checkThreshold;
 	state.movie = movie;
 	
 	state.injrad = injrad;
@@ -346,7 +355,7 @@ usage()
 {
 	fprintf( stdout, 
 "ridgerunner \n\n \
--h\t\t Print this message\n \
+-h threshold for check delta, will stop if length improvement < threshld in checkDelta time\n \
 -d count\t Divides edges count times before running (can be numerically unstable)\n \
 -o tolerance\t Overstep tolerance (probably broken)\n \
 -r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \

@@ -101,7 +101,8 @@ typedef struct
 	
 	double	oldLength;
 	double	oldLengthTime;
-	double	checkDelta;
+	double	checkDelta;		// the amount of time to wait to check for checkThreshold progress for stopping
+	double	checkThreshold; // the amount to check for 
 	
 	double	minminrad;
 	
