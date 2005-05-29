@@ -559,7 +559,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 		else
 		{
-			if( inState->curvature_step == 0 && inState->shortest < 0.99995 )
+			if( (inState->curvature_step == 0 && inState->shortest < 0.99995) ||
+				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
 				inState->curvature_step = 0;
 			else
 				inState->curvature_step = 1;
