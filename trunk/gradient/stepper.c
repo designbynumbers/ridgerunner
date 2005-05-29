@@ -465,6 +465,7 @@ glom( octrope_link* inLink, search_state* inState )
 }
 
 extern short gSuppressOutput;
+extern short gVerboseFiling;
 
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
@@ -559,8 +560,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 		else
 		{
-			if( (inState->curvature_step == 0 && inState->shortest < 0.99995) ||
-				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
+			if( (inState->curvature_step == 0 && inState->shortest < 0.99995) ) //||
+//				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
 				inState->curvature_step = 0;
 			else
 				inState->curvature_step = 1;
@@ -582,7 +583,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			getrusage(RUSAGE_SELF, &startStepTime);
 		*/
 		
-		if( (stepItr%50)==0 )
+		if( (stepItr%50)==0 || gVerboseFiling != 0 )
 			gOutputFlag = 1;
 		
 		if( gSuppressOutput == 1 )
@@ -1201,7 +1202,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	}
 	
 	if( lastMR < 0.5 )
-		correctionStepSize = 0.05;
+		correctionStepSize = 0.1;
 	
 	double newNorm = 0;
 	do

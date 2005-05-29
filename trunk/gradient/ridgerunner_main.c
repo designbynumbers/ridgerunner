@@ -26,6 +26,7 @@ void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, octrope_link** inLink, const char* fname );
 
+short gVerboseFiling = 0;
 short gSuppressOutput = 0;
 short gQuiet = 0;
 
@@ -46,7 +47,6 @@ main( int argc, char* argv[] )
 	double			eqMult = 2.0;
 	int				doubleCount = 0;
 	char			fname[1024];
-	int				equalizeDensity = 0;
 	short			fancyViz = 0;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
@@ -60,7 +60,7 @@ main( int argc, char* argv[] )
 				break;
 				
 			case 'v':
-				equalizeDensity=1;
+				gVerboseFiling = 1;
 				break;
 								
 			case 'd':
@@ -259,33 +259,6 @@ main( int argc, char* argv[] )
 	if( ignorecurvature != 0 )
 		state.ignore_minrad = 1;
 				
-	if( equalizeDensity != 0 )
-	{
-		printf("eq density\n");
-		
-		int bigC = -1;
-		int bigCverts = 0,cItr;
-		for( cItr=0; cItr<link->nc; cItr++ )
-		{
-			if( link->cp[cItr].nv > bigCverts )
-				bigC = cItr;
-		}
-		
-		for( cItr=0; cItr<link->nc; cItr++ )
-		{
-			// screw memory, we're quitting anyway
-			if( cItr != bigC )
-				link = octrope_double_component(link, cItr);
-		}
-		
-		char	newfname[512];
-		sprintf(newfname, "%s.ref", fname);
-		FILE* newfp = fopen(newfname,"w");
-		octrope_link_write(newfp, link); 
-		
-		exit(0);
-	}
-				
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
 		
@@ -387,7 +360,7 @@ usage()
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
 -s suppress out\tSuppresses the progress files in /tmp\n \
--v equalize density (does not work)\n \
+-v \t\textra verbose filing, will output files _every_ step \n \
 -g\t\t Enables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n"
 );
 	exit(kNoErr);
