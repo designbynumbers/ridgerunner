@@ -328,7 +328,7 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 			norm += Cs.c[nItr]*Cs.c[nItr];
 		}
 		norm = sqrt(norm);
-		As.c[0] /= norm;
+	/*	As.c[0] /= norm;
 		As.c[1] /= norm;
 		As.c[2] /= norm;
 		Bs.c[0] /= norm;
@@ -337,7 +337,8 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		Cs.c[0] /= norm;
 		Cs.c[1] /= norm;
 		Cs.c[2] /= norm;
-			
+	*/
+					
 		// temporarily increment the strut's verts based on their component interactions
 		// we undo this change at the end of the for loop in case the user
 		// wants to keep the strut set
@@ -588,6 +589,12 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		*inLink = bsearch_step(*inLink, inState);
 		
+		if( inState->minrad < 0.49 && inState->ignore_minrad == 0 )
+		{
+			fprintf(stderr, "minrad was probably going to crumble things\n" );
+			error_write(inLink);
+			exit(-1);
+		}
 
 		/*	getrusage(RUSAGE_SELF, &stopStepTime);
 			user = SECS(stopStepTime.ru_utime) - SECS(startStepTime.ru_utime);
@@ -726,6 +733,14 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
 			if( gQuiet == 0 )
 				printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
+			else
+			{
+				// same stats when quiet, but not just once / viz output
+				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
+						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
+						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
+						inState->avgDvdtMag, inState->residual, inState->time );
+			}
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			
 		//	nextMovieOutput += 0.05;
@@ -1220,26 +1235,29 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			
 			if( inState->fancyVisualization != 0 )
 			{
-				fprintf(inState->fancyPipe, "(load %s)\n",fname);
+				//fprintf(inState->fancyPipe, "(load %s)\n",fname);
 				preptmpname(fname,"struts.vect",inState);
 				fprintf(inState->fancyPipe, "(load %s)\n", fname);
 				fflush(inState->fancyPipe);
 			}
 			if( gQuiet == 0 )
 				printf( "visualization output\n" );
-			else
-			{
-				// same stats when quiet, but not just once / viz output
-				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
-						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						inState->avgDvdtMag, inState->residual, inState->time );
-			}
 			gOutputFlag = 0;
 		}
 
 		newmr = octrope_minradval(workerLink);
 		newpoca = octrope_poca(workerLink, NULL, 0);
+		
+		if( isnan(newmr) || isinf(newmr) )
+		{
+			fprintf(stderr, "error write due to nan minrad!\n");
+			error_write(workerLink);
+			
+			newmr = octrope_minradval(workerLink);
+			printf( "%lf\n", newmr );
+			
+			exit(-1);
+		}
 		
 		inState->minrad = newmr;
 		inState->shortest = newpoca;
@@ -2512,7 +2530,7 @@ stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
 }
 
 int gFeasibleThreshold = 0;
-
+int gDeferredStrutExport = 0;
 int gFoo = 0;
 
 void
@@ -3036,8 +3054,14 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );*/
 	//	}
 		
-		if( gOutputFlag == 1 /*&& dlenStep != 0*/ )
+		if( dlenStep == 0 )
+			gDeferredStrutExport = 1;
+		
+		if( (gOutputFlag == 1 && dlenStep != 0) || (gDeferredStrutExport != 0 && dlenStep != 0) )
+		{
 			export_struts(inLink, strutSet, strutCount, compressions, inState);
+			gDeferredStrutExport = 0;
+		}
 
 		// if we are graphing rcond, we should record it here
 		if( inState->graphing[kRcond] != 0 )
@@ -3051,8 +3075,10 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		{
 			// we've probably hit the rcond wall, scaling should smooth transition
 			//exit(-1);
-			printf( "****** NULL compressions! Trying to smooth through scaling\n" );
-			link_scale(inLink, 1.001);
+			printf( "****** NULL compressions!\n" );
+			fprintf( stderr, "****** NULL compressions!\n" );
+//			link_scale(inLink, 1.001);
+			exit(-1);
 			return;
 		}
 		
