@@ -10,13 +10,15 @@
 				COPY_PHASE_STRIP = NO;
 				DEBUGGING_SYMBOLS = YES;
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				HEADER_SEARCH_PATHS = "taucs/src mactrope taucs/build/darwin tnnls /sw/include tsnnls_dist/tsnnls";
 				LIBRARY_SEARCH_PATHS = "mactrope taucs/lib/darwin taucs/external/lib/darwin tsnnls_dist/";
+				LIBRARY_STYLE = STATIC;
+				MACOSX_DEPLOYMENT_TARGET = 10.3;
 				OPTIMIZATION_CFLAGS = "-O0";
-				OTHER_LDFLAGS = " -lMallocDebug";
+				OTHER_LDFLAGS = " -lMallocDebug -bind_at_load";
 				ZERO_LINK = NO;
 			};
 			isa = PBXBuildStyle;
@@ -49,21 +51,12 @@
 //024
 		0249A662FF388D9811CA2CEA = {
 			children = (
-				34986D1A065A847D00B6D86E,
-				0249A663FF388D9811CA2CEA,
+				343E4AC8084944E0001EAC40,
 			);
 			isa = PBXGroup;
 			name = "External Frameworks and Libraries";
 			refType = 4;
 			sourceTree = "<group>";
-		};
-		0249A663FF388D9811CA2CEA = {
-			isa = PBXFileReference;
-			lastKnownFileType = archive.ar;
-			name = "libstdc++.a";
-			path = "/usr/lib/libstdc++.a";
-			refType = 0;
-			sourceTree = "<absolute>";
 		};
 //020
 //021
@@ -656,6 +649,20 @@
 			settings = {
 			};
 		};
+		343E4AC8084944E0001EAC40 = {
+			isa = PBXFileReference;
+			lastKnownFileType = wrapper.framework;
+			name = vecLib.framework;
+			path = /System/Library/Frameworks/vecLib.framework;
+			refType = 0;
+			sourceTree = "<absolute>";
+		};
+		343E4AC9084944E0001EAC40 = {
+			fileRef = 343E4AC8084944E0001EAC40;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
 		3478150F06791F0B006507C7 = {
 			fileEncoding = 30;
 			isa = PBXFileReference;
@@ -680,20 +687,6 @@
 		};
 		3478151606791F46006507C7 = {
 			fileRef = 3478151506791F46006507C7;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-		34986D1A065A847D00B6D86E = {
-			isa = PBXFileReference;
-			lastKnownFileType = wrapper.framework;
-			name = vecLib.framework;
-			path = /System/Library/Frameworks/vecLib.framework;
-			refType = 0;
-			sourceTree = "<absolute>";
-		};
-		34986D1B065A847D00B6D86E = {
-			fileRef = 34986D1A065A847D00B6D86E;
 			isa = PBXBuildFile;
 			settings = {
 			};
@@ -751,16 +744,9 @@
 		34DAD8810667F63F0019DC0C = {
 			buildActionMask = 2147483647;
 			files = (
-				34DAD8920667F65E0019DC0C,
 			);
 			isa = PBXFrameworksBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
-		};
-		34DAD8920667F65E0019DC0C = {
-			fileRef = 34986D1A065A847D00B6D86E;
-			isa = PBXBuildFile;
-			settings = {
-			};
 		};
 		34DAD8D50667F7DF0019DC0C = {
 			buildActionMask = 2147483647;
@@ -827,6 +813,7 @@
 			buildRules = (
 			);
 			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "\"$(SYSTEM_DEVELOPER_DIR)/SDKs/MacOSX10.3.0.sdk/System/Library/Frameworks\"";
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_UNKNOWN_PRAGMAS = NO;
 				INSTALL_PATH = /usr/local/bin;
@@ -857,24 +844,11 @@
 		34DAD8E40667F83C0019DC0C = {
 			buildActionMask = 2147483647;
 			files = (
-				34DAD8F10667F8490019DC0C,
-				34DAD8F20667F8490019DC0C,
 				34037CCF06D1697400A0092E,
+				343E4AC9084944E0001EAC40,
 			);
 			isa = PBXFrameworksBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
-		};
-		34DAD8F10667F8490019DC0C = {
-			fileRef = 0249A663FF388D9811CA2CEA;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-		34DAD8F20667F8490019DC0C = {
-			fileRef = 34986D1A065A847D00B6D86E;
-			isa = PBXBuildFile;
-			settings = {
-			};
 		};
 		34DAD9240667F94F0019DC0C = {
 			children = (
@@ -1054,17 +1028,9 @@
 		8DD76F660486A84900D96B5E = {
 			buildActionMask = 2147483647;
 			files = (
-				8DD76F670486A84900D96B5E,
-				34986D1B065A847D00B6D86E,
 			);
 			isa = PBXFrameworksBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8DD76F670486A84900D96B5E = {
-			fileRef = 0249A663FF388D9811CA2CEA;
-			isa = PBXBuildFile;
-			settings = {
-			};
 		};
 		8DD76F680486A84900D96B5E = {
 			buildActionMask = 2147483647;
