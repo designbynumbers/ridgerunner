@@ -368,9 +368,9 @@ usage()
 -n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
--s suppress out\tSuppresses the progress files in /tmp\n \
--v \t\textra verbose filing, will output files _every_ step \n \
--g\t\t Enables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n"
+-s suppress out Suppresses the progress files in /tmp\n \
+-v\t\textra verbose filing, will output files _every_ step \n \
+-g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n"
 );
 	exit(kNoErr);
 }
