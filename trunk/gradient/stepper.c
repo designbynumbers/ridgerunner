@@ -591,13 +591,13 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		*inLink = bsearch_step(*inLink, inState);
 		
-		if( inState->minrad < 0.49 && inState->ignore_minrad == 0 )
+/*		if( inState->minrad < 0.49 && inState->ignore_minrad == 0 )
 		{
 			fprintf(stderr, "minrad was probably going to crumble things\n" );
 			error_write(inLink);
 			exit(-1);
 		}
-
+*/
 		/*	getrusage(RUSAGE_SELF, &stopStepTime);
 			user = SECS(stopStepTime.ru_utime) - SECS(startStepTime.ru_utime);
 			printf( "STEP TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
