@@ -3059,7 +3059,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( dlenStep == 0 )
 			gDeferredStrutExport = 1;
 		
-		if( (gOutputFlag == 1 && dlenStep != 0) || (gDeferredStrutExport != 0 && dlenStep != 0) )
+		if( (gOutputFlag == 1 && dlenStep != 0) || (gDeferredStrutExport != 0 && dlenStep != 0) || gVerboseFiling )
 		{
 			export_struts(inLink, strutSet, strutCount, compressions, inState);
 			gDeferredStrutExport = 0;

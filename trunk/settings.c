@@ -17,9 +17,11 @@ RSettings   gRidgeSettings;
 void
 preptmpname( char* outName, const char* inName, search_state* inState )
 {
-	if( inState != NULL )
+/*	if( inState != NULL )
 		sprintf( outName, "/tmp/%d.%s-%s", getpid(), inState->fname, inName );
 	else
 		sprintf( outName, "/tmp/%d-%s", getpid(), inName );
+*/
+	sprintf(outName, "%s", inName);
 }
 

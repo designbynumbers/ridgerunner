@@ -49,10 +49,11 @@ main( int argc, char* argv[] )
 	int				doubleCount = 0;
 	char			fname[1024];
 	short			fancyViz = 0;
+	double			scaleAmt = 1;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:dc:r:i:o:e:gqsh:")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnat:db:c:r:i:o:e:gqsh:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -124,6 +125,10 @@ main( int argc, char* argv[] )
 				checkDelta = atof(optarg);
 				if( checkDelta < 0 )
 					usage();
+				break;
+				
+			case 'b':
+				scaleAmt = atof(optarg);
 				break;
 				
 			case 'l': // fixlengths
@@ -210,6 +215,10 @@ main( int argc, char* argv[] )
 	{
 		printf( "autoscaling with injrad %f, scale factor: %e\n", state.injrad, ((2*state.injrad)/octrope_thickness(link, 1, NULL, 0))-(2*state.injrad) );
 		link_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
+	}
+	else
+	{
+		link_scale(link, scaleAmt );
 	}
 		
 	// Create directory to store movie frames if we're making a movie
