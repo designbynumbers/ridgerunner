@@ -22,6 +22,6 @@ preptmpname( char* outName, const char* inName, search_state* inState )
 	else
 		sprintf( outName, "/tmp/%d-%s", getpid(), inName );
 */
-	sprintf(outName, "%s", inName);
+	sprintf(outName, "/tmp/%s", inName);
 }
 
