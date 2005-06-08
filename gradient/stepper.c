@@ -524,6 +524,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	for( stepItr=0; 1==1; stepItr++ )
 	{
 		int lastSet;
+		
+		if( stepItr > inState->maxItrs && inState->maxItrs > 0 )
+			break;
 			
 		lastSet = inState->lastStepStrutCount;
 			

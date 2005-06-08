@@ -56,12 +56,13 @@ main( int argc, char* argv[] )
 	short			fancyViz = 0;
 	double			scaleAmt = 1;
 	double			maxStep = -1;
+	long			maxItrs = -1;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuat:db:c:r:i:o:e:gqx:sh:")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:db:c:r:i:o:e:gqx:sh:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -94,6 +95,10 @@ main( int argc, char* argv[] )
 					usage();
 				else
 					overstepTol = atof(optarg);
+				break;
+			
+			case 'p':
+				maxItrs = atoi(optarg);
 				break;
 				
 			case 'h': // check delta threshold
@@ -299,6 +304,8 @@ main( int argc, char* argv[] )
 		state.maxStepSize = maxStep;
 	}
 	state.stepSize = min(state.stepSize, state.maxStepSize);
+	
+	state.maxItrs = maxItrs;
 							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
@@ -403,6 +410,7 @@ usage()
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
 -s suppress out Suppresses the progress files in /tmp\n \
+-p max itrs\tspecifies the maximum number of integration steps to be taken. default is inf\n \
 -v\t\textra verbose filing, will output files _every_ step \n \
 -g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
 -u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n"
