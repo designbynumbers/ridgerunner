@@ -58,6 +58,10 @@ void   octrope_link_draw(FILE *outfile, octrope_link *L);
 void	init_display();
 void	shutdown_display();
 void   refresh_display(octrope_link *L);
+void	export_ted(octrope_link* inLink, octrope_strut* strutSet, 
+			int inSize, octrope_mrloc* minradSet, int minradLocs, 
+			double* compressions, search_state* inState);
+			
 void	export_struts(octrope_link* inLink, octrope_strut* inStruts, int inSize, double* compressions, search_state* inState);
 void	exportVect( const octrope_vector* dl, octrope_link* link, const char* fname );
 
