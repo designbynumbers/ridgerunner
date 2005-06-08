@@ -742,10 +742,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			else
 			{
 				// same stats when quiet, but not just once / viz output
-				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf maxmin: %lf residual: %e time: %lf\n", 
+				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf maxmin: %lf residual: %e time: %lf cstep ratio: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
 						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						maxmin, inState->residual, inState->time );
+						maxmin, inState->residual, inState->time, ((double)cSteps)/((double)stepItr+1) );
 			}
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			
