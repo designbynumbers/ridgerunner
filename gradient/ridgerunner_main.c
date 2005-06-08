@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <time.h>
+#include <math.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -29,6 +31,9 @@ void initializeState( search_state* state, octrope_link** inLink, const char* fn
 short gVerboseFiling = 0;
 short gSuppressOutput = 0;
 short gQuiet = 0;
+short gSurfaceBuilding = 0;
+
+#define min(a,b) ((a)<(b)) ? (a) : (b)
 
 int
 main( int argc, char* argv[] )
@@ -50,15 +55,26 @@ main( int argc, char* argv[] )
 	char			fname[1024];
 	short			fancyViz = 0;
 	double			scaleAmt = 1;
+	double			maxStep = -1;
 	
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
-	while( (opt = getopt(argc, argv, "vlf:mnat:db:c:r:i:o:e:gqsh:")) != -1 )
+	srand(time(NULL));
+	
+	while( (opt = getopt(argc, argv, "vlf:mnuat:db:c:r:i:o:e:gqx:sh:")) != -1 )
 	{
 		switch(opt)
 		{
 			case 'q':
 				gQuiet = 1;
+				break;
+				
+			case 'x':
+				sscanf(optarg, "%lf", &maxStep);
+				break;
+			
+			case 'u':
+				gSurfaceBuilding = 1;
 				break;
 				
 			case 'v':
@@ -276,7 +292,14 @@ main( int argc, char* argv[] )
 	
 	if( ignorecurvature != 0 )
 		state.ignore_minrad = 1;
-				
+		
+	if( maxStep > 0 )
+	{
+		printf("max step size: %e\n", maxStep);
+		state.maxStepSize = maxStep;
+	}
+	state.stepSize = min(state.stepSize, state.maxStepSize);
+							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
 		
@@ -369,17 +392,20 @@ usage()
 -o tolerance\t Overstep tolerance (probably broken)\n \
 -r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \
 -e mult\t Sets the eq-force multiplier\n \
+-b amt\tscales curve by amt\n \
 -i injrad\t Sets injrad constraint (probably broken)\n \
 -c delta\t Stop if in delta timestep time, we haven't improved length more than 0.05\n \
 -l\t\t Forces edge lengths to be approximately equal via Rawdon's tangential runaround\n \
 -f file\t Specifies runtile knot (required!)\n \
 -m\t\t Will create a directory with timestep frames and strut sets to facilitate movie creation\n \
+-x\tmax step size\tspecifies the maxiumum size of integration step\n \
 -n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
 -a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
 -t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
 -s suppress out Suppresses the progress files in /tmp\n \
 -v\t\textra verbose filing, will output files _every_ step \n \
--g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n"
+-g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
+-u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n"
 );
 	exit(kNoErr);
 }

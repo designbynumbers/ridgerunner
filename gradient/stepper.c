@@ -41,6 +41,7 @@ void		placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int t
 int displayEveryFrame = 0;
 
 extern short gQuiet;
+extern short gSurfaceBuilding;
 
 static void
 export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
@@ -1201,10 +1202,12 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		normalizeVects(dVdt, inState->totalVerts);
 	}
 	
-	if( lastMR < 0.5 )
-		correctionStepSize = 0.1;
+//	if( lastMR < 0.5 )
+//		correctionStepSize = 0.25;
+
+	if( gSurfaceBuilding )
+		correctionStepSize = 0.05;
 	
-	double newNorm = 0;
 	do
 	{			
 		stepAttempts++;
@@ -3062,6 +3065,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( (gOutputFlag == 1 && dlenStep != 0) || (gDeferredStrutExport != 0 && dlenStep != 0) || gVerboseFiling )
 		{
 			export_struts(inLink, strutSet, strutCount, compressions, inState);
+			export_ted(inLink, strutSet, strutCount, minradSet, minradLocs, compressions, inState);
 			gDeferredStrutExport = 0;
 		}
 

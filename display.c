@@ -43,7 +43,43 @@ void refresh_display(octrope_link *L)
 
 }
 
+void
+export_ted(octrope_link* inLink, octrope_strut* strutSet, 
+			int inSize, octrope_mrloc* minradSet, int minradLocs, 
+			double* compressions, search_state* inState)
+{
+	char	fname[1024];
+	
+	preptmpname(fname, "struts_ted.txt", inState);
+	FILE* ted = fopen(fname,"w");
+	
+	fprintf(ted, "%d %d\n", inSize, minradLocs);
+	
+	int i;
+	for( i=0; i<inSize; i++ )
+	{
+		fprintf(ted, "%d %d %d %d %3.10lf %3.10lf %3.10lf %e\n", 
+			strutSet[i].component[0], strutSet[i].component[1],
+			strutSet[i].lead_vert[0], strutSet[i].lead_vert[1],
+			strutSet[i].position[0], strutSet[i].position[1],
+			strutSet[i].length, compressions[i] );
+	}
+	for( i=0; i<minradLocs; i++ )
+	{
+		fprintf(ted, "%d %d %3.10lf %e\n", minradSet[i].component,
+					minradSet[i].vert, minradSet[i].mr,
+					compressions[i+inSize]);
+	}
+	
+	fclose(ted);
+}
+
 extern short gSuppressOutput;
+extern short gSurfaceBuilding;
+
+short gSurfaceIndex = 0; // the next filename for the surface building
+short gSurfaceItr = 0; // how long till next surface output
+
 void 
 export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
 {
@@ -61,9 +97,12 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	FILE* fp = fopen(fname, "w");
 	int i=0;
 	double maxCompression;
+		
+	preptmpname(fname, "struts_meta.txt", inState);
+	FILE* meta = fopen(fname,"w");
 	
-	preptmpname(fname, "struts.ascii", inState);
-	FILE* kp = fopen(fname, "w");
+	preptmpname(fname, "struts_ted.txt", inState);
+	FILE* ted = fopen(fname, "w");
 	
 	if( inSize == 0 )
 	{
@@ -83,33 +122,6 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 		fprintf(fp, " 1");
 	fprintf(fp, "\n");
 	
-	for( i=0; i<inSize; i++ )
-	{
-		octrope_vector  points[2];
-		
-		octrope_strut_ends( inLink, &strutSet[i], points );
-			
-		fprintf(fp, "%lf %lf %lf\n",
-			points[0].c[0], 
-			points[0].c[1], 
-			points[0].c[2] );
-		
-		fprintf(kp, "%lf %lf %lf\n",
-			points[0].c[0], 
-			points[0].c[1], 
-			points[0].c[2] );
-		
-		fprintf(fp, "%lf %lf %lf\n",
-			points[1].c[0], 
-			points[1].c[1], 
-			points[1].c[2] );
-			
-		fprintf(kp, "%lf %lf %lf\n\n",
-			points[1].c[0], 
-			points[1].c[1], 
-			points[1].c[2] );
-	}
-	
 	maxCompression = 0;
 	for( i=0; i<inSize; i++ )
 	{
@@ -122,11 +134,58 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	
 	for( i=0; i<inSize; i++ )
 	{
+		octrope_vector  points[2];
+		
+		octrope_strut_ends( inLink, &strutSet[i], points );
+		
+		fprintf( meta, "%d %d %d %d %f\n", strutSet[i].component[0], 
+										strutSet[i].lead_vert[0],
+										strutSet[i].component[1],
+										strutSet[i].lead_vert[1],
+										compressions[i]/maxCompression );
+					
+		fprintf(fp, "%lf %lf %lf\n",
+			points[0].c[0], 
+			points[0].c[1], 
+			points[0].c[2] );
+				
+		fprintf(fp, "%lf %lf %lf\n",
+			points[1].c[0], 
+			points[1].c[1], 
+			points[1].c[2] );
+			
+	}
+		
+	for( i=0; i<inSize; i++ )
+	{
 		fprintf(fp, "%f,%f,%f,0\n", compressions[i]/maxCompression, 0.0, 0.0);
 	}
 	
-	fclose(kp);
 	fclose(fp);
+	fclose(meta);
+	fclose(ted);
+	
+	if( gSurfaceBuilding != 0 )
+	{
+		if( gSurfaceItr == 0 )
+		{
+			char cmd[1024];
+			printf("updating strut surface %d\n", gSurfaceIndex);
+			sprintf(cmd, "cp /tmp/struts.vect /tmp/struts%d.vect", gSurfaceIndex);
+			system(cmd);
+			sprintf(cmd, "cp /tmp/struts_meta.txt /tmp/struts_meta%d.txt", gSurfaceIndex);
+			system(cmd);
+			if( gSurfaceIndex == 15 )
+				gSurfaceIndex = 0;
+			else
+				gSurfaceIndex++;
+			gSurfaceItr = (rand() % 40);
+		}
+		else 
+		{
+			gSurfaceItr--;
+		}
+	}
 }
 
 void
