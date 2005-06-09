@@ -749,6 +749,15 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			}
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			
+			if( inState->saveConvergence != 0 )
+			{
+				preptmpname(fname, "rrconvergence.txt", inState);
+				FILE* conv = fopen(fname,"a");
+				fprintf( conv, "%3.14lf %3.14lf\n", inState->time, max(2*inState->length,2*inState->ropelength) );
+				// flushes, most importantly
+				fclose(conv);
+			}
+			
 		//	nextMovieOutput += 0.05;
 			// make things 24 fps
 			nextMovieOutput += 0.041666666667;

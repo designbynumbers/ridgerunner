@@ -45,6 +45,7 @@ typedef struct
 {
 	long	maxItrs;			// maximum number of steps to perform before quit
 
+	short	saveConvergence;	// saving convergence info?
 	short	movie;				// are we generating movie frames?
 	short	fancyVisualization;	// fancy visualization stuff w/ geomview, gnuplot, and tube
 	FILE*	fancyPipe;			// geomview pipe if we're fancy

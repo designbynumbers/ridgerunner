@@ -10,7 +10,6 @@
  *  THOUGHTS:
  *      - we might be able to squeeze more speed out of a G4 version of things 
  *          by turning off Java mode
- *      - do we really even want to use double precision here?
  *
  */
 #include <math.h>
