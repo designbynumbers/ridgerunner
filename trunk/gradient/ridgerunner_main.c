@@ -53,7 +53,7 @@ main( int argc, char* argv[] )
 	double			eqMult = 2.0;
 	int				doubleCount = 0;
 	char			fname[1024];
-	short			fancyViz = 0;
+	short			fancyViz = 0, saveConvergence = 0;
 	double			scaleAmt = 1;
 	double			maxStep = -1;
 	long			maxItrs = -1;
@@ -62,10 +62,14 @@ main( int argc, char* argv[] )
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:db:c:r:i:o:e:gqx:sh:")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:db:c:r:i:o:e:gqx:sh:w")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'w':
+				saveConvergence = 1;
+				break;
+		
 			case 'q':
 				gQuiet = 1;
 				break;
@@ -306,6 +310,15 @@ main( int argc, char* argv[] )
 	state.stepSize = min(state.stepSize, state.maxStepSize);
 	
 	state.maxItrs = maxItrs;
+	state.saveConvergence = saveConvergence;
+	if( saveConvergence != 0 )
+	{
+		char fname[1024];
+		preptmpname(fname, "rrconvergence.txt", &state);
+		// empty file and touch, essentially
+		FILE* conv = fopen(fname,"w");
+		fclose(conv);
+	}
 							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
@@ -413,7 +426,8 @@ usage()
 -p max itrs\tspecifies the maximum number of integration steps to be taken. default is inf\n \
 -v\t\textra verbose filing, will output files _every_ step \n \
 -g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
--u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n"
+-u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v \
+-w\tconvergence data printed in /tmp/rrconvergence.txt \n"
 );
 	exit(kNoErr);
 }
