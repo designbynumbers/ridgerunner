@@ -14,14 +14,21 @@
 
 RSettings   gRidgeSettings;
 
+extern int gAvoidTmpConflicts;
+
 void
 preptmpname( char* outName, const char* inName, search_state* inState )
 {
-/*	if( inState != NULL )
-		sprintf( outName, "/tmp/%d.%s-%s", getpid(), inState->fname, inName );
+	if( gAvoidTmpConflicts != 0 )
+	{
+		if( inState != NULL )
+			sprintf( outName, "/tmp/%d.%s-%s", getpid(), inState->fname, inName );
+		else
+			sprintf( outName, "/tmp/%d-%s", getpid(), inName );
+	}
 	else
-		sprintf( outName, "/tmp/%d-%s", getpid(), inName );
-*/
-	sprintf(outName, "/tmp/%s", inName);
+	{
+		sprintf(outName, "/tmp/%s", inName);
+	}
 }
 

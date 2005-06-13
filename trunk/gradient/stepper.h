@@ -90,6 +90,7 @@ typedef struct
 	int		eq_step;
 	
 	double* sideLengths;
+	double	avgSideLength;
 	
 	double  rcond;				// rcond from the last step, nonzero only if graphing[kRcond] == 1 && struts > 0
 	
@@ -133,7 +134,7 @@ typedef struct
  */
 void bsearch_stepper( octrope_link** inLink, search_state* inState );
 
-double				maxovermin( octrope_link* inLink );
+double				maxovermin( octrope_link* inLink, search_state* inState );
 
 void	updateSideLengths( octrope_link* inLink, search_state* inState );
 

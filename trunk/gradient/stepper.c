@@ -24,7 +24,7 @@
 #include "../errors.h"
 
 octrope_link*		bsearch_step( octrope_link* inLink, search_state* inState );
-void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt );
+void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state* inState );
 void				firstVariation( octrope_vector* inOutDvdt, octrope_link* inLink, search_state* inState,
 						octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
 void				computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
@@ -40,8 +40,8 @@ void				normalizeStruts( octrope_vector* strutDirections,
 void		placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState );
 int displayEveryFrame = 0;
 
-extern short gQuiet;
-extern short gSurfaceBuilding;
+extern int gQuiet;
+extern int gSurfaceBuilding;
 
 static void
 export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
@@ -451,7 +451,7 @@ glom( octrope_link* inLink, search_state* inState )
 		for( dx=1e-1; dx>1e-10; dx *= 0.1 )
 		{
 			octrope_link* workerLink = octrope_link_copy(inLink);
-			step( workerLink, dx, motion );
+			step( workerLink, dx, motion, inState );
 			
 			// if everything's right: (minrad of workerLink) - (minrad of inLink) <--- ~= dpsum*dx. we'll see!
 			diff = octrope_minradval(workerLink) - octrope_minradval(inLink);
@@ -465,8 +465,8 @@ glom( octrope_link* inLink, search_state* inState )
 	free(A);
 }
 
-extern short gSuppressOutput;
-extern short gVerboseFiling;
+extern int gSuppressOutput;
+extern int gVerboseFiling;
 
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
@@ -500,18 +500,24 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		{
 			char	fname[255];
 			char	cmd[512];
-			sprintf( fname, "%dpipe", i );
-			sprintf( cmd, "rm -f %s ; mkfifo %s", fname, fname );
-			system(cmd);
 			
-			// get gnuplot going and reading our commands
-			sprintf( cmd, "/sw/bin/gnuplot < %s &", fname );
-			system(cmd);
+			// we only use gnuplot if we have a display, otherwise
+			// just create data files
+			if( getenv("DISPLAY") != NULL )
+			{
+				sprintf( fname, "%dpipe", i );
+				sprintf( cmd, "rm -f %s ; mkfifo %s", fname, fname );
+				system(cmd);
+				
+				// get gnuplot going and reading our commands
+				sprintf( cmd, "/sw/bin/gnuplot < %s &", fname );
+				system(cmd);
+				
+				// open the pipe for our input
+				gnuplotPipes[i] = fopen(fname, "w");
 			
-			// open the pipe for our input
-			gnuplotPipes[i] = fopen(fname, "w");
-		
-			fprintf( gnuplotPipes[i], "set term x11\n" );
+				fprintf( gnuplotPipes[i], "set term x11\n" );
+			}
 		
 			sprintf(fname, "%ddat", i);
 			gnuplotDataFiles[i] = fopen(fname, "w");
@@ -705,7 +711,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 		
 		double maxmin;
-		maxmin = maxovermin(*inLink);
+		maxmin = maxovermin(*inLink, inState);
 		inState->lastMaxMin = maxmin;
 		if( maxmin > maxmaxmin )
 			maxmaxmin = maxmin;
@@ -829,27 +835,32 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					// show only last 5 seconds
 			//		fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
 					if( i == kLength )
-						fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-1, inState->time );
-					
-					
-					fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
-					switch( i )
 					{
-						case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
-						case kRopelength: fprintf( gnuplotPipes[i], "Ropelength" ); break;
-						case kStrutCount: fprintf( gnuplotPipes[i], "Strut count" ); break;
-						case kStepSize: fprintf( gnuplotPipes[i], "Step size" ); break;
-						case kThickness: fprintf( gnuplotPipes[i], "Thickness" ); break;
-						case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
-						case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
-						case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
-						case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A (rigidity matrix)" ); break;
-						case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
-						case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
-						case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
+						if( getenv("DISPLAY") != NULL )
+							fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-1, inState->time );
 					}
-					fprintf( gnuplotPipes[i], "\'\n" ); 
-					fflush( gnuplotPipes[i] );
+					
+					if( getenv("DISPLAY") != NULL )
+					{
+						fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
+						switch( i )
+						{
+							case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
+							case kRopelength: fprintf( gnuplotPipes[i], "Ropelength" ); break;
+							case kStrutCount: fprintf( gnuplotPipes[i], "Strut count" ); break;
+							case kStepSize: fprintf( gnuplotPipes[i], "Step size" ); break;
+							case kThickness: fprintf( gnuplotPipes[i], "Thickness" ); break;
+							case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
+							case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
+							case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
+							case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A (rigidity matrix)" ); break;
+							case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
+							case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
+							case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
+						}
+						fprintf( gnuplotPipes[i], "\'\n" ); 
+						fflush( gnuplotPipes[i] );
+					} // if $DISPLAY defined
 				}
 			} // for graph outputs
 		}
@@ -880,13 +891,17 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		{
 			char	cmd[512];
 			char	fname[255];
-			sprintf( fname, "%dpipe", i );
-			// this will quit gnuplot
-			sprintf( cmd, "echo quit >> %s", fname );
-			system(cmd);
-			fclose(gnuplotPipes[i]);
-			sprintf(cmd, "rm -f %s", fname);
-			system(cmd);
+			
+			if( getenv("DISPLAY") != NULL )
+			{
+				sprintf( fname, "%dpipe", i );
+				// this will quit gnuplot
+				sprintf( cmd, "echo quit >> %s", fname );
+				system(cmd);
+				fclose(gnuplotPipes[i]);
+				sprintf(cmd, "rm -f %s", fname);
+				system(cmd);
+			} 
 			
 			sprintf( fname, "%ddat", i );
 			fclose(gnuplotDataFiles[i]);
@@ -981,16 +996,24 @@ dumpDvdt( octrope_vector* dvdt, int size )
 }
 
 void
-step( octrope_link* inLink, double stepSize, octrope_vector* dVdt )
+step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state* inState )
 {
 	int cItr, vItr, dVdtItr;
 	for( cItr=0, dVdtItr=0; cItr<inLink->nc; cItr++ )
 	{
 		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, dVdtItr++ )
 		{
-			inLink->cp[cItr].vt[vItr].c[0] += stepSize*dVdt[dVdtItr].c[0];
-			inLink->cp[cItr].vt[vItr].c[1] += stepSize*dVdt[dVdtItr].c[1];
-			inLink->cp[cItr].vt[vItr].c[2] += stepSize*dVdt[dVdtItr].c[2];
+			/* Since our eq strategy isn't perfect, and we have non-eq theory
+			 * we use it here. Scale force at point by the deviation from the 
+			 * average edge length of the averge of adjacent edges
+			 */
+			double avg, scale;
+			avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
+			scale = avg / inState->avgSideLength;
+			
+			inLink->cp[cItr].vt[vItr].c[0] += scale*stepSize*dVdt[dVdtItr].c[0];
+			inLink->cp[cItr].vt[vItr].c[1] += scale*stepSize*dVdt[dVdtItr].c[1];
+			inLink->cp[cItr].vt[vItr].c[2] += scale*stepSize*dVdt[dVdtItr].c[2];
 		}
 	}
 }
@@ -1218,7 +1241,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 //		correctionStepSize = 0.25;
 
 	if( gSurfaceBuilding )
-		correctionStepSize = 0.05;
+		correctionStepSize = 0.15;
 	
 	do
 	{			
@@ -1237,11 +1260,11 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 				
 		if( inState->curvature_step != 0 )
 		{
-			step(workerLink, inState->stepSize, dVdt);
+			step(workerLink, inState->stepSize, dVdt, inState);
 		}
 		else
 		{
-			step(workerLink, correctionStepSize, dVdt);
+			step(workerLink, correctionStepSize, dVdt, inState);
 		}
 
 		if( gOutputFlag == 1 )
@@ -1390,7 +1413,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 		if( workerLink != NULL )
 			octrope_link_free(workerLink);
 		workerLink = octrope_link_copy(inLink);
-		step(workerLink, inState->stepSize, dVdt);
+		step(workerLink, inState->stepSize, dVdt, inState);
 		if( gOutputFlag == 1 )
 		{
 			char	fname[1024];
@@ -1573,6 +1596,7 @@ updateSideLengths( octrope_link* inLink, search_state* inState )
 	
 	inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
 	
+	int tot = 0;
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
@@ -1589,8 +1613,11 @@ updateSideLengths( octrope_link* inLink, search_state* inState )
 			side.c[2] = s2.c[2] - s1.c[2];
 		
 			inState->sideLengths[inState->compOffsets[cItr] + vItr] = octrope_norm(side);
+			inState->avgSideLength += octrope_norm(side);
+			tot++;
 		}
 	}
+	inState->avgSideLength /= (double)tot;
 }
 
 void
@@ -2604,33 +2631,65 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 		strutSet = (octrope_strut*)calloc(strutStorageSize, sizeof(octrope_strut));
 		minradSet = (octrope_mrloc*)malloc(strutStorageSize * sizeof(octrope_mrloc));
-				
-		octrope(	inLink, 
+			
+		if( gSurfaceBuilding == 0 )
+		{
+			octrope(	inLink, 
 
-					1,	// factor 1
-					&inState->ropelength,
-					&dummyThick,		
-					
-					&inState->length,
-					
-					&inState->minrad,
-					&inState->shortest,
+						1,	// factor 1
+						&inState->ropelength,
+						&dummyThick,		
+						
+						&inState->length,
+						
+						&inState->minrad,
+						&inState->shortest,
 
-					// minrad struts
-					0.5,
-					100,
-					minradSet, 
-					strutStorageSize,
-					&minradLocs,
-					
-					// strut info
-					thickness,
-					100,
-					strutSet,
-					strutStorageSize,
-					&strutCount,
-					
-					NULL, 0 );
+						// minrad struts
+						0.5,
+						100,
+						minradSet, 
+						strutStorageSize,
+						&minradLocs,
+						
+						// strut info
+						thickness,
+						100,
+						strutSet,
+						strutStorageSize,
+						&strutCount,
+						
+						NULL, 0 );
+		}
+		else
+		{
+			// use epsilon to get a more complete strut set
+			octrope(	inLink, 
+
+						1,	// factor 1
+						&inState->ropelength,
+						&dummyThick,		
+						
+						&inState->length,
+						
+						&inState->minrad,
+						&inState->shortest,
+
+						// minrad struts
+						0.5,
+						100,
+						minradSet, 
+						strutStorageSize,
+						&minradLocs,
+						
+						// strut info
+						0,
+						0.0005,
+						strutSet,
+						strutStorageSize,
+						&strutCount,						
+						NULL, 0 );
+		}
 					
 		if( inState->ignore_minrad )
 			minradLocs = 0;
@@ -3294,7 +3353,7 @@ normalizeStruts( octrope_vector* strutDirections, octrope_strut* strutSet, octro
 }
 
 double
-maxovermin( octrope_link* inLink )
+maxovermin( octrope_link* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	double max = 0, min = DBL_MAX;
@@ -3302,6 +3361,10 @@ maxovermin( octrope_link* inLink )
 	double max_maxovermin = 0, len=0;
 	int edges, totalEdges=0;
 	int maxVert, maxComp, minVert, minComp;
+	
+	inState->avgSideLength = 0;
+	int tot = 0;
+	
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		max = 0;
@@ -3330,6 +3393,10 @@ maxovermin( octrope_link* inLink )
 			
 			octrope_vsub(s1, s2);
 			norm = octrope_norm(s1);
+			
+			inState->sideLengths[inState->compOffsets[cItr] + vItr] = norm;
+			inState->avgSideLength += norm;
+			tot++;
 			
 			len += norm;
 		
@@ -3360,6 +3427,9 @@ maxovermin( octrope_link* inLink )
 	}
 	
 	//printf( "max/min: %lf\n", max_maxovermin );
+	
+	inState->avgSideLength /= (double)tot;
+	
 	return max_maxovermin;
 }
 
