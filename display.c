@@ -74,8 +74,8 @@ export_ted(octrope_link* inLink, octrope_strut* strutSet,
 	fclose(ted);
 }
 
-extern short gSuppressOutput;
-extern short gSurfaceBuilding;
+extern int gSuppressOutput;
+extern int gSurfaceBuilding;
 
 short gSurfaceIndex = 0; // the next filename for the surface building
 short gSurfaceItr = 0; // how long till next surface output
@@ -175,11 +175,11 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 			system(cmd);
 			sprintf(cmd, "cp /tmp/struts_meta.txt /tmp/struts_meta%d.txt", gSurfaceIndex);
 			system(cmd);
-			if( gSurfaceIndex == 15 )
+			if( gSurfaceIndex == 5 )
 				gSurfaceIndex = 0;
 			else
 				gSurfaceIndex++;
-			gSurfaceItr = (rand() % 40);
+			gSurfaceItr = 0; //(rand() % 1);
 		}
 		else 
 		{

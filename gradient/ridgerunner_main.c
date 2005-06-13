@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <signal.h>
 #include <string.h>
 #include <time.h>
@@ -28,13 +29,42 @@ void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, octrope_link** inLink, const char* fname );
 
-short gVerboseFiling = 0;
-short gSuppressOutput = 0;
-short gQuiet = 0;
-short gSurfaceBuilding = 0;
+int gVerboseFiling = 0;
+int gSuppressOutput = 0;
+int gQuiet = 0;
+int gSurfaceBuilding = 0;
+int gAvoidTmpConflicts = 0;
 
 #define min(a,b) ((a)<(b)) ? (a) : (b)
 
+/*	
+	struct options longopts[] = {
+		{"avoidTmpConflicts",	no_argument,		&gAvoidTmpConflicts,	1},
+		{"saveConvergenceData", no_argument,		&saveConvergence,		1},
+		{"quiet",				no_argument,		&gQuiet,				1},
+		{"buildSurface",		no_argument,		&gSurfaceBuilding,		1},
+		{"verbose",				no_argument,		&gVerboseFiling,		1},
+		{"suppressFiles",		no_argument,		&gSuppressOutput,		1},
+		{"movie",				no_argument,		&movie,					1},
+		{"ignoreCurvature",		no_argument,		&ignorecurvature,		1},
+		{"autoscale",			no_argument,		&autoscale,				1},
+		{"fancyViz",			no_argument,		&fancyViz,				1},
+		{"infile",				required_argument,	NULL,					'a'},
+		{"scale",				required_argument,	NULL,					'b'},
+		{"checkDelta",			required_argument,	NULL,					'c'},
+		{"injrad",				required_argument,	NULL,					'd'},
+		{"eqMultiplier",		required_argument,	NULL,					'e'},
+		{"residualThreshold",	required_argument,	NULL,					'f'},
+		{"refineUntil",			required_argument,	NULL,					'g'},
+		{"checkThreshold",		required_argument,	NULL,					'h'},
+		{"maxSteps",			required_argument,	NULL,					'i'},
+		{"overstepTolerance",	required_argument,	NULL,					'j'},
+		{"maxStepSize",			required_argument,	NULL,					'k'},
+		{"double",				no_argument,		NULL,					'l'},
+		{0, 0, 0, 0}
+		};
+*/
+	
 int
 main( int argc, char* argv[] )
 {
@@ -57,15 +87,37 @@ main( int argc, char* argv[] )
 	double			scaleAmt = 1;
 	double			maxStep = -1;
 	long			maxItrs = -1;
+	int				graphIt[kTotalGraphTypes];
+	int				gItr;
 	
+	bzero(&graphIt[0], sizeof(int)*kTotalGraphTypes);
+		
 	printf( "cvs client build: %s (%s)\n", __DATE__, __TIME__ );
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:db:c:r:i:o:e:gqx:sh:w")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dg:b:c:r:i:o:e:yqx:sh:wz")) != -1 )
 	{
 		switch(opt)
 		{
+			case 'g':
+				switch((int)(optarg[0]))
+				{
+					case 'a':
+						for( gItr=0; gItr<kTotalGraphTypes; gItr++ )
+							graphIt[gItr] = 1;
+						break;
+						
+					default: 
+						fprintf(stderr,"Unknown graphing option\n");
+						break;
+				}
+				break;
+		
+			case 'z':
+				gAvoidTmpConflicts = 1;
+				break;
+		
 			case 'w':
 				saveConvergence = 1;
 				break;
@@ -184,7 +236,7 @@ main( int argc, char* argv[] )
 				autoscale = 1;
 				break;
 			
-			case 'g':
+			case 'y':
 				fancyViz = 1;
 				break;
 			
@@ -285,19 +337,19 @@ main( int argc, char* argv[] )
 
 	// realtime graphing! -- it is not advisable to do more than a few of these at once
 	// (or any, if you're not on a mac using fink installed gnuplot)
-	if( fancyViz != 0 )
+	if( fancyViz != 0 || graphIt[kLength] )
 		state.graphing[kLength] = 1;
-	state.graphing[kRopelength] = 0;
-	state.graphing[kStrutCount] = 0;
-	state.graphing[kStepSize] = 0;
-	state.graphing[kThickness] = 0;
-	state.graphing[kMinrad] = 0;
-	state.graphing[kResidual] = 0; 
-	state.graphing[kMaxOverMin] = 0;
-	state.graphing[kRcond] = 0;
-	state.graphing[kWallTime] = 0;
-	state.graphing[kMaxVertexForce] = 0;
-	state.graphing[kConvergence] = 0;
+	state.graphing[kRopelength] = graphIt[kRopelength];
+	state.graphing[kStrutCount] = graphIt[kStrutCount];
+	state.graphing[kStepSize] = graphIt[kStepSize];
+	state.graphing[kThickness] = graphIt[kThickness];
+	state.graphing[kMinrad] = graphIt[kMinrad];
+	state.graphing[kResidual] = graphIt[kResidual]; 
+	state.graphing[kMaxOverMin] = graphIt[kMaxOverMin];
+	state.graphing[kRcond] = graphIt[kRcond];
+	state.graphing[kWallTime] = graphIt[kWallTime];
+	state.graphing[kMaxVertexForce] = graphIt[kMaxVertexForce];
+	state.graphing[kConvergence] = graphIt[kConvergence];
 	
 	if( ignorecurvature != 0 )
 		state.ignore_minrad = 1;
@@ -425,9 +477,11 @@ usage()
 -s suppress out Suppresses the progress files in /tmp\n \
 -p max itrs\tspecifies the maximum number of integration steps to be taken. default is inf\n \
 -v\t\textra verbose filing, will output files _every_ step \n \
--g\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
--u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v \
--w\tconvergence data printed in /tmp/rrconvergence.txt \n"
+-y\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
+-g\tgraphing with arg: (l)ength (c)locktime (r)cond (m)inrad (r)esidual (s)truts (a)ll\n \
+-u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
+-w\tconvergence data printed in /tmp/rrconvergence.txt \n \
+-z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n"
 );
 	exit(kNoErr);
 }
