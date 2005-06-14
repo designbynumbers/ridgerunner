@@ -827,7 +827,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 						case kResidual: fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); break;
 						case kMaxOverMin: fprintf( gnuplotDataFiles[i], "%lf", maxmin ); break;
 						case kRcond: fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); break;
-						case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/(CLOCKS_PER_SEC) ); break;
+						case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/((double)CLOCKS_PER_SEC) ); break;
 						case kMaxVertexForce: fprintf( gnuplotDataFiles[i], "%lf", (inState->maxPush)/(inState->length/(double)inState->totalVerts) ); break;
 					}
 					fprintf( gnuplotDataFiles[i], "\n" );
