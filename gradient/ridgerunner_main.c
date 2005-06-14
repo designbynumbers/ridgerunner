@@ -107,6 +107,12 @@ main( int argc, char* argv[] )
 						for( gItr=0; gItr<kTotalGraphTypes; gItr++ )
 							graphIt[gItr] = 1;
 						break;
+					
+					case 'l': graphIt[kLength] = 1; break;
+					case 'c': graphIt[kWallTime] = 1; break;
+					case 'r': graphIt[kRcond] = 1; break;
+					case 'm': graphIt[kMinrad] = 1; break;
+					case 's': graphIt[kStrutCount] = 1; break;
 						
 					default: 
 						fprintf(stderr,"Unknown graphing option\n");
