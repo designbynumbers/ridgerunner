@@ -2482,9 +2482,22 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			scaleFactor *= inState->eqMultiplier;
 			
 	//		scaleFactor = 1;
-			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];
+
+
+//			** OLD WAY **
+/*			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];
 			adjustments[(vItr+1)%edges].c[1] = (scaleFactor)*sides[vItr].c[1];
 			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*sides[vItr].c[2];
+*/
+			/* "we change the eq code so that it moves in the direction perpendicular to 
+			* the gradient of length (that is, the average of the two tangent vectors) rather 
+			* than in the direction of the tangent vector to the "left" edge at each vertex.
+			* This might make a small difference in eq performance (it certainly shouldn't hurt)
+			* and it makes the theory nicer." 
+			*/
+			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*(sides[vItr].c[0]+sides[vItr+1].c[0])/2.0;
+			adjustments[(vItr+1)%edges].c[1] = (scaleFactor)*(sides[vItr].c[1]+sides[vItr+1].c[1])/2.0;
+			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*(sides[vItr].c[2]+sides[vItr+1].c[2])/2.0;
 			
 			// adjustment should have same magnitude as unadjusted dlen vector at this vertex
 		/*	adjustments[(vItr+1)%edges].c[0] /= octrope_norm(dlen[(vItr+1)%edges]);
@@ -2684,6 +2697,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						
 						// strut info
 						0,
+					//	  0.001,
 						0.0005,
 						strutSet,
 						strutStorageSize,

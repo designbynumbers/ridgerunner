@@ -83,7 +83,7 @@ short gSurfaceItr = 0; // how long till next surface output
 void 
 export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
 {
-	if( inSize == 0 )
+	if( inSize == 0 || compressions == NULL )
 		return;
 	
 	if( gSuppressOutput == 1 )
