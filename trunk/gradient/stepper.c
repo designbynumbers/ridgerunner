@@ -532,7 +532,20 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		int lastSet;
 		
 		if( stepItr > inState->maxItrs && inState->maxItrs > 0 && inState->curvature_step == 1 )
+		{
+			FILE* maxFile = NULL;
+			char    fname[512];
+			char adjustedName[512];
+			
+			strcpy(adjustedName, inState->fname);
+			sprintf( fname, "%s_%d.maxItr", adjustedName, inState->totalVerts );
+			maxFile = fopen(fname, "w");
+			
+			octrope_link_write(maxFile, *inLink);
+			fclose(maxFile);
+
 			break;
+		}
 			
 		lastSet = inState->lastStepStrutCount;
 			
