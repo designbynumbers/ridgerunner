@@ -513,6 +513,8 @@ detectCycles( int* counts, int n, int* F, int sizeF, int** prevFhandle, int** Fb
 	*FbarSize = nfbItr;
 }
 
+short gPrintedCycleWarning = 0;
+
 taucs_double*
 t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b, 
 		 double* outResidualNorm, double inRelErrTolerance, int inPrintErrorWarnings )
@@ -610,10 +612,11 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
   /* Now we enter the main loop. */
 	infeasible(F,x,sizeF,H1,&sizeH1);  
 	infeasible(G,y,sizeG,H2,&sizeH2);
-
-	for( ; sizeH1 > 0 || sizeH2 > 0 ;
+	
+	int itrs;
+	for( itrs=0; sizeH1 > 0 || sizeH2 > 0 ;
 		infeasible(F,x,sizeF,H1,&sizeH1),  
-		infeasible(G,y,sizeG,H2,&sizeH2)  ) 
+		infeasible(G,y,sizeG,H2,&sizeH2), itrs++  ) 
 	{
 //		printf( "sizeF: %d sizeG: %d\n", sizeF, sizeG );
 		detectCycles( cycles, n, F, sizeF, &prevF, &Fbar, &FbarSize );
@@ -827,6 +830,17 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		free(residual);
 
 		sizeH1 = sizeH2 = 0;
+		
+		if( itrs > A_original_ordering->m*A_original_ordering->m )
+		{
+			if( gPrintedCycleWarning == 0 )
+			{
+				fprintf(stderr, "Quitting tsnnls early due to cycling");
+				gPrintedCycleWarning = 1;
+			}
+			break;
+		}
+		
 	} // for
 	
 	if( lsqrStep != 0 )
