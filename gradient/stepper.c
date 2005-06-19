@@ -1268,7 +1268,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 	stepAttempts = 0;
 	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=0.25;
+	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=inState->correctionStepDefault;
 	short	improvedNorm = 0;
 	
 //	correctionStepSize = 1e-7;

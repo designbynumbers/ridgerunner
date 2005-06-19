@@ -52,6 +52,8 @@ typedef struct
 	FILE*	fancyPipe;			// geomview pipe if we're fancy
 	
 	char	fname[512];
+	
+	double	correctionStepDefault;	// default correction step size
 
 	double	overstepTol;		// the amount we are willing to overstep before correcting strut length
 

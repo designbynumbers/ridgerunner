@@ -90,6 +90,7 @@ main( int argc, char* argv[] )
 	long			maxItrs = -1;
 	int				graphIt[kTotalGraphTypes];
 	int				gItr;
+	double			correctionStepSize = 0.25;
 	
 	bzero(&graphIt[0], sizeof(int)*kTotalGraphTypes);
 		
@@ -97,7 +98,7 @@ main( int argc, char* argv[] )
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dg:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dkg:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
 	{
 		switch(opt)
 		{
@@ -120,6 +121,10 @@ main( int argc, char* argv[] )
 						fprintf(stderr,"Unknown graphing option\n");
 						break;
 				}
+				break;
+			
+			case 'k':
+				correctionStepSize = atof(optarg);
 				break;
 		
 			case 'z':
@@ -385,6 +390,8 @@ main( int argc, char* argv[] )
 		FILE* conv = fopen(fname,"w");
 		fclose(conv);
 	}
+	
+	state.correctionStepDefault = correctionStepSize;
 							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
@@ -496,7 +503,8 @@ usage()
 -u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
 -w\tconvergence data printed in /tmp/rrconvergence.txt \n \
 -z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
--j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/"
+-j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/\n \
+-k\tcorrection step size, default 0.25 \n"
 );
 	exit(kNoErr);
 }
