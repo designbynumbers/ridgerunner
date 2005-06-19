@@ -36,7 +36,8 @@ enum GraphTypes
 	kRcond,			// reciprocal condition number as estimated by LAPACK -- note this slows things down a bit
 	kWallTime,		// the wall time since the beginnging of run, wall time vs evolution time is useful to see where we're spending computation time
 	kMaxVertexForce,
-	kConvergence,   // the ropelength vs the number of steps
+	kConvergence,   // the ropelength vs the number of steps,
+	kEQVariance,	// the variance of the set of (edge lengths - the average)
 	
 	kTotalGraphTypes
 };
@@ -111,6 +112,9 @@ typedef struct
 	double	minminrad;
 	
 	double	eqMultiplier;	// scale of eq force, increased as things get less and less eq
+	double	eqVariance;		// if graphing eq variance, this will be set to the variance of the 
+							// set of edge length difference from the average
+	double	eqAvgDiff;
 	
 	double	residualThreshold;	// threshold for residual stopping, will use if nonzero
 	

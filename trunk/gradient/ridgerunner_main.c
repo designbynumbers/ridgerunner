@@ -34,6 +34,7 @@ int gSuppressOutput = 0;
 int gQuiet = 0;
 int gSurfaceBuilding = 0;
 int gAvoidTmpConflicts = 0;
+int gPaperInfoInTmp = 0;
 
 #define min(a,b) ((a)<(b)) ? (a) : (b)
 
@@ -96,7 +97,7 @@ main( int argc, char* argv[] )
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dg:b:c:r:i:o:e:yqx:sh:wz")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dg:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
 	{
 		switch(opt)
 		{
@@ -113,6 +114,7 @@ main( int argc, char* argv[] )
 					case 'r': graphIt[kRcond] = 1; break;
 					case 'm': graphIt[kMinrad] = 1; break;
 					case 's': graphIt[kStrutCount] = 1; break;
+					case 'v': graphIt[kEQVariance] = 1; break;
 						
 					default: 
 						fprintf(stderr,"Unknown graphing option\n");
@@ -237,6 +239,11 @@ main( int argc, char* argv[] )
 			case 'n':
 				ignorecurvature = 1;
 				break;
+				
+			case 'j':
+				gPaperInfoInTmp = 1;
+				system("rm -f /tmp/bsearch_count ; rm -f /tmp/correction_convergence");
+				break;
 			
 			case 'a':
 				autoscale = 1;
@@ -356,6 +363,7 @@ main( int argc, char* argv[] )
 	state.graphing[kWallTime] = graphIt[kWallTime];
 	state.graphing[kMaxVertexForce] = graphIt[kMaxVertexForce];
 	state.graphing[kConvergence] = graphIt[kConvergence];
+	state.graphing[kEQVariance] = graphIt[kEQVariance];
 	
 	if( ignorecurvature != 0 )
 		state.ignore_minrad = 1;
@@ -484,10 +492,11 @@ usage()
 -p max itrs\tspecifies the maximum number of integration steps to be taken. default is inf\n \
 -v\t\textra verbose filing, will output files _every_ step \n \
 -y\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
--g\tgraphing with arg: (l)ength (c)locktime (r)cond (m)inrad (r)esidual (s)truts (a)ll\n \
+-g\tgraphing with arg: (l)ength (c)locktime (r)cond (m)inrad (r)esidual (s)truts (v)ariance of edge diff from avg (a)ll\n \
 -u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
 -w\tconvergence data printed in /tmp/rrconvergence.txt \n \
--z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n"
+-z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
+-j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/"
 );
 	exit(kNoErr);
 }
