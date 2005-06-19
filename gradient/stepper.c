@@ -42,6 +42,7 @@ int displayEveryFrame = 0;
 
 extern int gQuiet;
 extern int gSurfaceBuilding;
+extern int gPaperInfoInTmp;
 
 static void
 export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
@@ -468,6 +469,8 @@ glom( octrope_link* inLink, search_state* inState )
 extern int gSuppressOutput;
 extern int gVerboseFiling;
 
+int	gCorrectionAttempts = 0;
+
 void 
 bsearch_stepper( octrope_link** inLink, search_state* inState )
 {
@@ -579,13 +582,32 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
 			(inState->minrad < 0.499975 && !inState->ignore_minrad) )
 		{
+			// reset counter, this is our first correction attempt
+			if( inState->curvature_step != 0 )
+			{
+				// before reset, output last number if we're recording this
+				if( gPaperInfoInTmp != 0 )
+				{
+					FILE* tcc = fopen("/tmp/correction_convergence","a");
+					fprintf(tcc, "%d\n", gCorrectionAttempts);
+					fclose(tcc);
+				}
+				
+				gCorrectionAttempts = 1;
+			}
+					
 			inState->curvature_step = 0;
 		}
 		else
 		{
 			if( (inState->curvature_step == 0 && inState->shortest < 0.99995) ) //||
 //				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
+			{
+				// we haven't finished yet, record
+				gCorrectionAttempts++;
+				
 				inState->curvature_step = 0;
+			}
 			else
 				inState->curvature_step = 1;
 			
@@ -842,6 +864,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 						case kRcond: fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); break;
 						case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/((double)CLOCKS_PER_SEC) ); break;
 						case kMaxVertexForce: fprintf( gnuplotDataFiles[i], "%lf", (inState->maxPush)/(inState->length/(double)inState->totalVerts) ); break;
+						case kEQVariance: fprintf( gnuplotDataFiles[i], "%3.15lf %3.15lf", inState->eqVariance, inState->eqAvgDiff ); break;
 					}
 					fprintf( gnuplotDataFiles[i], "\n" );
 					fflush(gnuplotDataFiles[i]);
@@ -855,7 +878,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					
 					if( getenv("DISPLAY") != NULL )
 					{
-						fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
+						if( i != kEQVariance )
+							fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
+						else
+							fprintf( gnuplotPipes[i], "plot \"%s\" u 1:3 w lines, \"%s\" using 1:2 w lines title \'", fname, fname );
+						
 						switch( i )
 						{
 							case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
@@ -870,6 +897,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 							case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
 							case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
 							case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
+							case kEQVariance: fprintf( gnuplotPipes[i], "edge length variance from average" ); break;
 						}
 						fprintf( gnuplotPipes[i], "\'\n" ); 
 						fflush( gnuplotPipes[i] );
@@ -1335,7 +1363,14 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			curr_error = 1;
 		
 	} while( (curr_error > ERROR_BOUND ) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
-		
+	
+	if( gPaperInfoInTmp != 0 )
+	{
+		FILE* tb = fopen("/tmp/bsearch_count","a");
+		fprintf(tb, "%d\n", stepAttempts);
+		fclose(tb);
+	}
+	
 	inState->minrad = newmr;
 	
 	if( inState->stepSize < kMinStepSize )
@@ -2427,6 +2462,15 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		exportVect( dlen, inLink, fname );
 	}
 	
+	// if we're graphing kEqVariance
+	double* diffFromAvg;
+	double* averages;
+	if( inState->graphing[kEQVariance] != 0 )
+	{
+		diffFromAvg = (double*)malloc(sizeof(double)*inState->totalSides);
+		averages = (double*)malloc(sizeof(double)*inLink->nc);
+	}
+	
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		if( inState->conserveLength[cItr] != 0 )
@@ -2478,6 +2522,14 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 	//	printf( "total length: %lf\n", averageLength );
 		averageLength /= edges;
 	//	printf( "target: %lf\n", averageLength );
+		
+		if( inState->graphing[kEQVariance] != 0 )
+		{
+			for( vItr=0; vItr<edges; vItr++ )
+				diffFromAvg[vItr+inState->compOffsets[cItr]] = fabs(lengths[vItr] - averageLength)/averageLength;
+			
+			averages[cItr] = averageLength;
+		}
 		
 		usedLength = 0;
 			
@@ -2537,6 +2589,39 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		free(lengths);
 		free(sides);
 		free(adjustments);
+	}
+	
+	if( inState->graphing[kEQVariance] != 0 )
+	{
+		double sum = 0, isum, sampleAvg=0;
+		int N = 0;
+
+		// remember you made these all percent diffs 
+		
+		for( cItr=0; cItr<inLink->nc; cItr++ )
+		{
+			for( vItr=0; vItr<inState->totalSides; vItr++ )
+			{
+				sampleAvg += diffFromAvg[vItr+inState->compOffsets[cItr]];
+				N++;
+			}
+		}
+		sampleAvg /= (double)N;
+
+		for( cItr=0; cItr<inLink->nc; cItr++ )
+		{
+			for( vItr=0; vItr<inState->totalSides; vItr++ )
+			{
+				isum = diffFromAvg[vItr+inState->compOffsets[cItr]] - sampleAvg;
+				sum += isum*isum;
+			}
+		}
+		
+		inState->eqAvgDiff = sampleAvg;
+		inState->eqVariance = (1.0/(double)N)*sum;
+		
+		free(diffFromAvg);
+		free(averages);
 	}
 	
 	if( gOutputFlag )
