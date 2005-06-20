@@ -452,6 +452,7 @@ glom( octrope_link* inLink, search_state* inState )
 		for( dx=1e-1; dx>1e-10; dx *= 0.1 )
 		{
 			octrope_link* workerLink = octrope_link_copy(inLink);
+			octrope_link_fix_wrap(workerLink);
 			step( workerLink, dx, motion, inState );
 			
 			// if everything's right: (minrad of workerLink) - (minrad of inLink) <--- ~= dpsum*dx. we'll see!
@@ -633,7 +634,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		if( gSuppressOutput == 1 )
 			gOutputFlag = 0;
-		
+				
 		*inLink = bsearch_step(*inLink, inState);
 		
 /*		if( inState->minrad < 0.49 && inState->ignore_minrad == 0 )
@@ -1048,10 +1049,10 @@ step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state*
 			 * we use it here. Scale force at point by the deviation from the 
 			 * average edge length of the averge of adjacent edges
 			 */
-			double avg, scale;
-			avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
+			double avg, scale=1.0;
+	/*		avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
 			scale = avg / inState->avgSideLength;
-			
+	*/		
 			inLink->cp[cItr].vt[vItr].c[0] += scale*stepSize*dVdt[dVdtItr].c[0];
 			inLink->cp[cItr].vt[vItr].c[1] += scale*stepSize*dVdt[dVdtItr].c[1];
 			inLink->cp[cItr].vt[vItr].c[2] += scale*stepSize*dVdt[dVdtItr].c[2];
@@ -1282,7 +1283,10 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 //		correctionStepSize = 0.25;
 
 	if( gSurfaceBuilding )
-		correctionStepSize = 0.15;
+		correctionStepSize = 0.25;
+	
+	double oldLength = inState->length;
+	double workingLength = 0;
 	
 	do
 	{			
@@ -1298,10 +1302,12 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		if( workerLink != NULL )
 			octrope_link_free(workerLink);
 		workerLink = octrope_link_copy(inLink);
-				
+		octrope_link_fix_wrap(workerLink);
+								
 		if( inState->curvature_step != 0 )
 		{
 			step(workerLink, inState->stepSize, dVdt, inState);
+			workingLength = octrope_curvelength(workerLink);
 		}
 		else
 		{
@@ -1346,12 +1352,14 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		if( inState->curvature_step != 0 )
 		{
 			// check our new thickness
-			
 			curr_error = max( lastDCSD-newpoca, 0 );
 			if( newmr < 0.5 )
 				mr_error = max(lastMR - newmr, 0);
 			else
 				mr_error = 0;
+			
+			if( workingLength > oldLength )
+				curr_error = 1;
 				
 			if( curr_error < ERROR_BOUND && (mr_error < MR_ERROR_BOUND || inState->ignore_minrad) )
 				inState->stepSize *= 2;
@@ -1361,8 +1369,44 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		
 		if( mr_error > MR_ERROR_BOUND && !inState->ignore_minrad )
 			curr_error = 1;
-		
+					
 	} while( (curr_error > ERROR_BOUND ) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
+	
+	if( inState->curvature_step != 0 && workingLength > oldLength )
+	{
+		int		attempts = 0;
+		double	lh=0, rh=inState->stepSize;
+		double	ss = (lh+rh)/2.0, newLen;
+		int		win = 0;
+		// bsearch for minimum length value up to 7 levels
+		for( attempts=0; attempts<10; attempts++ )
+		{
+			if( workerLink != NULL )
+				octrope_link_free(workerLink);
+			workerLink = octrope_link_copy(inLink);
+			octrope_link_fix_wrap(workerLink);
+
+			step(workerLink, ss, dVdt, inState);
+			newLen = octrope_curvelength(workerLink);
+			printf( "%3.16lf (%e) %3.16lf\n", newLen, fabs(newLen-oldLength), oldLength);
+			if( newLen > oldLength )
+			{
+				rh = ss;
+			}
+			else
+			{
+				lh = ss;
+				win = 1;
+			}
+			ss = (lh+rh)/2.0;
+		}
+		
+		if( win == 0 )
+		{
+			fprintf( stderr, "** Never won during length bsearch\n" );
+			
+		}
+	}
 	
 	if( gPaperInfoInTmp != 0 )
 	{
@@ -1416,7 +1460,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		inState->stepSize = inState->length/inState->totalVerts*.1;
 	
 	free(dVdt);
-		
+	
+	inState->length = octrope_curvelength(inLink);
+	
 	return inLink;
 }
 
@@ -1461,6 +1507,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 		if( workerLink != NULL )
 			octrope_link_free(workerLink);
 		workerLink = octrope_link_copy(inLink);
+		octrope_link_fix_wrap(workerLink);
 		step(workerLink, inState->stepSize, dVdt, inState);
 		if( gOutputFlag == 1 )
 		{
@@ -2931,7 +2978,15 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	*/	
 			
-		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+		taucs_ccs_matrix* sparseA = NULL;
+		
+		// fill this in now if we're not correcting, otherwise we might 
+		// have to flip strut gradients for those already in the green zone
+		if( dlenStep != 0 || inState->eq_step != 0 )
+			sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+			
+		int*	greenZoneStruts;
+		int		greenZoneCount = 0;
 			
 		// construct minusDL -- this is a column vector of size totalVerts
 		// we must operate using strictly doubles to interoperate with taucs_snnls
@@ -2947,70 +3002,111 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 		else
 		{
-			taucs_ccs_matrix* sparseAT = taucs_ccs_transpose(sparseA);
+			taucs_ccs_matrix* sparseAT = NULL;
 			double*	ofvB = (double*)calloc(strutCount+minradLocs, sizeof(double));
 		
-			for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
+		/*	sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+			sparseAT = taucs_ccs_transpose(sparseA);
+			taucs_ccs_free(sparseA);
+		*/
+			greenZoneStruts = (int*)malloc(sizeof(int)*strutCount);
+		
+			/* we do the same thing for MR struts as for thickness struts
+			 * with respect to strut stability.
+			 */
+			if(  inState->shortest > thickness - (thickness*inState->overstepTol)*0.5 )
 			{
-		//		if( minradSet[sItr-strutCount].mr < 0.5-((0.5-inState->minminrad)/4) )
-					ofvB[sItr] = ((thickness/2)-minradSet[sItr-strutCount].mr);
+				for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
+				{
+					double minradSecondGreenZone = ((thickness/2.0)-inState->minminrad) / 2.0;
+					minradSecondGreenZone = (thickness/2.0)-minradSecondGreenZone;
+					// we're in green green, and we should shorten rather than lengthen, but not so much that
+					// we dip below the min again
+					if( minradSet[sItr-strutCount].mr > minradSecondGreenZone )
+					{
+				//		ofvB[sItr] = minradSet[sItr-strutCount].mr - minradSecondGreenZone;
+				//		greenZoneMR[greenZoneMRCount++] = sItr; // keep in mind this is offset by strutCount
+					}
+					else // we want to lengthen to the second green zone
+						ofvB[sItr] = (thickness-minradSet[sItr-strutCount].mr);
+				}
 			}
-			
-		//	if( minradLocs == 0 )
+						
+		//	if( inState->shortest < thickness - (thickness*inState->overstepTol) )
 			{
 				for( sItr=0; sItr<strutCount; sItr++ )
 				{
-					if( strutSet[sItr].length < thickness - (thickness*inState->overstepTol)*.5 )
-			//		if( strutSet[sItr].length < thickness )
-					{
-	//					badStruts++;
-						
-						/* get the norm, distribute force over verts *
-						octrope_vector  ends[2];
-						double		norm;
-						int offset;
-						octrope_strut_ends(inLink, &strutSet[sItr], ends);
-						octrope_vsub(ends[0], ends[1]);
-						norm = octrope_norm(ends[0]);
-						ends[0].c[0] /= norm;
-						ends[0].c[0] /= norm;
-						ends[0].c[0] /= norm;
-						
-						offset = 3*(inState->compOffsets[strutSet[sItr].component[0]] + strutSet[sItr].lead_vert[0]);
-						minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[0];
-						minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[1];
-						minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*ends[0].c[2];
-						
-						if( strutSet[sItr].lead_vert[0] == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
-							(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
-						{
-							offset = (3*inState->compOffsets[strutSet[sItr].component[0]]) - 3;
-						}
-						minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[0];
-						minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[1];
-						minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*ends[0].c[2];
-						
-						offset = 3*(inState->compOffsets[strutSet[sItr].component[1]] + strutSet[sItr].lead_vert[1]);
-						minusDL[offset + 0] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
-						minusDL[offset + 1] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
-						minusDL[offset + 2] += (1-strutSet[sItr].position[0])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
-						
-						if( strutSet[sItr].lead_vert[1] == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
-							(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
-						{
-							offset = (3*inState->compOffsets[strutSet[sItr].component[1]]) - 3;
-						}
-						minusDL[offset + 3] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[0];
-						minusDL[offset + 4] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[1];
-						minusDL[offset + 5] += (strutSet[sItr].position[1])*(thickness-strutSet[sItr].length)*-ends[0].c[2];
-					*/
-						
-						ofvB[sItr] = thickness-strutSet[sItr].length;
+					double secondGreenZone = thickness - (thickness*inState->overstepTol)*.25;
+					double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
 					
-					} // if < thickness
-				} // if minradlocs == 0
-												
-			} // for over struts
+					// this only works if there aren't minrad struts for 
+					// deep numerical reasons. talk to jason or me.
+					if( strutSet[sItr].length > secondGreenZone && minradLocs == 0 )
+					{
+						// shorten and allow shrinkage
+						ofvB[sItr] = strutSet[sItr].length-(secondGreenZone);
+						// if we don't in some way protect existing struts, they might 
+						// be destroyed during correction, so we'll record everyone
+						// who is currently in the green zone and flip their 
+						// gradients in the rigidity matrix for this step
+						greenZoneStruts[greenZoneCount++] = sItr;
+					}
+					else if( strutSet[sItr].length < greenZone )
+					{
+						double target = thickness;
+						ofvB[sItr] = secondGreenZone-strutSet[sItr].length;
+					}
+				}
+			}
+			
+			int sIndex;
+			for( sIndex=0; sIndex<greenZoneCount; sIndex++ )
+			{
+				// flip the entries in this guy's column
+				int totalStruts = strutCount+minradLocs;
+				sItr = greenZoneStruts[sIndex];
+				int entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
+				A[entry] *= -1;
+				A[entry+totalStruts] *= -1;
+				A[entry+(2*totalStruts)] *= -1;
+				if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
+					(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
+				{
+					entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]]);
+				}
+				else
+				{
+					entry = (totalStruts*3*(strutSet[sItr].lead_vert[0]+1))+sItr;
+				}
+				A[entry] *= -1;
+				A[entry+totalStruts] *= -1;
+				A[entry+(2*totalStruts)] *= -1;
+				
+				// other end
+				entry = (totalStruts*3*strutSet[sItr].lead_vert[1])+sItr;
+				A[entry] *= -1;
+				A[entry+totalStruts] *= -1;
+				A[entry+(2*totalStruts)] *= -1;
+				if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
+					(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
+				{
+					entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]]);
+				}
+				else
+				{
+					entry = (totalStruts*3*(strutSet[sItr].lead_vert[1]+1))+sItr;
+				}
+				A[entry] *= -1;
+				A[entry+totalStruts] *= -1;
+				A[entry+(2*totalStruts)] *= -1;
+			}
+						
+			// done with these
+			free(greenZoneStruts);
+			
+			// now we can build since we've flipped gradients in full A.
+			sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+			sparseAT = taucs_ccs_transpose(sparseA);
 	
 			inState->ofvNorm = 0;
 			for( sItr=0; sItr<strutCount+minradLocs; sItr++ )
@@ -3130,9 +3226,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			memcpy(minusDL, ofv, sizeof(double)*3*inState->totalVerts);
 			
 			free(ofv);
-			
-			//inState->stepSize = 0.5;
-			
+						
 			free(ofvB);
 			taucs_ccs_free(sparseAT);
 			

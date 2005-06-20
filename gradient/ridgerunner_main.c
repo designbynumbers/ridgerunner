@@ -98,7 +98,7 @@ main( int argc, char* argv[] )
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dkg:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dk:g:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
 	{
 		switch(opt)
 		{
