@@ -330,16 +330,19 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 			norm += Cs.c[nItr]*Cs.c[nItr];
 		}
 		norm = sqrt(norm);
-	/*	As.c[0] /= norm;
-		As.c[1] /= norm;
-		As.c[2] /= norm;
-		Bs.c[0] /= norm;
-		Bs.c[1] /= norm;
-		Bs.c[2] /= norm;
-		Cs.c[0] /= norm;
-		Cs.c[1] /= norm;
-		Cs.c[2] /= norm;
-	*/
+		
+		if( inState->curvature_step != 0 )
+		{
+			As.c[0] /= norm;
+			As.c[1] /= norm;
+			As.c[2] /= norm;
+			Bs.c[0] /= norm;
+			Bs.c[1] /= norm;
+			Bs.c[2] /= norm;
+			Cs.c[0] /= norm;
+			Cs.c[1] /= norm;
+			Cs.c[2] /= norm;
+		}
 					
 		// temporarily increment the strut's verts based on their component interactions
 		// we undo this change at the end of the for loop in case the user
@@ -601,7 +604,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 		else
 		{
-			if( (inState->curvature_step == 0 && inState->shortest < 0.99995) ) //||
+			double thickness = 2*inState->injrad;
+			double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
+			if( (inState->curvature_step == 0 && inState->shortest < greenZone	) ) //||
 //				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
 			{
 				// we haven't finished yet, record
@@ -1358,9 +1363,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 			else
 				mr_error = 0;
 			
-			if( workingLength > oldLength )
+	/*		if( workingLength > oldLength )
 				curr_error = 1;
-				
+	*/			
 			if( curr_error < ERROR_BOUND && (mr_error < MR_ERROR_BOUND || inState->ignore_minrad) )
 				inState->stepSize *= 2;
 			else
@@ -1372,7 +1377,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 					
 	} while( (curr_error > ERROR_BOUND ) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
 	
-	if( inState->curvature_step != 0 && workingLength > oldLength )
+	if( inState->curvature_step != 0 && workingLength > oldLength && 1<0)
 	{
 		int		attempts = 0;
 		double	lh=0, rh=inState->stepSize;
@@ -1388,7 +1393,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 
 			step(workerLink, ss, dVdt, inState);
 			newLen = octrope_curvelength(workerLink);
-			printf( "%3.16lf (%e) %3.16lf\n", newLen, fabs(newLen-oldLength), oldLength);
+		//	printf( "%3.16lf (%e) %3.16lf\n", newLen, fabs(newLen-oldLength), oldLength);
 			if( newLen > oldLength )
 			{
 				rh = ss;
@@ -3011,10 +3016,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		*/
 			greenZoneStruts = (int*)malloc(sizeof(int)*strutCount);
 		
-			/* we do the same thing for MR struts as for thickness struts
-			 * with respect to strut stability.
-			 */
-			if(  inState->shortest > thickness - (thickness*inState->overstepTol)*0.5 )
+		//	if(  inState->shortest > thickness - (thickness*inState->overstepTol)*0.5 )
 			{
 				for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
 				{
@@ -3028,7 +3030,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				//		greenZoneMR[greenZoneMRCount++] = sItr; // keep in mind this is offset by strutCount
 					}
 					else // we want to lengthen to the second green zone
-						ofvB[sItr] = (thickness-minradSet[sItr-strutCount].mr);
+						ofvB[sItr] = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
 				}
 			}
 						
