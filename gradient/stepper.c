@@ -584,7 +584,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		}
 
 		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
-			(inState->minrad < 0.499975 && !inState->ignore_minrad) )
+			(inState->minrad < inState->minradOverstepTol && !inState->ignore_minrad) )
 		{
 			// reset counter, this is our first correction attempt
 			if( inState->curvature_step != 0 )
@@ -1358,7 +1358,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		{
 			// check our new thickness
 			curr_error = max( lastDCSD-newpoca, 0 );
-			if( newmr < 0.5 )
+			if( newmr < inState->injrad )
 				mr_error = max(lastMR - newmr, 0);
 			else
 				mr_error = 0;
@@ -2739,6 +2739,7 @@ stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
 int gFeasibleThreshold = 0;
 int gDeferredStrutExport = 0;
 int gFoo = 0;
+extern int gFastCorrectionSteps;
 
 void
 firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
@@ -3007,280 +3008,279 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 		else
 		{
-			taucs_ccs_matrix* sparseAT = NULL;
-			double*	ofvB = (double*)calloc(strutCount+minradLocs, sizeof(double));
-		
-		/*	sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
-			sparseAT = taucs_ccs_transpose(sparseA);
-			taucs_ccs_free(sparseA);
-		*/
-			greenZoneStruts = (int*)malloc(sizeof(int)*strutCount);
-		
-		//	if(  inState->shortest > thickness - (thickness*inState->overstepTol)*0.5 )
+			if( gFastCorrectionSteps == 0 )
 			{
-				for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
-				{
-					double minradSecondGreenZone = ((thickness/2.0)-inState->minminrad) / 2.0;
-					minradSecondGreenZone = (thickness/2.0)-minradSecondGreenZone;
-					// we're in green green, and we should shorten rather than lengthen, but not so much that
-					// we dip below the min again
-					if( minradSet[sItr-strutCount].mr > minradSecondGreenZone )
-					{
-				//		ofvB[sItr] = minradSet[sItr-strutCount].mr - minradSecondGreenZone;
-				//		greenZoneMR[greenZoneMRCount++] = sItr; // keep in mind this is offset by strutCount
-					}
-					else // we want to lengthen to the second green zone
-						ofvB[sItr] = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
-				}
-			}
-						
-		//	if( inState->shortest < thickness - (thickness*inState->overstepTol) )
-			{
-				for( sItr=0; sItr<strutCount; sItr++ )
-				{
-					double secondGreenZone = thickness - (thickness*inState->overstepTol)*.25;
-					double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
-					
-					// this only works if there aren't minrad struts for 
-					// deep numerical reasons. talk to jason or me.
-					if( strutSet[sItr].length > secondGreenZone && minradLocs == 0 )
-					{
-						// shorten and allow shrinkage
-						ofvB[sItr] = strutSet[sItr].length-(secondGreenZone);
-						// if we don't in some way protect existing struts, they might 
-						// be destroyed during correction, so we'll record everyone
-						// who is currently in the green zone and flip their 
-						// gradients in the rigidity matrix for this step
-						greenZoneStruts[greenZoneCount++] = sItr;
-					}
-					else if( strutSet[sItr].length < greenZone )
-					{
-						double target = thickness;
-						ofvB[sItr] = secondGreenZone-strutSet[sItr].length;
-					}
-				}
-			}
+				taucs_ccs_matrix* sparseAT = NULL;
+				double*	ofvB = (double*)calloc(strutCount+minradLocs, sizeof(double));
 			
-			int sIndex;
-			for( sIndex=0; sIndex<greenZoneCount; sIndex++ )
-			{
-				// flip the entries in this guy's column
-				int totalStruts = strutCount+minradLocs;
-				sItr = greenZoneStruts[sIndex];
-				int entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
-				A[entry] *= -1;
-				A[entry+totalStruts] *= -1;
-				A[entry+(2*totalStruts)] *= -1;
-				if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
-					(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
-				{
-					entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]]);
-				}
-				else
-				{
-					entry = (totalStruts*3*(strutSet[sItr].lead_vert[0]+1))+sItr;
-				}
-				A[entry] *= -1;
-				A[entry+totalStruts] *= -1;
-				A[entry+(2*totalStruts)] *= -1;
-				
-				// other end
-				entry = (totalStruts*3*strutSet[sItr].lead_vert[1])+sItr;
-				A[entry] *= -1;
-				A[entry+totalStruts] *= -1;
-				A[entry+(2*totalStruts)] *= -1;
-				if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
-					(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
-				{
-					entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]]);
-				}
-				else
-				{
-					entry = (totalStruts*3*(strutSet[sItr].lead_vert[1]+1))+sItr;
-				}
-				A[entry] *= -1;
-				A[entry+totalStruts] *= -1;
-				A[entry+(2*totalStruts)] *= -1;
-			}
-						
-			// done with these
-			free(greenZoneStruts);
-			
-			// now we can build since we've flipped gradients in full A.
-			sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
-			sparseAT = taucs_ccs_transpose(sparseA);
-	
-			inState->ofvNorm = 0;
-			for( sItr=0; sItr<strutCount+minradLocs; sItr++ )
-			{
-				inState->ofvNorm += ofvB[sItr]*ofvB[sItr];
-			}
-			inState->ofvNorm = sqrt(inState->ofvNorm);
-						
-			/*
-			 * Fact: The rigidity matrix A (compressions) = (resulting motions of verts).
-			 * So it's also true that
-			 * 
-			 *		  A^T (a motion of verts) = (resulting change in edge length)
-			 *
-			 *	Now we _have_ a desired change in edge lengths, namely (1 - l_i), (1-l_j)
-			 *	and all that. Call it b. So we really ought to compute velocity for a
-			 *	correction step by
-			 *
-			 *		  A^T v = b.
-			 *
-			 *	Is this equation always solvable? Probably not. So we'll take the results
-			 *	of
-			 *
-			 *		 lsqr(A^T,b) = overstep fixing velocity (OFV)
-			 *
-			 */
-			
-			double* ofv;
-			
-			/* Jason note: we might have to change the lsqr initial guess later
-			 * me: remember the funky motion thing?
-			 *
-			 * If we have to change it: 
-			 *	want: linear combo of gradient of active constraints 
-			 *			coeffs are k's computed just like k in test
-			 *			(the change you want in that constraint divided
-			 *			by square of norm o' gradient)
-			 */
-			ofv = stanford_lsqr(sparseAT, ofvB, &inState->ofvResidual);
-
-		/* test
-			double dx, k, norm;
-			double diff[5000];
-			dx = 0.5 - octrope_minradval(inLink);
-			norm = 0;
-			int nItr;
-			for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
-				norm += A[nItr]*A[nItr];
-			norm = sqrt(norm);
-			k = dx / (norm*norm);
-			for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
-			{
-				diff[nItr] = ofv[nItr] - k*A[nItr];
-		//		printf( "%e\n", diff[nItr] );
-			}
-			
-			norm = 0;
-			for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
-				norm += ofv[nItr]*ofv[nItr];
-			norm = sqrt(norm);
-			printf( "|ofv|: %e\n", norm );
-	
-			norm = 0;
-			for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
-				norm += A[nItr]*A[nItr];
-			norm = sqrt(norm);
-			printf( "k*|A|: %e\n", k*norm );
-			
-			norm = 0;
-			for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
-				norm += diff[nItr]*diff[nItr];
-			norm = sqrt(norm);
-			printf( "|diff|: %e\n", norm );
-			end o' test		*/ 
-
-			
-			/*octrope_vector* ofvVec;
-			ofvVec = (octrope_vector*)malloc(sizeof(octrope_vector)*inState->totalVerts);
-			int i;
-			for( i=0; i<inState->totalVerts; i++ )
-			{
-				ofvVec[i].c[0] = ofv[3*i+0];
-				ofvVec[i].c[1] = ofv[3*i+1];
-				ofvVec[i].c[2] = ofv[3*i+2];
-			}
-			exportVect( ofvVec, inLink, "/tmp/ofv.vect" );
-			free(ofvVec);
+			/*	sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+				sparseAT = taucs_ccs_transpose(sparseA);
+				taucs_ccs_free(sparseA);
 			*/
-		/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
-			{
-				octrope_vector  vert;
-				double  norm;
-				vert.c[0] = ofv[3*dlItr+0];
-				vert.c[1] = ofv[3*dlItr+1];
-				vert.c[2] = ofv[3*dlItr+2];
-				norm = octrope_norm(vert);
-				if( norm != 0 )
-				{
-					ofv[3*dlItr+0] /= norm;
-					ofv[3*dlItr+1] /= norm;
-					ofv[3*dlItr+2] /= norm;
-				
-				/*	ofv[3*dlItr+0] *= 0.1;
-					ofv[3*dlItr+1] *= 0.1;
-					ofv[3*dlItr+2] *= 0.1;
-				*
-				}
-				else
-				{
-					ofv[3*dlItr+0] = 0;
-					ofv[3*dlItr+1] = 0;
-					ofv[3*dlItr+2] = 0;
-				}
-			}*/
-
+				greenZoneStruts = (int*)malloc(sizeof(int)*strutCount);
 			
-			memcpy(minusDL, ofv, sizeof(double)*3*inState->totalVerts);
-			
-			free(ofv);
+			//	if(  inState->shortest > thickness - (thickness*inState->overstepTol)*0.5 )
+				{
+					for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
+					{
+						double minradSecondGreenZone = ((thickness/2.0)-inState->minminrad) / 2.0;
+						minradSecondGreenZone = (thickness/2.0)-minradSecondGreenZone;
+						// we're in green green, and we should shorten rather than lengthen, but not so much that
+						// we dip below the min again
+						if( minradSet[sItr-strutCount].mr > minradSecondGreenZone )
+						{
+					//		ofvB[sItr] = minradSet[sItr-strutCount].mr - minradSecondGreenZone;
+					//		greenZoneMR[greenZoneMRCount++] = sItr; // keep in mind this is offset by strutCount
+						}
+						else // we want to lengthen to the second green zone
+							ofvB[sItr] = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
+					}
+				}
+							
+			//	if( inState->shortest < thickness - (thickness*inState->overstepTol) )
+				{
+					for( sItr=0; sItr<strutCount; sItr++ )
+					{
+						double secondGreenZone = thickness - (thickness*inState->overstepTol)*.25;
+						double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
 						
-			free(ofvB);
-			taucs_ccs_free(sparseAT);
-			
-		/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
-			{
-				octrope_vector  vert;
-				double  norm;
-				vert.c[0] = minusDL[3*dlItr+0];
-				vert.c[1] = minusDL[3*dlItr+1];
-				vert.c[2] = minusDL[3*dlItr+2];
-				norm = octrope_norm(vert);
-				if( norm != 0 )
-				{
-					minusDL[3*dlItr+0] /= norm;
-					minusDL[3*dlItr+1] /= norm;
-					minusDL[3*dlItr+2] /= norm;
+						// this only works if there aren't minrad struts for 
+						// deep numerical reasons. talk to jason or me.
+						if( strutSet[sItr].length > secondGreenZone && minradLocs == 0 )
+						{
+							// shorten and allow shrinkage
+							ofvB[sItr] = strutSet[sItr].length-(secondGreenZone);
+							// if we don't in some way protect existing struts, they might 
+							// be destroyed during correction, so we'll record everyone
+							// who is currently in the green zone and flip their 
+							// gradients in the rigidity matrix for this step
+							greenZoneStruts[greenZoneCount++] = sItr;
+						}
+						else if( strutSet[sItr].length < greenZone )
+						{
+							double target = thickness;
+							ofvB[sItr] = secondGreenZone-strutSet[sItr].length;
+						}
+					}
+				}
 				
-					minusDL[3*dlItr+0] *= 0.1;
-					minusDL[3*dlItr+1] *= 0.1;
-					minusDL[3*dlItr+2] *= 0.1;
-				}
-				else
+				int sIndex;
+				for( sIndex=0; sIndex<greenZoneCount; sIndex++ )
 				{
-					minusDL[3*dlItr+0] = 0;
-					minusDL[3*dlItr+1] = 0;
-					minusDL[3*dlItr+2] = 0;
+					// flip the entries in this guy's column
+					int totalStruts = strutCount+minradLocs;
+					sItr = greenZoneStruts[sIndex];
+					int entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
+					A[entry] *= -1;
+					A[entry+totalStruts] *= -1;
+					A[entry+(2*totalStruts)] *= -1;
+					if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
+						(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
+					{
+						entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]]);
+					}
+					else
+					{
+						entry = (totalStruts*3*(strutSet[sItr].lead_vert[0]+1))+sItr;
+					}
+					A[entry] *= -1;
+					A[entry+totalStruts] *= -1;
+					A[entry+(2*totalStruts)] *= -1;
+					
+					// other end
+					entry = (totalStruts*3*strutSet[sItr].lead_vert[1])+sItr;
+					A[entry] *= -1;
+					A[entry+totalStruts] *= -1;
+					A[entry+(2*totalStruts)] *= -1;
+					if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
+						(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
+					{
+						entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]]);
+					}
+					else
+					{
+						entry = (totalStruts*3*(strutSet[sItr].lead_vert[1]+1))+sItr;
+					}
+					A[entry] *= -1;
+					A[entry+totalStruts] *= -1;
+					A[entry+(2*totalStruts)] *= -1;
 				}
-			}*/
+							
+				// done with these
+				free(greenZoneStruts);
+				
+				// now we can build since we've flipped gradients in full A.
+				sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+				sparseAT = taucs_ccs_transpose(sparseA);
 		
-	/*		if( gOutputFlag == 1 )
-			{
-				octrope_vector  debug[500];
-				for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+				inState->ofvNorm = 0;
+				for( sItr=0; sItr<strutCount+minradLocs; sItr++ )
 				{
-					debug[dlItr].c[0] = 0.5*minusDL[3*dlItr+0];
-					debug[dlItr].c[1] = 0.5*minusDL[3*dlItr+1];
-					debug[dlItr].c[2] = 0.5*minusDL[3*dlItr+2];
+					inState->ofvNorm += ofvB[sItr]*ofvB[sItr];
 				}
-				exportVect(debug, inLink, "/tmp/minusDL.vect");
+				inState->ofvNorm = sqrt(inState->ofvNorm);
+							
+				/*
+				 * Fact: The rigidity matrix A (compressions) = (resulting motions of verts).
+				 * So it's also true that
+				 * 
+				 *		  A^T (a motion of verts) = (resulting change in edge length)
+				 *
+				 *	Now we _have_ a desired change in edge lengths, namely (1 - l_i), (1-l_j)
+				 *	and all that. Call it b. So we really ought to compute velocity for a
+				 *	correction step by
+				 *
+				 *		  A^T v = b.
+				 *
+				 *	Is this equation always solvable? Probably not. So we'll take the results
+				 *	of
+				 *
+				 *		 lsqr(A^T,b) = overstep fixing velocity (OFV)
+				 *
+				 */
+				
+				double* ofv;
+				
+				/* Jason note: we might have to change the lsqr initial guess later
+				 * me: remember the funky motion thing?
+				 *
+				 * If we have to change it: 
+				 *	want: linear combo of gradient of active constraints 
+				 *			coeffs are k's computed just like k in test
+				 *			(the change you want in that constraint divided
+				 *			by square of norm o' gradient)
+				 */
+				ofv = stanford_lsqr(sparseAT, ofvB, &inState->ofvResidual);
+
+			/* test
+				double dx, k, norm;
+				double diff[5000];
+				dx = 0.5 - octrope_minradval(inLink);
+				norm = 0;
+				int nItr;
+				for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
+					norm += A[nItr]*A[nItr];
+				norm = sqrt(norm);
+				k = dx / (norm*norm);
+				for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
+				{
+					diff[nItr] = ofv[nItr] - k*A[nItr];
+			//		printf( "%e\n", diff[nItr] );
+				}
+				
+				norm = 0;
+				for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
+					norm += ofv[nItr]*ofv[nItr];
+				norm = sqrt(norm);
+				printf( "|ofv|: %e\n", norm );
+		
+				norm = 0;
+				for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
+					norm += A[nItr]*A[nItr];
+				norm = sqrt(norm);
+				printf( "k*|A|: %e\n", k*norm );
+				
+				norm = 0;
+				for( nItr=0; nItr<3*inState->totalVerts; nItr++ )
+					norm += diff[nItr]*diff[nItr];
+				norm = sqrt(norm);
+				printf( "|diff|: %e\n", norm );
+				end o' test		*/ 
+
+				
+				/*octrope_vector* ofvVec;
+				ofvVec = (octrope_vector*)malloc(sizeof(octrope_vector)*inState->totalVerts);
+				int i;
+				for( i=0; i<inState->totalVerts; i++ )
+				{
+					ofvVec[i].c[0] = ofv[3*i+0];
+					ofvVec[i].c[1] = ofv[3*i+1];
+					ofvVec[i].c[2] = ofv[3*i+2];
+				}
+				exportVect( ofvVec, inLink, "/tmp/ofv.vect" );
+				free(ofvVec);
+				*/
+			/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+				{
+					octrope_vector  vert;
+					double  norm;
+					vert.c[0] = ofv[3*dlItr+0];
+					vert.c[1] = ofv[3*dlItr+1];
+					vert.c[2] = ofv[3*dlItr+2];
+					norm = octrope_norm(vert);
+					if( norm != 0 )
+					{
+						ofv[3*dlItr+0] /= norm;
+						ofv[3*dlItr+1] /= norm;
+						ofv[3*dlItr+2] /= norm;
+					
+					/*	ofv[3*dlItr+0] *= 0.1;
+						ofv[3*dlItr+1] *= 0.1;
+						ofv[3*dlItr+2] *= 0.1;
+					*
+					}
+					else
+					{
+						ofv[3*dlItr+0] = 0;
+						ofv[3*dlItr+1] = 0;
+						ofv[3*dlItr+2] = 0;
+					}
+				}*/
+
+				
+				memcpy(minusDL, ofv, sizeof(double)*3*inState->totalVerts);
+				
+				free(ofv);
+							
+				free(ofvB);
+				taucs_ccs_free(sparseAT);
+				
+			/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+				{
+					octrope_vector  vert;
+					double  norm;
+					vert.c[0] = minusDL[3*dlItr+0];
+					vert.c[1] = minusDL[3*dlItr+1];
+					vert.c[2] = minusDL[3*dlItr+2];
+					norm = octrope_norm(vert);
+					if( norm != 0 )
+					{
+						minusDL[3*dlItr+0] /= norm;
+						minusDL[3*dlItr+1] /= norm;
+						minusDL[3*dlItr+2] /= norm;
+					
+						minusDL[3*dlItr+0] *= 0.1;
+						minusDL[3*dlItr+1] *= 0.1;
+						minusDL[3*dlItr+2] *= 0.1;
+					}
+					else
+					{
+						minusDL[3*dlItr+0] = 0;
+						minusDL[3*dlItr+1] = 0;
+						minusDL[3*dlItr+2] = 0;
+					}
+				}*/
+			
+		/*		if( gOutputFlag == 1 )
+				{
+					octrope_vector  debug[500];
+					for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
+					{
+						debug[dlItr].c[0] = 0.5*minusDL[3*dlItr+0];
+						debug[dlItr].c[1] = 0.5*minusDL[3*dlItr+1];
+						debug[dlItr].c[2] = 0.5*minusDL[3*dlItr+2];
+					}
+					exportVect(debug, inLink, "/tmp/minusDL.vect");
+				}
+		*/	
+			} // gFastCorrectionSteps
+			else
+			{
+				// do this. follow mr grad.
 			}
-	*/	
 		}
 							
 		// solve AX = -dl, x is strut compressions
-//		taucs_ccs_matrix* sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
-	//	taucs_print_ccs_matrix(sparseA);
-		//if( strutCount != 0 )
-		
-	/*	double* foobear = (double*)malloc(sizeof(double)*sparseA->n);
-		dumpAxb( sparseA, foobear, minusDL );
-		free(foobear);
-	*/	
 			compressions = t_snnls(sparseA, minusDL, &inState->residual, 2, 0);
 	//		for( foo=0; foo<sparseA->n; foo++ )
 	//			printf( "(%d) %lf ", minradSet[foo].vert, compressions[foo] );

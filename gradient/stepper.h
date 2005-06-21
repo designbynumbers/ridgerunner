@@ -56,6 +56,7 @@ typedef struct
 	double	correctionStepDefault;	// default correction step size
 
 	double	overstepTol;		// the amount we are willing to overstep before correcting strut length
+	double	minradOverstepTol;
 
 	double  injrad;				// the user specified injectivity radius of the link
 	double  minrad;				// Rawdon's minimum radius of curvature
