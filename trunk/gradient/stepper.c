@@ -92,7 +92,7 @@ export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, cha
   /* Now we write the vertex data . . . */
   for(i=0;i<L->nc;i++) {
     for(j=0;j<L->cp[i].nv;j++) {
-      fprintf(file,"%g %g %g \n", L->cp[i].vt[j].c[0], L->cp[i].vt[j].c[1],
+      fprintf(file,"%3.16lf %3.16lf %3.16lf \n", L->cp[i].vt[j].c[0], L->cp[i].vt[j].c[1],
                                   L->cp[i].vt[j].c[2]);
     }
   }
@@ -102,9 +102,9 @@ export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, cha
   for (i=0; i < L->nc; i++) {
     for (j=0; j < L->cp[i].nv; j++) {
 		if( colorParam == 0 )
-		  fprintf(file,"%f %f %f %f\n", 0.0, 1.0*(pushes[colorItr]/maxPush), 0.0, 1.0);
+		  fprintf(file,"%3.16lf %3.16lf %3.16lf %3.16lf\n", 0.0, 1.0*(pushes[colorItr]/maxPush), 0.0, 1.0);
 		else
-		  fprintf(file,"%f %f %f %f\n", 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 0.0);
+		  fprintf(file,"%3.16lf %3.16lf %3.16lf %3.16lf\n", 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 0.0);
 		colorItr++;
 	}
   }
