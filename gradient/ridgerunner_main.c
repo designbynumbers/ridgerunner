@@ -482,7 +482,7 @@ usage()
 "ridgerunner \n\n \
 -h threshold for check delta, will stop if length improvement < threshld in checkDelta time\n \
 -d count\t Divides edges count times before running (can be numerically unstable)\n \
--o tolerance\t Overstep tolerance (probably broken)\n \
+-o tolerance\t Overstep tolerance (maybe not broken)\n \
 -r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \
 -e mult\t Sets the eq-force multiplier\n \
 -b amt\tscales curve by amt\n \
@@ -504,7 +504,7 @@ usage()
 -w\tconvergence data printed in /tmp/rrconvergence.txt \n \
 -z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
 -j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/\n \
--k\tcorrection step size, default 0.25 \n"
+-k\tcorrection step size, default 0.25\n"
 );
 	exit(kNoErr);
 }
