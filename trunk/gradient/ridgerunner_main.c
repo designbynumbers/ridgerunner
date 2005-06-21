@@ -35,6 +35,7 @@ int gQuiet = 0;
 int gSurfaceBuilding = 0;
 int gAvoidTmpConflicts = 0;
 int gPaperInfoInTmp = 0;
+int gFastCorrectionSteps = 0;
 
 #define min(a,b) ((a)<(b)) ? (a) : (b)
 
@@ -91,6 +92,7 @@ main( int argc, char* argv[] )
 	int				graphIt[kTotalGraphTypes];
 	int				gItr;
 	double			correctionStepSize = 0.25;
+	double			minradOverstepTol = 0.499975;
 	
 	bzero(&graphIt[0], sizeof(int)*kTotalGraphTypes);
 		
@@ -98,7 +100,7 @@ main( int argc, char* argv[] )
 	
 	srand(time(NULL));
 	
-	while( (opt = getopt(argc, argv, "vlf:mnuap:t:dk:g:b:c:r:i:o:e:yqjx:sh:wz")) != -1 )
+	while( (opt = getopt(argc, argv, "vlf:mnuap:t:d:k:g:b:c:r:i:o:e:yqjx:sh:w:z")) != -1 )
 	{
 		switch(opt)
 		{
@@ -132,7 +134,17 @@ main( int argc, char* argv[] )
 				break;
 		
 			case 'w':
-				saveConvergence = 1;
+				//saveConvergence = 1;
+				switch( (int)(optarg[0]) )
+				{
+					case 'f':
+						gFastCorrectionSteps = 1;
+						break;
+					 
+					default: 
+						printf( "unknown width option\n" ); 
+						break;
+				}
 				break;
 		
 			case 'q':
@@ -152,7 +164,7 @@ main( int argc, char* argv[] )
 				break;
 								
 			case 'd':
-				doubleCount++;
+				minradOverstepTol = atof(optarg);
 				break;
 				
 			case 's':
@@ -298,12 +310,16 @@ main( int argc, char* argv[] )
 	
 	state.injrad = injrad;
 	state.overstepTol = overstepTol;
+	state.minradOverstepTol = minradOverstepTol;
+	state.minminrad = minradOverstepTol;
+	
 	state.eqMultiplier = eqMult;
 	
 	state.residualThreshold = residualThreshold;
 
-	printf( "Overstep tolerance: %f of thickness %f (%f)\n", state.overstepTol, state.injrad*2, 
-			state.injrad*2 - state.overstepTol*state.injrad*2 );
+	printf( "Overstep tolerance: %f of thickness %f (%f) minminrad: %3.8lf\n", state.overstepTol, state.injrad*2, 
+			state.injrad*2 - state.overstepTol*state.injrad*2, 
+			state.minminrad );
 	
 	// scale to thickness 1
 	if( autoscale == 1 )
@@ -501,7 +517,7 @@ usage()
 -y\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
 -g\tgraphing with arg: (l)ength (c)locktime (r)cond (m)inrad (r)esidual (s)truts (v)ariance of edge diff from avg (a)ll\n \
 -u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
--w\tconvergence data printed in /tmp/rrconvergence.txt \n \
+-w\twith: (f)ast correction stepper\n \
 -z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
 -j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/\n \
 -k\tcorrection step size, default 0.25\n"
