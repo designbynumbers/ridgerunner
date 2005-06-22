@@ -592,7 +592,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				// before reset, output last number if we're recording this
 				if( gPaperInfoInTmp != 0 )
 				{
-					FILE* tcc = fopen("/tmp/correction_convergence","a");
+					char	fname[512];
+					preptmpname(fname,"correction_convergence",inState);
+					FILE* tcc = fopen(fname,"a");
 					fprintf(tcc, "%d\n", gCorrectionAttempts);
 					fclose(tcc);
 				}
@@ -1415,7 +1417,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	
 	if( gPaperInfoInTmp != 0 )
 	{
-		FILE* tb = fopen("/tmp/bsearch_count","a");
+		char fname[512];
+		preptmpname(fname,"bsearch_count",inState);
+		FILE* tb = fopen(fname,"a");
 		fprintf(tb, "%d\n", stepAttempts);
 		fclose(tb);
 	}
@@ -3353,6 +3357,16 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		{
 	//		taucs_ccs_matrix* apda = taucs_ccs_aprime_times_a(sparseA);
 			inState->rcond = taucs_rcond(sparseA);
+			
+			if( gPaperInfoInTmp )
+			{
+				char fname[512];
+				preptmpname(fname, "rcond", inState);
+				FILE* rcondF = fopen(fname,"a");
+				fprintf( rcondF, "%d %e\n", strutCount+minradLocs, inState->rcond );
+				fclose(rcondF);
+			}
+			
 	//		taucs_ccs_free(apda);
 		}
 		

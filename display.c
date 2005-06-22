@@ -43,12 +43,17 @@ void refresh_display(octrope_link *L)
 
 }
 
+extern int gSuppressOutput;
+
 void
 export_ted(octrope_link* inLink, octrope_strut* strutSet, 
 			int inSize, octrope_mrloc* minradSet, int minradLocs, 
 			double* compressions, search_state* inState)
 {
 	char	fname[1024];
+
+	if( gSuppressOutput != 0 )
+		return;
 	
 	preptmpname(fname, "struts_ted.txt", inState);
 	FILE* ted = fopen(fname,"w");
@@ -74,7 +79,6 @@ export_ted(octrope_link* inLink, octrope_strut* strutSet,
 	fclose(ted);
 }
 
-extern int gSuppressOutput;
 extern int gSurfaceBuilding;
 
 short gSurfaceIndex = 0; // the next filename for the surface building
