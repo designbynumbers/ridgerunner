@@ -1221,7 +1221,7 @@ taucs_convert_ccs_to_doubles( const taucs_ccs_matrix* A )
 }
 
 void
-taucs_print_ccs_matrix( const taucs_ccs_matrix* A )
+taucs_print_ccs_matrix( const taucs_ccs_matrix* A, FILE* fp )
 {
   double* v = taucs_convert_ccs_to_doubles(A);
   int rowCount;
@@ -1238,8 +1238,8 @@ taucs_print_ccs_matrix( const taucs_ccs_matrix* A )
   for( rItr=0; rItr<rowCount; rItr++ )
     {
       for( cItr=0; cItr<A->n; cItr++ )
-	printf( "%5.4g ", v[rItr*A->n + cItr] );
-      printf( "\n" );
+	fprintf( fp, "%5.4g ", v[rItr*A->n + cItr] );
+      fprintf( fp, "\n" );
     }
 	
   free(v);

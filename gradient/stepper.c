@@ -154,6 +154,8 @@ reloadDump( double* A, int rows, int cols, double* x, double* b )
 int gOutputFlag = 1;
 int gConditionCheck = 0;
 
+extern int gFastCorrectionSteps;
+
 #define kOutputItrs 1
 #define SECS(tv)        (tv.tv_sec + tv.tv_usec / 1000000.0)
 
@@ -331,7 +333,9 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		}
 		norm = sqrt(norm);
 		
-		if( inState->curvature_step != 0 )
+		// if we're doing fast tsnnls based correction steps, the normalization 
+		// doesn't really matter
+		if( inState->curvature_step != 0 || gFastCorrectionSteps != 0 )
 		{
 			As.c[0] /= norm;
 			As.c[1] /= norm;
@@ -577,10 +581,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		else*/
 			inState->eq_step = 0;
 			
-		if( inState->curvature_step == 0 )
+		if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
 		{
 			if( gQuiet == 0 )
-				printf( "last correction step lsqr residual: %lf\n", inState->ofvResidual );
+				printf( "last correction step lsqr residual: %e\n", inState->ofvResidual );
 		}
 
 		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
@@ -1267,6 +1271,20 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
 	
 	firstVariation(dVdt, inLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
+	// this actually onlt applies with newton stepping without lsqr, which we don't do anymore.
+	// not that we ever did, but the code will be left here if i ever come back to it
+/*	if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
+	{
+		inState->minrad = octrope_minradval(inLink);
+		inState->shortest = octrope_poca(inLink, NULL, 0);
+		inState->length = octrope_curvelength(inLink);
+
+		free(dVdt);
+
+		return inLink; // we updated the verts from the lsqr call in firstVariation
+	}
+*/	
+	
 	if( inState->shortest > 2*inState->injrad )
 		inState->shortest = 2*inState->injrad;
 			
@@ -2743,7 +2761,6 @@ stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
 int gFeasibleThreshold = 0;
 int gDeferredStrutExport = 0;
 int gFoo = 0;
-extern int gFastCorrectionSteps;
 
 void
 firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
@@ -3068,7 +3085,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					}
 				}
 				
-				int sIndex;
+				int sIndex, mItr;
 				for( sIndex=0; sIndex<greenZoneCount; sIndex++ )
 				{
 					// flip the entries in this guy's column
@@ -3230,15 +3247,77 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						ofv[3*dlItr+2] = 0;
 					}
 				}*/
-
 				
 				memcpy(minusDL, ofv, sizeof(double)*3*inState->totalVerts);
 				
-				free(ofv);
+		/*		{
+					int cItr, vItr, dVdtItr;
+					for( cItr=0, dVdtItr=0; cItr<inLink->nc; cItr++ )
+					{
+						for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, dVdtItr++ )
+						{
+							inLink->cp[cItr].vt[vItr].c[0] += inState->correctionStepDefault*ofv[3*dVdtItr+0];
+							inLink->cp[cItr].vt[vItr].c[1] += inState->correctionStepDefault*ofv[3*dVdtItr+1];
+							inLink->cp[cItr].vt[vItr].c[2] += inState->correctionStepDefault*ofv[3*dVdtItr+2];
+						}
+					}
+				}
+		*/		
 							
 				free(ofvB);
+				free(ofv);
 				taucs_ccs_free(sparseAT);
 				
+		/*		// extra stuff due to changed method
+				taucs_ccs_free(sparseA);
+				free(A);
+				free(minusDL);
+				
+				free(minradSet);
+				
+				if( outStruts == NULL )
+					free(strutSet);
+					
+				if( inState->graphing[kRcond] != 0 )
+				{
+					inState->rcond = taucs_rcond(sparseA);
+					
+					if( gPaperInfoInTmp )
+					{
+						char fname[512];
+						preptmpname(fname, "rcond", inState);
+						FILE* rcondF = fopen(fname,"a");
+						fprintf( rcondF, "%d %e\n", strutCount+minradLocs, inState->rcond );
+						fclose(rcondF);
+					}
+				}
+
+				return;
+		*/		
+				// now we need to normalize for tsnnls again -- oh wait, we're using 
+				// just lsqr! perhaps won't need this if lsqr alone works...
+			
+				// this doesn't seem to work
+			
+			/*	for( mItr=0; mItr<minradLocs; mItr++ )
+				{
+					double norm;
+					norm = 0;
+					int rItr;
+					// column is mItr, so just get the norm of all entries and normalize
+					// since only implicated vertices are in column
+					for( rItr=sparseA->colptr[mItr+strutCount]; rItr<sparseA->colptr[mItr+strutCount+1]; rItr++ )
+					{
+						norm += sparseA->values.d[rItr]*sparseA->values.d[rItr];
+					}
+					norm = sqrt(norm);
+					
+					for( rItr=sparseA->colptr[mItr+strutCount]; rItr<sparseA->colptr[mItr+strutCount+1]; rItr++ )
+					{
+						 sparseA->values.d[rItr] /= norm;
+					}
+				}
+			*/	
 			/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 				{
 					octrope_vector  vert;
@@ -3280,10 +3359,60 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			} // gFastCorrectionSteps
 			else
 			{
-				// do this. follow mr grad.
-			}
+				int rItr;
+				// do this. follow grads.
+				double	scaleFactor;
+				double secondGreenZone = thickness - (thickness*inState->overstepTol)*.25;
+				double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
+				
+				sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);	
+				
+				// struts are rows
+				for( sItr=0; sItr<strutCount; sItr++ )
+				{
+					if( strutSet[sItr].length < greenZone )
+					{
+						scaleFactor = thickness-strutSet[sItr].length;
+						// all we need to do is copy over the column in an appropriately 
+						// scaled way.
+						for( rItr=sparseA->colptr[sItr]; rItr<sparseA->colptr[sItr+1]; rItr++ )
+						{
+							minusDL[sparseA->rowind[rItr]] = scaleFactor*sparseA->values.d[rItr];
+						}
+					} // length < greenZone
+				}// for all struts
+				
+				// exact same thing for MR struts
+				for( sItr=strutCount; sItr<strutCount+minradLocs; sItr++ )
+				{
+					double minradSecondGreenZone = ((thickness/2.0)-inState->minminrad) / 2.0;
+					minradSecondGreenZone = (thickness/2.0)-minradSecondGreenZone;
+					// we're in green green, and we should shorten rather than lengthen, but not so much that
+					// we dip below the min again
+					if( minradSet[sItr-strutCount].mr < minradSecondGreenZone )
+					{
+						scaleFactor = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
+						
+						for( rItr=sparseA->colptr[sItr]; rItr<sparseA->colptr[sItr+1]; rItr++ )
+						{
+							minusDL[sparseA->rowind[rItr]] += scaleFactor*sparseA->values.d[rItr];
+						}
+					}
+				}
+
+			} // doing fast corrections?
 		}
-							
+			
+			// if we're only doing 1 itr and we're in paper recording mode, 
+			// save the rigidity matrix is /tmp/ for the MATLAB
+			// condition number calculation.
+			if( inState->maxItrs == 1 && gPaperInfoInTmp != 0 )
+			{
+				FILE* matrixF = fopen("/tmp/rigidity","w");
+				taucs_print_ccs_matrix(sparseA, matrixF);
+				fclose(matrixF);
+			}
+										
 		// solve AX = -dl, x is strut compressions
 			compressions = t_snnls(sparseA, minusDL, &inState->residual, 2, 0);
 	//		for( foo=0; foo<sparseA->n; foo++ )
