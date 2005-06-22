@@ -55,7 +55,7 @@ void				transpose_vec_times_matrix_nosub(double* b, double* A, int A_cols, int r
 void				taucs_transpose_vec_times_matrix_nosub(double* b, taucs_ccs_matrix* A, double* result);
 void				ourtaucs_ccs_times_vec( taucs_ccs_matrix* m, taucs_datatype* X, taucs_datatype* B );
 
-void				taucs_print_ccs_matrix( const taucs_ccs_matrix* A );
+void				taucs_print_ccs_matrix( const taucs_ccs_matrix* A, FILE* fp );
 taucs_ccs_matrix*   taucs_construct_sorted_ccs_matrix( double* values, int rowsize, int rows );
 double*				taucs_convert_ccs_to_doubles( const taucs_ccs_matrix* A );
 
