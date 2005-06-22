@@ -259,7 +259,6 @@ main( int argc, char* argv[] )
 				
 			case 'j':
 				gPaperInfoInTmp = 1;
-				system("rm -f /tmp/bsearch_count ; rm -f /tmp/correction_convergence");
 				break;
 			
 			case 'a':
@@ -408,6 +407,17 @@ main( int argc, char* argv[] )
 	}
 	
 	state.correctionStepDefault = correctionStepSize;
+	
+	if( gPaperInfoInTmp != 0 )
+	{
+		char	fname[512];
+		preptmpname(fname, "bsearch_count", &state);
+		remove(fname);
+		preptmpname(fname, "correction_convergence",&state);
+		remove(fname);
+		preptmpname(fname, "rcond", &state);
+		remove(fname);
+	}
 							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
@@ -519,7 +529,7 @@ usage()
 -u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
 -w\twith: (f)ast correction stepper\n \
 -z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
--j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/\n \
+-j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/ and rcond every step if its graphing on\n \
 -k\tcorrection step size, default 0.25\n"
 );
 	exit(kNoErr);
