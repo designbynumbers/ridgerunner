@@ -507,7 +507,7 @@ usage()
 	fprintf( stdout, 
 "ridgerunner \n\n \
 -h threshold for check delta, will stop if length improvement < threshld in checkDelta time\n \
--d count\t Divides edges count times before running (can be numerically unstable)\n \
+-d minrad control -- specify min minrad (should be less than thickness/2)\n \
 -o tolerance\t Overstep tolerance (maybe not broken)\n \
 -r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \
 -e mult\t Sets the eq-force multiplier\n \

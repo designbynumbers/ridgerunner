@@ -771,9 +771,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 */		
 		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
-			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqstep: %d\n", 
+			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqAvgDif: %e\n", 
 						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
-						inState->eq_step );
+						inState->eqAvgDiff );
 			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf check threshold: %lf\n", 
 					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
 					inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
@@ -1270,7 +1270,27 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	
 	dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
 	
+	struct rusage stopTime;
+	struct rusage startTime;
+	double user;
+
+	if( gPaperInfoInTmp != 0 )
+	{
+		// keep track of linear algebra runtime
+		getrusage(RUSAGE_SELF, &startTime);
+	}
+
 	firstVariation(dVdt, inLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
+	
+	if( gPaperInfoInTmp != 0 )
+	{
+		getrusage(RUSAGE_SELF, &stopTime);
+		user = SECS(stopTime.ru_utime) - SECS(startTime.ru_utime);
+		if( inState->curvature_step == 0 )
+			printf( "Correction step firstVartion() time: %lf\n", user );
+		else
+			printf( "Curvature step firstVartion() time: %lf\n", user );
+	}
 	// this actually onlt applies with newton stepping without lsqr, which we don't do anymore.
 	// not that we ever did, but the code will be left here if i ever come back to it
 /*	if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
