@@ -678,10 +678,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
-			printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf avgdvdt: %lf residual: %e time: %lf\n", 
+			printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf rsdl: %e t: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
 						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						inState->avgDvdtMag, inState->residual, inState->time );
+						inState->residual, inState->time );
 		}
 		
 				
@@ -771,8 +771,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 */		
 		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
-			printf( "maxovermin: %3.5lf eqMultiplier: %3.5lf (max max/min: %3.5lf) (min thickness: %3.5lf) last rcond: %e ssize: %f cstep: %d eqAvgDif: %e\n", 
-						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->stepSize, inState->curvature_step,
+			printf( "mm: %3.5lf eqM: %3.5lf (max mm: %3.5lf) (min thick: %3.5lf) lrcond: %e cstep: %d eqAvgDif: %e\n", 
+						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->curvature_step,
 						inState->eqAvgDiff );
 			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf check threshold: %lf\n", 
 					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
@@ -3074,7 +3074,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					//		greenZoneMR[greenZoneMRCount++] = sItr; // keep in mind this is offset by strutCount
 						}
 						else // we want to lengthen to the second green zone
-							ofvB[sItr] = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
+							ofvB[sItr] = minradSecondGreenZone-minradSet[sItr-strutCount].mr;
 					}
 				}
 							
