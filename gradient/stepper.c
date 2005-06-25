@@ -31,6 +31,7 @@ void				computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
 						octrope_mrloc* minradSet, int strutCount, int minradLocs );
 
 extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
+extern void fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
 
 // lesser utility functions
 int					equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
@@ -43,6 +44,121 @@ int displayEveryFrame = 0;
 extern int gQuiet;
 extern int gSurfaceBuilding;
 extern int gPaperInfoInTmp;
+
+static void
+swap_rigidity_verts( taucs_ccs_matrix* A, int v1, int v2, int col )
+{
+	/* here, verts are given in offset from 0 of the 4 or 3 per strut */
+	double vals[3];
+	double inds[3];
+	int j;
+	
+	for( j=0; j<3; j++ )
+	{
+		vals[j] = A->values.d[A->colptr[col] + 3*v1 + j];
+		inds[j] = A->rowind[A->colptr[col] + 3*v1 + j];
+	}
+	
+	for( j=0; j<3; j++ )
+	{
+		A->values.d[A->colptr[col] + 3*v1 + j] = A->values.d[A->colptr[col] + 3*v2 + j];
+		A->rowind[A->colptr[col] + 3*v1 + j] = A->rowind[A->colptr[col] + 3*v2 + j];
+	}
+	
+	for( j=0; j<3; j++ )
+	{
+		A->values.d[A->colptr[col] + 3*v2 + j] = vals[j];
+		A->rowind[A->colptr[col] + 3*v2 + j] = inds[j];
+	}
+}
+
+static void
+taucs_enforce_ccs_sort( taucs_ccs_matrix* A, int strutCount )
+{
+	int cItr, rightBound, i;
+	for( cItr=0; cItr<A->n; cItr++ )
+	{
+		int col = cItr;
+		// we need to move things in blocks of three.
+		if( cItr < strutCount )
+		{
+			for( rightBound = 3; rightBound > 0; rightBound-- )
+			{
+				for( i=0; i<rightBound; i++ )
+				{
+					if(A->rowind[A->colptr[col]+3*i] > A->rowind[A->colptr[col]+3*(i+1)])
+						swap_rigidity_verts(A, i, i+1, col);
+				}
+			}
+		}// < strutCount? (thickness strut)
+		else
+		{
+			// bubble sort with three vertices.
+			if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
+				swap_rigidity_verts(A, 0, 1, col);
+			if( A->rowind[A->colptr[col]+3] > A->rowind[A->colptr[col]+6] )
+				swap_rigidity_verts(A, 1, 2, col);
+			if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
+				swap_rigidity_verts(A, 0, 1, col);
+		}
+		
+	} // for over columns
+}
+
+// note to self -- get rid of THIS later too
+static double
+rigidityEntry( taucs_ccs_matrix* A, int strutCount, int minradLocs, int row, int col )
+{
+	int vItr;
+
+	// the most common case will be a 0, so get that out of the way quick --
+	// movd this check to firstVariation for speed purposes
+	
+	// also note that this exploits the t_snnls enforced ordering of row
+	// entries and doesn't work for generic ccs matrices
+/*	if( row < A->rowind[A->colptr[col]] || row > A->rowind[A->colptr[col+1]-1] )
+		return 0;
+*/
+	// now we look.
+	if( col < strutCount )
+	{
+		// we can manually unroll this loop -- data dependencies in here
+		// result in large slowdown according to shark.
+/*		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
+		{
+			if( A->rowind[vItr] == row )
+				return A->values.d[vItr];
+		}
+*/
+		vItr=A->colptr[col];
+		if( A->rowind[vItr+0] == row ) return A->values.d[vItr+0];
+		if( A->rowind[vItr+1] == row ) return A->values.d[vItr+1];
+		if( A->rowind[vItr+2] == row ) return A->values.d[vItr+2];
+		if( A->rowind[vItr+3] == row ) return A->values.d[vItr+3];
+		
+		if( A->rowind[vItr+4] == row ) return A->values.d[vItr+4];
+		if( A->rowind[vItr+5] == row ) return A->values.d[vItr+5];
+		if( A->rowind[vItr+6] == row ) return A->values.d[vItr+6];
+		if( A->rowind[vItr+7] == row ) return A->values.d[vItr+7];
+		
+		if( A->rowind[vItr+8] == row ) return A->values.d[vItr+8];
+		if( A->rowind[vItr+9] == row ) return A->values.d[vItr+9];
+		if( A->rowind[vItr+10] == row ) return A->values.d[vItr+10];
+		if( A->rowind[vItr+11] == row ) return A->values.d[vItr+11];
+	}
+	else
+	{
+		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
+		{
+			if( A->rowind[vItr] == row )
+				return A->values.d[vItr];
+		}
+	}
+	
+//	fprintf(stderr, "Shouldn't happen!\n");
+	
+	return 0;
+}
 
 static void
 export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
@@ -160,6 +276,274 @@ extern int gFastCorrectionSteps;
 #define SECS(tv)        (tv.tv_sec + tv.tv_usec / 1000000.0)
 
 int	gEQevents = 0;
+
+static void
+placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, octrope_mrloc* minradStruts, 
+	int minradLocs, search_state* inState, int contactStruts )
+{
+	int mItr;
+	int totalStruts = contactStruts + minradLocs;
+	
+	for( mItr=0; mItr<minradLocs; mItr++ )
+	{
+		octrope_vector B, A, cross, As, Bs, Cs;
+		double	bmag, amag;
+		double value, angle;
+		double kappa, dot, prevLen, thisLen;
+		octrope_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
+		
+		int vItr = minradStruts[mItr].vert;
+		int cItr = minradStruts[mItr].component;
+		
+		prevSide.c[0] = inLink->cp[cItr].vt[vItr].c[0] - inLink->cp[cItr].vt[vItr-1].c[0];
+		prevSide.c[1] = inLink->cp[cItr].vt[vItr].c[1] - inLink->cp[cItr].vt[vItr-1].c[1];
+		prevSide.c[2] = inLink->cp[cItr].vt[vItr].c[2] - inLink->cp[cItr].vt[vItr-1].c[2];
+		
+		thisSide.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
+		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
+		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
+		
+		dot = octrope_dot(prevSide, thisSide);
+		prevLen = octrope_norm(prevSide);
+		thisLen = octrope_norm(thisSide);
+
+		// B = b-v
+		B.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
+		B.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
+		B.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
+		
+		// A = a-v
+		A.c[0] = inLink->cp[cItr].vt[vItr-1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
+		A.c[1] = inLink->cp[cItr].vt[vItr-1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
+		A.c[2] = inLink->cp[cItr].vt[vItr-1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
+		
+		bmag = octrope_norm(B);
+		amag = octrope_norm(A);
+		
+		value = dot/(prevLen*thisLen);
+		if( value >= 1 )
+		{
+			angle = 0;
+		}
+		else if( value <= -1 )
+		{
+			angle = M_PI;
+		}
+		else
+		{
+			// this is dangerous for the reasons of Ted's talk. Change me!
+			angle = acos(value);
+		}
+		
+		if( thisLen < prevLen )
+		{
+			// says... maple?
+			kappa = -bmag/(2-2*cos(angle));
+			
+			// BxA
+			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
+			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
+			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
+			
+			N.c[0] = cross.c[0]/octrope_norm(cross);
+			N.c[1] = cross.c[1]/octrope_norm(cross);
+			N.c[2] = cross.c[2]/octrope_norm(cross);
+			
+			double Lconst, Mconst, Nconst;
+			
+			Lconst = (1/(2*tan(angle/2) * bmag));
+			fancyL.c[0] = Lconst * B.c[0];
+			fancyL.c[1] = Lconst * B.c[1];
+			fancyL.c[2] = Lconst * B.c[2];
+			
+			Mconst = kappa*(1/(amag*amag));
+			// A x N
+			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
+			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
+			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
+			fancyM.c[0] = Mconst * cross.c[0];
+			fancyM.c[1] = Mconst * cross.c[1];
+			fancyM.c[2] = Mconst * cross.c[2];
+			
+			Nconst = kappa*(1/(bmag*bmag));
+			// N x B
+			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
+			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
+			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
+			fancyN.c[0] = Nconst * cross.c[0];
+			fancyN.c[1] = Nconst * cross.c[1];
+			fancyN.c[2] = Nconst * cross.c[2];
+			
+			As.c[0] = fancyM.c[0];
+			As.c[1] = fancyM.c[1];
+			As.c[2] = fancyM.c[2];
+			
+			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+			
+			Cs.c[0] = fancyN.c[0] + fancyL.c[0];
+			Cs.c[1] = fancyN.c[1] + fancyL.c[1];
+			Cs.c[2] = fancyN.c[2] + fancyL.c[2];
+		}
+		else
+		{
+			// says... maple?
+			kappa = -amag/(2-2*cos(angle));
+			
+			// BxA
+			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
+			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
+			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
+			
+			N.c[0] = cross.c[0]/octrope_norm(cross);
+			N.c[1] = cross.c[1]/octrope_norm(cross);
+			N.c[2] = cross.c[2]/octrope_norm(cross);
+			
+			double Lconst, Mconst, Nconst;
+			
+			Lconst = (1/(2*tan(angle/2) * amag));
+			fancyL.c[0] = Lconst * A.c[0];
+			fancyL.c[1] = Lconst * A.c[1];
+			fancyL.c[2] = Lconst * A.c[2];
+			
+			Mconst = kappa*(1/(amag*amag));
+			// A x N
+			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
+			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
+			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
+			fancyM.c[0] = Mconst * cross.c[0];
+			fancyM.c[1] = Mconst * cross.c[1];
+			fancyM.c[2] = Mconst * cross.c[2];
+			
+			Nconst = kappa*(1/(bmag*bmag));
+			// N x B
+			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
+			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
+			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
+			fancyN.c[0] = Nconst * cross.c[0];
+			fancyN.c[1] = Nconst * cross.c[1];
+			fancyN.c[2] = Nconst * cross.c[2];
+			
+			As.c[0] = fancyM.c[0] + fancyL.c[0];;
+			As.c[1] = fancyM.c[1] + fancyL.c[1];;
+			As.c[2] = fancyM.c[2] + fancyL.c[2];;
+			
+			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+			
+			Cs.c[0] = fancyN.c[0]; //+ fancyL.c[0];
+			Cs.c[1] = fancyN.c[1]; //+ fancyL.c[1];
+			Cs.c[2] = fancyN.c[2]; //+ fancyL.c[2];
+		}
+		
+		double norm;
+		int nItr;
+		norm = 0;
+		for( nItr=0; nItr<3; nItr++ )
+		{
+			norm += As.c[nItr]*As.c[nItr];
+			norm += Bs.c[nItr]*Bs.c[nItr];
+			norm += Cs.c[nItr]*Cs.c[nItr];
+		}
+		norm = sqrt(norm);
+		
+		// if we're doing fast tsnnls based correction steps, the normalization 
+		// doesn't really matter
+		if( inState->curvature_step != 0 || gFastCorrectionSteps != 0 )
+		{
+			As.c[0] /= norm;
+			As.c[1] /= norm;
+			As.c[2] /= norm;
+			Bs.c[0] /= norm;
+			Bs.c[1] /= norm;
+			Bs.c[2] /= norm;
+			Cs.c[0] /= norm;
+			Cs.c[1] /= norm;
+			Cs.c[2] /= norm;
+		}
+					
+		// temporarily increment the strut's verts based on their component interactions
+		// we undo this change at the end of the for loop in case the user
+		// wants to keep the strut set
+		int aVert, bVert, cVert, entry;
+		aVert = minradStruts[mItr].vert-1;
+		bVert = minradStruts[mItr].vert;
+		cVert = minradStruts[mItr].vert+1;
+
+		aVert += inState->compOffsets[minradStruts[mItr].component];
+		bVert += inState->compOffsets[minradStruts[mItr].component];
+		cVert += inState->compOffsets[minradStruts[mItr].component];
+		
+		if( minradStruts[mItr].vert == 0 &&
+			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
+		{
+			entry = 3*(inState->compOffsets[minradStruts[mItr].component]);
+		}
+		else
+		{
+			entry = 3*aVert;
+		}
+
+	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+	//		printf( "*** crap!\n" );
+	
+	/*	rigidityA[entry] = As.c[0];
+		rigidityA[entry+totalStruts] = As.c[1];
+		rigidityA[entry+(2*totalStruts)] = As.c[2];
+	*/
+		rigidityA->values.d[12*contactStruts+9*mItr+0] = As.c[0];
+		rigidityA->values.d[12*contactStruts+9*mItr+1] = As.c[1];
+		rigidityA->values.d[12*contactStruts+9*mItr+2] = As.c[2];
+		
+		rigidityA->rowind[12*contactStruts+9*mItr+0] = entry + 0;
+		rigidityA->rowind[12*contactStruts+9*mItr+1] = rigidityA->rowind[12*contactStruts+9*mItr+0] + 1;
+		rigidityA->rowind[12*contactStruts+9*mItr+2] = rigidityA->rowind[12*contactStruts+9*mItr+0] + 2;		
+	
+		entry = (3*bVert);
+	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+	//		printf( "*** crap!\n" );
+	
+	/*	rigidityA[entry] = Bs.c[0];
+		rigidityA[entry+totalStruts] = Bs.c[1];
+		rigidityA[entry+(2*totalStruts)] = Bs.c[2];
+	*/
+		rigidityA->values.d[12*contactStruts+9*mItr+3] = Bs.c[0];
+		rigidityA->values.d[12*contactStruts+9*mItr+4] = Bs.c[1];
+		rigidityA->values.d[12*contactStruts+9*mItr+5] = Bs.c[2];	
+		
+		rigidityA->rowind[12*contactStruts+9*mItr+3] = entry + 0;
+		rigidityA->rowind[12*contactStruts+9*mItr+4] = rigidityA->rowind[12*contactStruts+9*mItr+3] + 1;
+		rigidityA->rowind[12*contactStruts+9*mItr+5] = rigidityA->rowind[12*contactStruts+9*mItr+3] + 2;	
+
+		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
+			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
+		{
+			entry = 3*inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component];
+		}
+		else
+		{
+			entry = 3*cVert;
+		}
+	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+	//		printf( "*** crap!\n" );
+	
+	/*	rigidityA[entry] = Cs.c[0];
+		rigidityA[entry+totalStruts] = Cs.c[1];
+		rigidityA[entry+(2*totalStruts)] = Cs.c[2];	
+	*/
+		rigidityA->values.d[12*contactStruts+9*mItr+6] = Cs.c[0];
+		rigidityA->values.d[12*contactStruts+9*mItr+7] = Cs.c[1];
+		rigidityA->values.d[12*contactStruts+9*mItr+8] = Cs.c[2];		
+		
+		rigidityA->rowind[12*contactStruts+9*mItr+6] = entry + 0;
+		rigidityA->rowind[12*contactStruts+9*mItr+7] = rigidityA->rowind[12*contactStruts+9*mItr+6] + 1;
+		rigidityA->rowind[12*contactStruts+9*mItr+8] = rigidityA->rowind[12*contactStruts+9*mItr+6] + 2;
+
+	} // for over minrad struts
+	
+}
 
 static void
 placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minradStruts, 
@@ -363,7 +747,7 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		if( minradStruts[mItr].vert == 0 &&
 			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
 		{
-			entry = (totalStruts*3)*(inState->compOffsets[minradStruts[mItr].component]);
+			entry = (totalStruts*3)*(inState->compOffsets[minradStruts[mItr].component])+contactStruts+mItr;
 		}
 		else
 		{
@@ -389,7 +773,7 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
 			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
 		{
-			entry = (totalStruts*3)*(inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component]);
+			entry = (totalStruts*3)*(inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component])+contactStruts+mItr;
 		}
 		else
 		{
@@ -1642,7 +2026,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 }
 
 static void
-placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
+placeContactStrutsSparse( taucs_ccs_matrix* A, octrope_link* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
 {
 	int sItr, totalStruts;
 	
@@ -1670,7 +2054,123 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 		// entry is the offset in A which begin this strut's influce
 		// it corresponds to the x influence on the lead_vert[0]th vertex
 		// after this line, entry+1 is y, +2: z.
+		entry = 3*strutSet[sItr].lead_vert[0];
+	
+		// the strut information includes the position from the strut.lead_vert
+		// so we assign "1-position[0]" of the force to the lead vert and "position[0]"
+		// of the force to lead_vert+1
+	/*	A[entry] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+		A[entry+totalStruts] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+	*/
+		// our column is 12*sItr from the start, and we need to set our rowInds
+		A->values.d[12*sItr+0] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+		A->values.d[12*sItr+1] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+		A->values.d[12*sItr+2] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+			
+		A->rowind[12*sItr+0] = entry + 0;
+		A->rowind[12*sItr+1] = A->rowind[12*sItr+0] + 1;
+		A->rowind[12*sItr+2] = A->rowind[12*sItr+0] + 2;
+			
+		// now for the next vertex, receiving "position[0]" of the force, this is 
+		// potential wrapping case
+		if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
+			(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
+		{
+			entry = 3*inState->compOffsets[strutSet[sItr].component[0]];
+		}
+		else
+		{
+			entry = 3*(strutSet[sItr].lead_vert[0]+1);
+		}
+	/*	A[entry] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+		A[entry+totalStruts] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+		A[entry+(2*totalStruts)] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+	*/	
+		A->values.d[12*sItr+3] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+		A->values.d[12*sItr+4] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+		A->values.d[12*sItr+5] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+		
+		A->rowind[12*sItr+3] = entry + 0;
+		A->rowind[12*sItr+4] = A->rowind[12*sItr+3] + 1;
+		A->rowind[12*sItr+5] = A->rowind[12*sItr+3] + 2;
+		
+		// we do the same thing at the opposite end of the strut, except now the 
+		// force is negated
+		entry = 3*strutSet[sItr].lead_vert[1];
+					
+		/*A[entry] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+		A[entry+totalStruts] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+		*/
+		A->values.d[12*sItr+6] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+		A->values.d[12*sItr+7] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+		A->values.d[12*sItr+8] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+		A->rowind[12*sItr+6] = entry + 0;
+		A->rowind[12*sItr+7] = A->rowind[12*sItr+6] + 1;
+		A->rowind[12*sItr+8] = A->rowind[12*sItr+6] + 2;
+		
+		if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
+			(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
+		{
+			entry = 3*inState->compOffsets[strutSet[sItr].component[1]];
+		}
+		else
+		{
+			entry = 3*(strutSet[sItr].lead_vert[1]+1);
+		}
+		/*
+		A[entry] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+		A[entry+totalStruts] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+		A[entry+(2*totalStruts)] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+		*/
+		A->values.d[12*sItr+9] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+		A->values.d[12*sItr+10] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+		A->values.d[12*sItr+11] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+		A->rowind[12*sItr+9] = entry + 0;
+		A->rowind[12*sItr+10] = A->rowind[12*sItr+9] + 1;
+		A->rowind[12*sItr+11] = A->rowind[12*sItr+9] + 2;
+		
+		strutSet[sItr].lead_vert[0] -= inState->compOffsets[strutSet[sItr].component[0]];
+		strutSet[sItr].lead_vert[1] -= inState->compOffsets[strutSet[sItr].component[1]];
+	}
+	
+	free(strutDirections);
+}
+
+static void
+placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
+{
+	int sItr, totalStruts;
+	
+	if( strutCount == 0 )
+		return;
+	
+	// in constructing the ridigity matrix, we will need the struts as viewed 
+	// as force vectors on the edges, so we create normalized vectors for each strut
+	// here
+	octrope_vector* strutDirections = (octrope_vector*)calloc(strutCount, sizeof(octrope_vector));
+	normalizeStruts( strutDirections, strutSet, inLink, strutCount );
+
+	totalStruts = minradStruts + strutCount;
+	
+	for( sItr=0; sItr<strutCount; sItr++ )
+	{
+		int		entry;
+	
+				
+		// temporarily increment the strut's verts based on their component interactions
+		// we undo this change at the end of the for loop in case the user
+		// wants to keep the strut set
+		strutSet[sItr].lead_vert[0] += inState->compOffsets[strutSet[sItr].component[0]];
+		strutSet[sItr].lead_vert[1] += inState->compOffsets[strutSet[sItr].component[1]];
+		
+		// entry is the offset in A which begin this strut's influce
+		// it corresponds to the x influence on the lead_vert[0]th vertex
+		// after this line, entry+1 is y, +2: z.
 		entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
+		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+			printf( "*** crap!\n" );
 	
 		// the strut information includes the position from the strut.lead_vert
 		// so we assign "1-position[0]" of the force to the lead vert and "position[0]"
@@ -1684,12 +2184,15 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 		if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
 			(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
 		{
-			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]]);
+			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]])+sItr;
 		}
 		else
 		{
 			entry = (totalStruts*3*(strutSet[sItr].lead_vert[0]+1))+sItr;
 		}
+		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+			printf( "*** crap!\n" );
+		
 		A[entry] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
 		A[entry+totalStruts] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
 		A[entry+(2*totalStruts)] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
@@ -1698,6 +2201,8 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 		// we do the same thing at the opposite end of the strut, except now the 
 		// force is negated
 		entry = (totalStruts*3*strutSet[sItr].lead_vert[1])+sItr;
+		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+			printf( "*** crap!\n" );
 					
 		A[entry] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
 		A[entry+totalStruts] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
@@ -1705,12 +2210,15 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 		if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
 			(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
 		{
-			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]]);
+			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]])+sItr;
 		}
 		else
 		{
 			entry = (totalStruts*3*(strutSet[sItr].lead_vert[1]+1))+sItr;
 		}
+		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
+			printf( "*** crap!\n" );
+
 		A[entry] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
 		A[entry+totalStruts] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
 		A[entry+(2*totalStruts)] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
@@ -2762,7 +3270,7 @@ stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
 	}
 	
 	/* This is a function pointer to the matrix-vector multiplier */
-	lsqr_func->mat_vec_prod = sparse_lsqr_mult;
+	lsqr_func->mat_vec_prod = fast_lsqr_mult;
 	
 	lsqr( lsqr_in, lsqr_out, lsqr_work, lsqr_func, sparseA );
 	
@@ -2804,6 +3312,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	double				dummyThick;
 			
 	double*				A = NULL; // the rigidity matrix
+	taucs_ccs_matrix*	cleanA = NULL;
 	
 	strutStorageSize = (inState->lastStepStrutCount != 0) ? (2*inState->lastStepStrutCount) : 10;
 	
@@ -2994,18 +3503,42 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	*/	
 		// A is size:   rows - 3*totalVerts
-		//				cols - strutCount				
+		//				cols - strutCount		
+		
+//		taucs_ccs_matrix* sparseA = NULL;
+		int nnz = 12*strutCount + 9*minradLocs; // we KNOW this
+		
+		  cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix));
+		  cleanA->n = strutCount+minradLocs;
+		  cleanA->m = 3*inState->totalVerts;
+		  cleanA->flags = TAUCS_DOUBLE;
+		  
+		  cleanA->colptr = (int*)malloc(sizeof(int)*(cleanA->n+1));
+		  cleanA->rowind = (int*)malloc(sizeof(int)*nnz);
+		  cleanA->values.d = (double*)malloc(sizeof(taucs_double)*nnz);
+		  
+		  // just as we know nnz, we know the column positions. struts only
+		  // involve 4 vertices and minrad struts 3.
+		cleanA->colptr[0] = 0;
+		  for( sItr=1; sItr<=strutCount; sItr++ )
+			cleanA->colptr[sItr] = sItr*12;
+		
+		for(sItr=strutCount+1; sItr<=strutCount+minradLocs; sItr++ )
+			cleanA->colptr[sItr] = cleanA->colptr[sItr-1]+9;
+						
 		Acols = (3*inState->totalVerts)*(strutCount+minradLocs);
-		A = (double*)calloc(Acols, sizeof(double)); // calloc zeros A
+//		A = (double*)calloc(Acols, sizeof(double)); // calloc zeros A
 		// first, place contact struts
-		placeContactStruts(A, inLink, strutSet, strutCount, inState, minradLocs);
+//		placeContactStruts(A, inLink, strutSet, strutCount, inState, minradLocs);
+		placeContactStrutsSparse(cleanA, inLink, strutSet, strutCount, inState, minradLocs);
 		
 //		placeVertexBars(A, inLink, strutCount, barVerts, minradLocs, inState);
 		
 		// and then minrad struts
 		if( minradLocs > 0 )
 		{
-			placeMinradStruts2(A, inLink, minradSet, minradLocs, inState, strutCount);
+			placeMinradStruts2Sparse(cleanA, inLink, minradSet, minradLocs, inState, strutCount);
+	//		placeMinradStruts2(A, inLink, minradSet, minradLocs, inState, strutCount);
 		}
 		
 		/* We now try to cancel as much of the motion as possible with strut forces. 
@@ -3025,13 +3558,12 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 	*/	
 			
-		taucs_ccs_matrix* sparseA = NULL;
 		
 		// fill this in now if we're not correcting, otherwise we might 
 		// have to flip strut gradients for those already in the green zone
-		if( dlenStep != 0 || inState->eq_step != 0 )
+	/*	if( dlenStep != 0 || inState->eq_step != 0 )
 			sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
-			
+	*/		
 		int*	greenZoneStruts;
 		int		greenZoneCount = 0;
 			
@@ -3105,16 +3637,23 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					}
 				}
 				
-				int sIndex, mItr;
+				int sIndex, mItr, spotItr;
 				for( sIndex=0; sIndex<greenZoneCount; sIndex++ )
 				{
 					// flip the entries in this guy's column
 					int totalStruts = strutCount+minradLocs;
 					sItr = greenZoneStruts[sIndex];
 					int entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
-					A[entry] *= -1;
+					
+					// this is actually MUCH easier since we don't have to compute the rows
+					
+					for(spotItr=0; spotItr<12; spotItr++ )
+						cleanA->values.d[12*sItr+spotItr] *= -1;
+				
+			/*		A[entry] *= -1;
 					A[entry+totalStruts] *= -1;
 					A[entry+(2*totalStruts)] *= -1;
+					
 					if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
 						(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
 					{
@@ -3144,15 +3683,17 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					}
 					A[entry] *= -1;
 					A[entry+totalStruts] *= -1;
-					A[entry+(2*totalStruts)] *= -1;
+					A[entry+(2*totalStruts)] *= -1;*/
 				}
 							
 				// done with these
 				free(greenZoneStruts);
 				
 				// now we can build since we've flipped gradients in full A.
-				sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
-				sparseAT = taucs_ccs_transpose(sparseA);
+			//	sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);
+			//	sparseAT = taucs_ccs_transpose(sparseA);
+		
+				sparseAT = taucs_ccs_transpose(cleanA);
 		
 				inState->ofvNorm = 0;
 				for( sItr=0; sItr<strutCount+minradLocs; sItr++ )
@@ -3385,7 +3926,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				double secondGreenZone = thickness - (thickness*inState->overstepTol)*.25;
 				double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
 				
-				sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);	
+				//sparseA = taucs_construct_sorted_ccs_matrix(A, strutCount+minradLocs, 3*inState->totalVerts);	
 				
 				// struts are rows
 				for( sItr=0; sItr<strutCount; sItr++ )
@@ -3395,9 +3936,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						scaleFactor = thickness-strutSet[sItr].length;
 						// all we need to do is copy over the column in an appropriately 
 						// scaled way.
-						for( rItr=sparseA->colptr[sItr]; rItr<sparseA->colptr[sItr+1]; rItr++ )
+						for( rItr=cleanA->colptr[sItr]; rItr<cleanA->colptr[sItr+1]; rItr++ )
 						{
-							minusDL[sparseA->rowind[rItr]] = scaleFactor*sparseA->values.d[rItr];
+							minusDL[cleanA->rowind[rItr]] = scaleFactor*cleanA->values.d[rItr];
 						}
 					} // length < greenZone
 				}// for all struts
@@ -3413,9 +3954,9 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 					{
 						scaleFactor = ((thickness/2.0)-minradSet[sItr-strutCount].mr);
 						
-						for( rItr=sparseA->colptr[sItr]; rItr<sparseA->colptr[sItr+1]; rItr++ )
+						for( rItr=cleanA->colptr[sItr]; rItr<cleanA->colptr[sItr+1]; rItr++ )
 						{
-							minusDL[sparseA->rowind[rItr]] += scaleFactor*sparseA->values.d[rItr];
+							minusDL[cleanA->rowind[rItr]] += scaleFactor*cleanA->values.d[rItr];
 						}
 					}
 				}
@@ -3429,12 +3970,39 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			if( inState->maxItrs == 1 && gPaperInfoInTmp != 0 )
 			{
 				FILE* matrixF = fopen("/tmp/rigidity","w");
-				taucs_print_ccs_matrix(sparseA, matrixF);
+				taucs_print_ccs_matrix(cleanA, matrixF);
 				fclose(matrixF);
 			}
 										
 		// solve AX = -dl, x is strut compressions
-			compressions = t_snnls(sparseA, minusDL, &inState->residual, 2, 0);
+		
+			// tsnnls routines are sentsitive to sorting of rows in ccs matrices, 
+			// so we enforce the rules here at low cost.
+			taucs_enforce_ccs_sort(cleanA, strutCount);
+		
+		//	cleanA = taucs_construct_sorted_ccs_matrix(taucs_convert_ccs_to_doubles(cleanA),
+		//				strutCount+minradLocs, 3*inState->totalVerts);
+			
+			// here, we compare
+			int rItr;
+		/*	for( cItr=0; cItr<strutCount+minradLocs; cItr++ )
+			{
+				for( rItr=0; rItr<sparseA->colptr[cItr+1]-sparseA->colptr[cItr]; rItr++ )
+				{
+					if( sparseA->rowind[sparseA->colptr[cItr]+rItr] != cleanA->rowind[cleanA->colptr[cItr]+rItr] )
+					{
+						printf("row indices disagree\n");
+						exit(-1);
+					}
+					if( sparseA->values.d[sparseA->colptr[cItr]+rItr] != cleanA->values.d[cleanA->colptr[cItr]+rItr] )
+					{
+						printf("values disagree\n");
+						exit(-1);
+					}
+				}
+			}
+		*/	
+			compressions = t_snnls(cleanA, minusDL, &inState->residual, 2, 0);
 	//		for( foo=0; foo<sparseA->n; foo++ )
 	//			printf( "(%d) %lf ", minradSet[foo].vert, compressions[foo] );
 	//		printf( "\n" );
@@ -3505,7 +4073,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( inState->graphing[kRcond] != 0 )
 		{
 	//		taucs_ccs_matrix* apda = taucs_ccs_aprime_times_a(sparseA);
-			inState->rcond = taucs_rcond(sparseA);
+			inState->rcond = taucs_rcond(cleanA);
 			
 			if( gPaperInfoInTmp )
 			{
@@ -3564,30 +4132,57 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 			for( sItr=0; sItr<totalStruts; sItr++ )
 			{
-				if( sItr < strutCount )
-					partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
-				else // we're in minrad land (-- actually this means nothing now)
-					partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
+				if( !(3*dlItr < cleanA->rowind[cleanA->colptr[sItr]] || 3*dlItr > cleanA->rowind[cleanA->colptr[sItr+1]-1] ) )
+				{
+					if( sItr < strutCount )
+					{
+					//	partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
+						partialMult += compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr, sItr);
+					}
+					else // we're in minrad land (-- actually this means nothing now)
+					{
+					//	partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+0];
+						partialMult += 1*compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr, sItr);
+					}
+				}
 			}
 			dVdt[dlItr].c[0] = dl[dlItr].c[0] + partialMult;
 		
 			partialMult=0;
 			for( sItr=0; sItr<totalStruts; sItr++ )
 			{
-				if( sItr < strutCount )
-					partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+totalStruts];
-				else
-					partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+totalStruts];
+				if( !(3*dlItr < cleanA->rowind[cleanA->colptr[sItr]] || 3*dlItr > cleanA->rowind[cleanA->colptr[sItr+1]-1] ) )
+				{
+					if( sItr < strutCount )
+					{
+					//	partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+totalStruts];
+						partialMult += compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr + 1, sItr);
+					}
+					else
+					{
+						partialMult += 1*compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr + 1, sItr);
+				//		partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+totalStruts];
+					}
+				}
 			}
 			dVdt[dlItr].c[1] = dl[dlItr].c[1] + partialMult;
 			
 			partialMult = 0;
 			for( sItr=0; sItr<totalStruts; sItr++ )
 			{
-				if( sItr < strutCount )
-					partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+(2*totalStruts)];
-				else
-					partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+(2*totalStruts)];
+				if( !(3*dlItr < cleanA->rowind[cleanA->colptr[sItr]] || 3*dlItr > cleanA->rowind[cleanA->colptr[sItr+1]-1] ) )
+				{
+					if( sItr < strutCount )
+					{
+				//		partialMult += compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+(2*totalStruts)];
+						partialMult += compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr + 2, sItr);
+					}
+					else
+					{
+				//		partialMult += 1*compressions[sItr]*A[(totalStruts*3*dlItr)+sItr+(2*totalStruts)];
+						partialMult += compressions[sItr]*rigidityEntry(cleanA, strutCount, minradLocs, 3*dlItr + 2, sItr);
+					}
+				}
 			}
 			dVdt[dlItr].c[2] = dl[dlItr].c[2] + partialMult;
 		}
@@ -3650,8 +4245,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		}
 		
 		// clean up
-		taucs_ccs_free(sparseA);
-		free(A);
+		taucs_ccs_free(cleanA);
+		//free(A);
 		free(compressions);
 		// we only free this if the user wasn't interested in keeping it
 		if( outStruts == NULL )
