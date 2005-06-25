@@ -49,7 +49,7 @@
 */
 
 void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );
-
+void fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );
 
 /* The entries of setA are indices into the array varsA. Procedure finds the 
  * negative entries of varsA which correspond to indices in A, and returns a 
@@ -368,6 +368,72 @@ selectAprime( double* Ap, int cols, int rows, int* F, int sizeF )
 	result->colptr[i] = valItr;
 
 	return result;
+}
+
+void 
+fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod )
+{
+	taucs_ccs_matrix* A = (taucs_ccs_matrix*)prod;
+	int i;
+	int cItr, rItr;
+	
+	// tuned for rigidity matrix
+	
+	if( mode == 0 )
+	{
+		int i,ip,j,n, rows;
+		taucs_datatype Aij;
+
+		n = A->n;
+		rows = A->m;
+	
+	/*	double* Ax = (double*)malloc(sizeof(double)*A->m);
+		ourtaucs_ccs_times_vec( A, x->elements, Ax );
+		for(i=0; i<A->m; i++ )
+			y->elements[i] += Ax[i];
+		free(Ax);
+	*/
+	//	ourtaucs_ccs_times_vec( A, x->elements, y->elements );
+	
+		double x_j;
+	
+		for (j=0; j<n; j++) {
+			x_j = x->elements[j];
+			
+		  for (ip = (A->colptr)[j]; ip < (A->colptr[j+1]); ip++) {
+			i   = (A->rowind)[ip];
+			Aij = (A->values.d)[ip];
+			
+			y->elements[i] = y->elements[i]+(x_j*Aij);
+		  }
+		}
+	
+	}
+	else if( mode == 1 )
+	{
+		// since A^T*y = y^T*A
+	/*	double* yA = (double*)malloc(sizeof(double)*A->n);
+		taucs_transpose_vec_times_matrix_nosub( y->elements, A, yA );
+		for(i=0; i<A->n; i++ )
+			x->elements[i] += yA[i];
+		free(yA);
+	*/
+	//	taucs_transpose_vec_times_matrix_nosub( y->elements, A, x->elements );
+		int col_offset;
+		for( cItr=0; cItr<A->n; cItr++ )
+		{
+			//result[cItr] = 0;
+			col_offset = A->colptr[cItr];
+			for( rItr=0; rItr<A->colptr[cItr+1]-col_offset; rItr++ )
+			{
+				int tRow = A->rowind[col_offset + rItr];
+				x->elements[cItr] += y->elements[tRow] * A->values.d[col_offset + rItr];
+			}
+		}
+
+	}
+	else
+		fprintf(stderr, "Unknown mode: %ld\n", mode );
 }
 
 /* the nature of this routine is described in lsqr.h ~line 316, primarily:
