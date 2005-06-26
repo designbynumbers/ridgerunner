@@ -1032,13 +1032,15 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				
 		*inLink = bsearch_step(*inLink, inState);
 		
-/*		if( inState->minrad < 0.49 && inState->ignore_minrad == 0 )
+		if( gPaperInfoInTmp != 0 )
 		{
-			fprintf(stderr, "minrad was probably going to crumble things\n" );
-			error_write(inLink);
-			exit(-1);
+			char fname[512];
+			preptmpname(fname, "torsion", inState);
+			FILE* tFile = fopen(fname,"w");
+			octrope_link_torsion(*inLink, tFile);
+			fclose(tFile);
 		}
-*/
+		
 		/*	getrusage(RUSAGE_SELF, &stopStepTime);
 			user = SECS(stopStepTime.ru_utime) - SECS(startStepTime.ru_utime);
 			printf( "STEP TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
@@ -1445,9 +1447,13 @@ step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state*
 			 * average edge length of the averge of adjacent edges
 			 */
 			double avg, scale=1.0;
-	/*		avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
-			scale = avg / inState->avgSideLength;
-	*/		
+	
+			if( inState->curvature_step != 0 )
+			{
+				avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
+				scale = avg / inState->avgSideLength;
+			}
+			
 			inLink->cp[cItr].vt[vItr].c[0] += scale*stepSize*dVdt[dVdtItr].c[0];
 			inLink->cp[cItr].vt[vItr].c[1] += scale*stepSize*dVdt[dVdtItr].c[1];
 			inLink->cp[cItr].vt[vItr].c[2] += scale*stepSize*dVdt[dVdtItr].c[2];
