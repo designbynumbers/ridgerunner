@@ -30,7 +30,79 @@ link_scale( octrope_link* inLink, double factor )
 			inLink->cp[cItr].vt[vItr].c[2] *= factor;
 		}
 	}
-} 
+}
+
+double
+octrope_link_torsion( octrope_link* inLink, FILE* outPlot )
+{
+	double			totalTorsion = 0;
+	octrope_vector	cross1, cross2;
+	double			temp;
+	int				cItr, vItr;
+
+	bzero(&cross1,sizeof(octrope_vector));
+	bzero(&cross2,sizeof(octrope_vector));
+
+	int				e1, e2, e3;	
+	double			lengthOffset = 0;
+	int				vertOffset = 0;
+
+	totalTorsion = 0;
+
+	for( cItr=0; cItr<inLink->nc; cItr++ )
+	{
+		for( vItr=0; vItr<octrope_pline_edges(&inLink->cp[cItr]); vItr++)
+		{
+			octrope_vector s1, s2, s3;
+		
+			e1 = vItr-1;
+			e2 = vItr;
+			e3 = vItr+1;
+			
+			s1 = octrope_vminus( inLink->cp[cItr].vt[e1+1], inLink->cp[cItr].vt[e1] );
+			s2 = octrope_vminus( inLink->cp[cItr].vt[e2+1], inLink->cp[cItr].vt[e2] );
+			s3 = octrope_vminus( inLink->cp[cItr].vt[(e3+1)%octrope_pline_edges(&inLink->cp[cItr])], inLink->cp[cItr].vt[e3] );
+
+			/* This is the torsion at edge vItr */
+			cross1 = octrope_cross(s1, s2); 
+			cross2 = octrope_cross(s2, s3); 
+
+			if( (octrope_norm(cross1)*octrope_norm(cross2)) != 0 )
+			{
+				temp = (octrope_dot(cross1,cross2))/(octrope_norm(cross1)*octrope_norm(cross2));
+
+				if(temp >= 1)
+					temp = 0;
+				else if(temp <= -1)
+					temp = M_PI;
+				else
+					temp = acos(temp);
+
+				totalTorsion += temp;
+				
+				fprintf(outPlot, "%d %3.8lf %3.8lf %3.8lf\n", vertOffset, lengthOffset, temp, 2*tan(temp*.5)/octrope_norm(s1));
+			}
+			else
+			{
+				// The norm of one of these cross products is 0.  If that's the
+				// case, the the sin of the angle between two of the edges must be 0 or
+				// Pi, which implies that they are colinear, which implies that the
+				// osculating plane isn't changing, which means that there shouldn't be
+				// any torsion at this edge.
+				
+				// then again, this probably never happens numerically.
+				totalTorsion += 0; // for emphasis!
+				
+				fprintf(outPlot, "%d %3.8lf 0.0 0.0\n", vertOffset, lengthOffset);
+			}
+			
+			lengthOffset += octrope_norm(s2);
+			vertOffset++;
+			
+		} // vert itr
+	} // component itr
+	return totalTorsion;
+}
 
 octrope_link*
 octrope_equalize_density( octrope_link* inLink, search_state* inState )
