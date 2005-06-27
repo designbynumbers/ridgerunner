@@ -58,6 +58,7 @@ export_ted(octrope_link* inLink, octrope_strut* strutSet,
 	preptmpname(fname, "struts_ted.txt", inState);
 	FILE* ted = fopen(fname,"w");
 	
+	fprintf(ted, "STRUTS\n");
 	fprintf(ted, "%d %d\n", inSize, minradLocs);
 	
 	int i;
