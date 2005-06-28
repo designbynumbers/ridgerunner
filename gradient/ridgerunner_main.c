@@ -330,6 +330,15 @@ main( int argc, char* argv[] )
 	{
 		link_scale(link, scaleAmt );
 	}
+	
+	if( gVerboseFiling == 1 )
+	{
+		char fname[1024];
+		preptmpname(fname,"scaled.vect",&state);
+		FILE* sf = fopen(fname,"w");
+		octrope_link_write(sf, link);
+		fclose(sf);
+	}
 		
 	// Create directory to store movie frames if we're making a movie
 	if( state.movie != 0 )

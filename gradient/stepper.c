@@ -1035,6 +1035,15 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		if( gPaperInfoInTmp != 0 )
 		{
 			char fname[512];
+			preptmpname(fname,"stepsizes", inState);
+			FILE* ssFile = fopen(fname,"a");
+			fprintf(ssFile, "%3.15lf\n", inState->stepSize);
+			fclose(ssFile);
+		}
+		
+		if( gPaperInfoInTmp != 0 )
+		{
+			char fname[512];
 			preptmpname(fname, "torsion", inState);
 			FILE* tFile = fopen(fname,"w");
 			octrope_link_torsion(*inLink, tFile);
