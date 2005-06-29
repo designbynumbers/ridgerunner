@@ -867,7 +867,7 @@ void
 bsearch_stepper( octrope_link** inLink, search_state* inState )
 {
 	unsigned int i, offset = 0;
-	int cItr;
+	int cItr, vItr;
 	int lastEq = 0;
 	unsigned int cSteps = 0;
 	
@@ -1039,15 +1039,19 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			FILE* ssFile = fopen(fname,"a");
 			fprintf(ssFile, "%3.15lf\n", inState->stepSize);
 			fclose(ssFile);
-		}
 		
-		if( gPaperInfoInTmp != 0 )
-		{
-			char fname[512];
 			preptmpname(fname, "torsion", inState);
 			FILE* tFile = fopen(fname,"w");
 			octrope_link_torsion(*inLink, tFile);
 			fclose(tFile);
+			
+			preptmpname(fname, "per_vert_residual", inState);
+			FILE* rFile = fopen(fname,"w");
+			for( vItr=0; vItr<inState->totalVerts; vItr++ )
+			{
+				fprintf(rFile, "%d %3.16lf\n", vItr, cblas_dnrm2(3, &inState->perVertexResidual[3*vItr], 1) );
+			}
+			fclose(rFile);
 		}
 		
 		/*	getrusage(RUSAGE_SELF, &stopStepTime);
@@ -4017,7 +4021,14 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				}
 			}
 		*/	
-			compressions = t_snnls(cleanA, minusDL, &inState->residual, 2, 0);
+			if( gPaperInfoInTmp == 0 )
+			{
+				compressions = t_snnls(cleanA, minusDL, &inState->residual, NULL, 2, 0);
+			}
+			else
+			{
+				compressions = t_snnls(cleanA, minusDL, &inState->residual, inState->perVertexResidual, 2, 0);
+			}
 	//		for( foo=0; foo<sparseA->n; foo++ )
 	//			printf( "(%d) %lf ", minradSet[foo].vert, compressions[foo] );
 	//		printf( "\n" );

@@ -583,7 +583,7 @@ short gPrintedCycleWarning = 0;
 
 taucs_double*
 t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b, 
-		 double* outResidualNorm, double inRelErrTolerance, int inPrintErrorWarnings )
+		 double* outResidualNorm, double* perVertResidual, double inRelErrTolerance, int inPrintErrorWarnings )
 {
 	taucs_ccs_matrix  *Af;
 	int               p, ninf, pbar = {3};
@@ -958,7 +958,10 @@ t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b,
 		ourtaucs_ccs_times_vec(A_original_ordering,x,finalresidual);
 		cblas_daxpy(m,-1.0,b, 1, finalresidual, 1);
 		*outResidualNorm = cblas_dnrm2(m, finalresidual, 1);
-		free(finalresidual);
+		if( perVertResidual == NULL )
+			free(finalresidual);
+		else
+			memcpy(perVertResidual, finalresidual, sizeof(double)*m);
 	}
 
 	/* We conclude with a little more memory freeing. */
