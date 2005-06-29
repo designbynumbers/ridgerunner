@@ -96,6 +96,8 @@ typedef struct
 	double* sideLengths;
 	double	avgSideLength;
 	
+	double*	perVertexResidual;	// if we're recording paper info... we do this and a whole lot of other time consuming stuff
+	
 	double  rcond;				// rcond from the last step, nonzero only if graphing[kRcond] == 1 && struts > 0
 	
 	double	ofvNorm;		// ofvB L2

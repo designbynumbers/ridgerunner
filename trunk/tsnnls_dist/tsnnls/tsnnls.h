@@ -84,9 +84,12 @@ void				selectAprimeDotAsparse( const taucs_ccs_matrix* apda, int* F, int sizeF,
  *		free(Avals);
  *		taucs_ccs_free(A);
  *		A = fixed;
+ *
+ *	But this is very inefficient and you should attempt to construct proper tsnnls ccs matrices
+ *	if speed is a concern.
  */
 taucs_double*		t_snnls( taucs_ccs_matrix *A_original_ordering, taucs_double *b, 
-							 double* outResidualNorm, double inRelErrTolerance, int inPrintErrorWarnings );
+							 double* outResidualNorm, double* perVertResidual, double inRelErrTolerance, int inPrintErrorWarnings );
 
 #if (__cplusplus || c_plusplus)
 };

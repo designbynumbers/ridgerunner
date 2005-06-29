@@ -426,10 +426,15 @@ main( int argc, char* argv[] )
 		remove(fname);
 		preptmpname(fname, "rcond", &state);
 		remove(fname);
+		
+		state.perVertexResidual = (double*)malloc(sizeof(double)*state.totalVerts*3);
 	}
 							
 	bsearch_stepper(&link, &state);
 	octrope_link_free(link);
+	
+	if( gPaperInfoInTmp != 0 )
+		free(state.perVertexResidual);
 		
 	return kNoErr;
 }

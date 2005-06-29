@@ -77,6 +77,8 @@ export_ted(octrope_link* inLink, octrope_strut* strutSet,
 					compressions[i+inSize]);
 	}
 	
+	fprintf(ted, "%3.16lf\n", inState->residual );
+	
 	fclose(ted);
 }
 
