@@ -3417,8 +3417,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 						
 						// strut info
 						0,
-					//	  0.001,
-						0.0005,
+				  //	  0.001,
+						2*inState->overstepTol,
 						strutSet,
 						strutStorageSize,
 						&strutCount,						
