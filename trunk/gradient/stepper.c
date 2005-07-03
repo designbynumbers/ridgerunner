@@ -4029,6 +4029,16 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			{
 				compressions = t_snnls(cleanA, minusDL, &inState->residual, inState->perVertexResidual, 2, 0);
 			}
+			
+			
+			if( compressions == NULL )
+			{
+				printf( "****** NULL compressions!\n" );
+				fprintf( stderr, "****** NULL compressions!\n" );
+				exit(-1);
+				return;
+			}
+			
 	//		for( foo=0; foo<sparseA->n; foo++ )
 	//			printf( "(%d) %lf ", minradSet[foo].vert, compressions[foo] );
 	//		printf( "\n" );
@@ -4111,17 +4121,6 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			}
 			
 	//		taucs_ccs_free(apda);
-		}
-		
-		if( compressions == NULL )
-		{
-			// we've probably hit the rcond wall, scaling should smooth transition
-			//exit(-1);
-			printf( "****** NULL compressions!\n" );
-			fprintf( stderr, "****** NULL compressions!\n" );
-//			link_scale(inLink, 1.001);
-			exit(-1);
-			return;
 		}
 		
 		inState->tsnnls_evaluations++;
