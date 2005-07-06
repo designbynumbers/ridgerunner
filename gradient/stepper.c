@@ -479,12 +479,15 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 		if( minradStruts[mItr].vert == 0 &&
 			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
 		{
-			entry = 3*(inState->compOffsets[minradStruts[mItr].component]);
+			entry = 3*inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component];
 		}
 		else
 		{
 			entry = 3*aVert;
 		}
+		
+		if( entry > rigidityA->m )
+			printf( "whoa!\n" );
 
 	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
 	//		printf( "*** crap!\n" );
@@ -520,7 +523,7 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
 			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
 		{
-			entry = 3*inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component];
+			entry = 3*(inState->compOffsets[minradStruts[mItr].component]);
 		}
 		else
 		{
@@ -533,6 +536,9 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 		rigidityA[entry+totalStruts] = Cs.c[1];
 		rigidityA[entry+(2*totalStruts)] = Cs.c[2];	
 	*/
+		if( entry > rigidityA->m || entry+6 > rigidityA->m )
+			printf( "whoa!\n" );
+	
 		rigidityA->values.d[12*contactStruts+9*mItr+6] = Cs.c[0];
 		rigidityA->values.d[12*contactStruts+9*mItr+7] = Cs.c[1];
 		rigidityA->values.d[12*contactStruts+9*mItr+8] = Cs.c[2];		
@@ -1194,10 +1200,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			else
 			{
 				// same stats when quiet, but not just once / viz output
-				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf maxmin: %lf residual: %e time: %lf cstep ratio: %lf\n", 
+				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf rsdl: %e t: %lf cratio: %lf\n", 
 						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
 						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						maxmin, inState->residual, inState->time, ((double)cSteps)/((double)stepItr+1) );
+						inState->residual, inState->time, ((double)cSteps)/((double)stepItr+1) );
 			}
 			getrusage(RUSAGE_SELF, &inState->frameStart);
 			
