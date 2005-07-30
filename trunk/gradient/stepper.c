@@ -1024,7 +1024,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	
 //		inState->maxStepSize = 1e-5;
 			
-	/*		double user;
+		/*	double user;
 			
 			// grab time for this frame and reset counter
 			getrusage(RUSAGE_SELF, &startStepTime);
@@ -4027,6 +4027,11 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				}
 			}
 		*/	
+
+		/*	FILE* foo = fopen("foo","w");
+			taucs_print_ccs_matrix(cleanA, foo);
+			fclose(foo);
+		*/
 			if( gPaperInfoInTmp == 0 )
 			{
 				compressions = t_snnls(cleanA, minusDL, &inState->residual, NULL, 2, 0);
