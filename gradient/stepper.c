@@ -1039,17 +1039,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				inState->curvature_step = 0;
 		}
 		
-																		
-	//	inState->curvature_step = ((inState->curvature_step+1)%2);
-	
-//		inState->maxStepSize = 1e-5;
-			
-		/*	double user;
-			
-			// grab time for this frame and reset counter
-			getrusage(RUSAGE_SELF, &startStepTime);
-		*/
 		
+		/* Don't worry-- gOutputFlag will be set to 0 again later in bsearch_step */
+		/* by the way, "g" stands for global in variable names */
+																																					
 		if( (stepItr%50)==0 || gVerboseFiling != 0 )
 			gOutputFlag = 1;
 		
@@ -1100,11 +1093,25 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	//		refresh_display(*inLink);
 	//		printf( "eqing\n" );
 		}
+		
+		/* This fixes a potential octrope bug (still present?) where the 
+		   thickness would be reported as NaN or DBL_MAX or something when 
+		   the curve had a pair of straight segments. Note that 
+		   
+		   injrad == theoretical thickness of the core curve
+		   shortest == actual current thickness of the core curve (presumably less)
+		   
+		*/
+		
 		if( inState->shortest > 2*inState->injrad )
 			inState->shortest = 2*inState->injrad;
 		
+		/* minthickness is a data tracking variable-- the lowest thickness recorded during this run */
+		
 		if( inState->shortest < minthickness && inState->shortest != 0 )
 			minthickness = inState->shortest;
+		
+		/* by the way, k stands for "constant" variable */
 		
 		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
 		{
@@ -1114,12 +1121,16 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 						inState->residual, inState->time );
 		}
 		
+		/* we are now going to check for whether we should terminate */
 				
 		if( inState->oldLengthTime == 0 )
 		{
 			inState->oldLengthTime = inState->cstep_time;
 			inState->oldLength = inState->length;
 		}
+		
+		/* these are the actual current criteria for completion */
+		/* in particular, this will double verts and keep going if desired. */
 			
 		if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
 			fabs(inState->oldLength-inState->length) < inState->checkThreshold &&
@@ -1150,7 +1161,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			link_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
 		
 			octrope_link* oldLink = *inLink;
-			*inLink = octrope_double_edges(*inLink);
+			*inLink = octrope_double_edges(*inLink);  /* in linklib_additions-- NOT a std octrope call */
 			octrope_link_free(oldLink);
 			
 			gConditionCheck = 20; // check condition number for next 10 evals -- this is where we'll fail
@@ -1162,7 +1173,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				inState->totalVerts += (*inLink)->cp[cItr].nv;
 			}
 			
-			updateSideLengths(*inLink, inState);
+			updateSideLengths(*inLink, inState); 
+			
+			/* We maintain a list of current side lengths in state, though it's not clear 
+			   we actually use it for anything. Probably, this doesn't hurt, however. */
 			
 		//	inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
 		//	if( kStepScale*octrope_link_short_edge(*inLink) < inState->stepSize )
@@ -1208,6 +1222,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
 					inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
 		}
+		
+		/* This next block outputs VECTS for moviemaking. */
 
 		if( inState->time >= nextMovieOutput )
 		{
@@ -1348,6 +1364,9 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			} // for graph outputs
 		}
 		
+		/* Now we're done with movies. */
+		/* The next block draws a nice Geomview picture of everything. */
+		
 		if( gOutputFlag == 1 && gSuppressOutput == 0 )
 		{
 			char	fname[1024];
@@ -1396,7 +1415,10 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	}
 	
 	// clean up
-	free(inState->compOffsets);
+	free(inState->compOffsets);  /* <- we must have a "flat" representation of all verts in order to 
+									   define columns in the rigidity matrix. This defines it. We 
+									   could make this process more natural in the octrope_link 
+									   representation, but it's not clear that it's worth it. */
 	
 }
 
@@ -1780,8 +1802,8 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		// move along dVdt
 		if( workerLink != NULL )
 			octrope_link_free(workerLink);
-		workerLink = octrope_link_copy(inLink);
-		octrope_link_fix_wrap(workerLink);
+		workerLink = octrope_link_copy(inLink); /* This must not be standard octrope_link_copy. */
+		octrope_link_fix_wrap(workerLink);      /* Requires fixwrap after. */
 								
 		if( inState->curvature_step != 0 )
 		{
@@ -1814,9 +1836,10 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		newmr = octrope_minradval(workerLink);
 		newpoca = octrope_poca(workerLink, NULL, 0);
 		
-		if( isnan(newmr) || isinf(newmr) )
+		if( isnan(newmr) || isinf(newmr) ) /* Again, a workaround for an octrope bug that hopefully 
+											  no longer exists. */
 		{
-			fprintf(stderr, "error write due to nan minrad!\n");
+			fprintf(stderr, "error write due to Jason and/or Ted, but not Michael nan minrad!\n");
 			error_write(workerLink);
 			
 			newmr = octrope_minradval(workerLink);
@@ -1840,52 +1863,32 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	/*		if( workingLength > oldLength )
 				curr_error = 1;
 	*/			
+			/**********************************************************************************/
+	
+							/* This is where step size is being adjusted! */
+							
+			/* This algorithm may or may not be a good idea. It's an "optimistic" stepper, which 
+			   concludes after each successful step that it should attempt to double step size.
+			   If step size is basically constant, this results in one failure per step. 
+			   
+			   Further, it doesn't really try to converge on a nice stepsize, but rather just
+			   maintains a strict "powers of 2" hierarchy. It might be interesting to look this
+			   up and see about other possible designs here. */
+			
 			if( curr_error < ERROR_BOUND && (mr_error < MR_ERROR_BOUND || inState->ignore_minrad) )
 				inState->stepSize *= 2;
 			else
 				inState->stepSize /= 2;		
+				
+			/**********************************************************************************/	
 		}
 		
 		if( mr_error > MR_ERROR_BOUND && !inState->ignore_minrad )
 			curr_error = 1;
 					
-	} while( (curr_error > ERROR_BOUND ) && inState->stepSize < inState->maxStepSize && inState->stepSize > kMinStepSize );
-	
-	if( inState->curvature_step != 0 && workingLength > oldLength && 1<0)
-	{
-		int		attempts = 0;
-		double	lh=0, rh=inState->stepSize;
-		double	ss = (lh+rh)/2.0, newLen;
-		int		win = 0;
-		// bsearch for minimum length value up to 7 levels
-		for( attempts=0; attempts<10; attempts++ )
-		{
-			if( workerLink != NULL )
-				octrope_link_free(workerLink);
-			workerLink = octrope_link_copy(inLink);
-			octrope_link_fix_wrap(workerLink);
-
-			step(workerLink, ss, dVdt, inState);
-			newLen = octrope_curvelength(workerLink);
-		//	printf( "%3.16lf (%e) %3.16lf\n", newLen, fabs(newLen-oldLength), oldLength);
-			if( newLen > oldLength )
-			{
-				rh = ss;
-			}
-			else
-			{
-				lh = ss;
-				win = 1;
-			}
-			ss = (lh+rh)/2.0;
-		}
-		
-		if( win == 0 )
-		{
-			fprintf( stderr, "** Never won during length bsearch\n" );
-			
-		}
-	}
+	} while( (curr_error > ERROR_BOUND ) && 
+	           inState->stepSize < inState->maxStepSize 
+			   && inState->stepSize > kMinStepSize );
 	
 	if( gPaperInfoInTmp != 0 )
 	{
