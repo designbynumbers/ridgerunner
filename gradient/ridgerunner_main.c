@@ -37,6 +37,8 @@ int gAvoidTmpConflicts = 0;
 int gPaperInfoInTmp = 0;
 int gFastCorrectionSteps = 0;
 
+/* Yadda. Yadda. Yadda. */
+
 #define min(a,b) ((a)<(b)) ? (a) : (b)
 
 /*	

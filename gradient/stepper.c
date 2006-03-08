@@ -551,6 +551,8 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 	
 }
 
+/* I think this next one is legacy code that isn't actually called anymore. */
+
 static void
 placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minradStruts, 
 	int minradLocs, search_state* inState, int contactStruts )
@@ -796,6 +798,8 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 	
 }
 
+/* This is probably debugging code for a fixed bug. */
+
 static void
 glom( octrope_link* inLink, search_state* inState )
 {
@@ -928,9 +932,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	int stepItr;
 	struct rusage startStepTime, stopStepTime;
 	
-	for( stepItr=0; 1==1; stepItr++ )
+	for( stepItr=0; 1==1; stepItr++ )  /* Main loop */
 	{
 		int lastSet;
+		
+		/* Writing the final position in cwd if you quit because max iterations reached. */
 		
 		if( stepItr > inState->maxItrs && inState->maxItrs > 0 && inState->curvature_step == 1 )
 		{
@@ -977,6 +983,15 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 				printf( "last correction step lsqr residual: %e\n", inState->ofvResidual );
 		}
 
+		/* This gem detects whether we are shrinking or correcting errors. 
+			
+			The default state is "curvature_step = 1", which means shrinking. 
+		
+			But the "if" here can trigger a round of correction steps by changing curvature_step to 0.
+			Once that happens, we will again set curvature_step to 0 by running the "if" if things are
+			still very bad, but we will be in the "else" if things have improved.
+	     */
+			
 		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
 			(inState->minrad < inState->minradOverstepTol && !inState->ignore_minrad) )
 		{
@@ -998,8 +1013,13 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 					
 			inState->curvature_step = 0;
 		}
-		else
+		else 
+			
+			/* The current situation is not bad enough to trigger a new round of correction stepping. 
+			   But it might be bad enough to continue an existing round of correction stepping if we 
+			   not yet reached the green zone. */
 		{
+			
 			double thickness = 2*inState->injrad;
 			double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
 			if( (inState->curvature_step == 0 && inState->shortest < greenZone	) ) //||
@@ -1036,7 +1056,12 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		if( gSuppressOutput == 1 )
 			gOutputFlag = 0;
 				
+		
+		/************************************************************************/
+		
 		*inLink = bsearch_step(*inLink, inState);
+		
+		/************************************************************************/
 		
 		if( gPaperInfoInTmp != 0 )
 		{
