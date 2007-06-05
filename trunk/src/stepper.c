@@ -15,7 +15,7 @@
 #include "tsnnls.h"
 #include "lsqr.h"
 
-#include "octrope_vector.h"
+#include "plc_vector.h"
 
 #include "stepper.h"
 #include "dlen.h"
@@ -23,11 +23,11 @@
 #include "settings.h"
 #include "../errors.h"
 
-octrope_link*		bsearch_step( octrope_link* inLink, search_state* inState );
-void				step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state* inState );
-void				firstVariation( octrope_vector* inOutDvdt, octrope_link* inLink, search_state* inState,
+plCurve*		bsearch_step( plCurve* inLink, search_state* inState );
+void				step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState );
+void				firstVariation( plc_vector* inOutDvdt, plCurve* inLink, search_state* inState,
 						octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
-void				computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
+void				computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
 						octrope_mrloc* minradSet, int strutCount, int minradLocs );
 
 extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
@@ -35,10 +35,10 @@ extern void fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );
 
 // lesser utility functions
 int					equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
-void				normalizeStruts( octrope_vector* strutDirections, 
-							octrope_strut* strutSet, octrope_link* inLink, int strutCount );
+void				normalizeStruts( plc_vector* strutDirections, 
+							octrope_strut* strutSet, plCurve* inLink, int strutCount );
 
-void		placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState );
+void		placeVertexBars( double* A, plCurve* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState );
 int displayEveryFrame = 0;
 
 extern int gQuiet;
@@ -161,7 +161,7 @@ rigidityEntry( taucs_ccs_matrix* A, int strutCount, int minradLocs, int row, int
 }
 
 static void
-export_pushed_edges( octrope_link* L, search_state* inState, double* pushes, char* fname, int colorParam)
+export_pushed_edges( plCurve* L, search_state* inState, double* pushes, char* fname, int colorParam)
 {
 	int i;
 	double  maxPush = 0;
@@ -278,7 +278,7 @@ extern int gFastCorrectionSteps;
 int	gEQevents = 0;
 
 static void
-placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, octrope_mrloc* minradStruts, 
+placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, plCurve* inLink, octrope_mrloc* minradStruts, 
 	int minradLocs, search_state* inState, int contactStruts )
 {
 	int mItr;
@@ -286,11 +286,11 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 	
 	for( mItr=0; mItr<minradLocs; mItr++ )
 	{
-		octrope_vector B, A, cross, As, Bs, Cs;
+		plc_vector B, A, cross, As, Bs, Cs;
 		double	bmag, amag;
 		double value, angle;
 		double kappa, dot, prevLen, thisLen;
-		octrope_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
+		plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
 		
 		int vItr = minradStruts[mItr].vert;
 		int cItr = minradStruts[mItr].component;
@@ -303,9 +303,9 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
 		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
 		
-		dot = octrope_dot(prevSide, thisSide);
-		prevLen = octrope_norm(prevSide);
-		thisLen = octrope_norm(thisSide);
+		dot = plc_M_dot(prevSide, thisSide);
+		prevLen = plc_M_norm(prevSide);
+		thisLen = plc_M_norm(thisSide);
 
 		// B = b-v
 		B.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
@@ -317,8 +317,8 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 		A.c[1] = inLink->cp[cItr].vt[vItr-1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
 		A.c[2] = inLink->cp[cItr].vt[vItr-1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
 		
-		bmag = octrope_norm(B);
-		amag = octrope_norm(A);
+		bmag = plc_M_norm(B);
+		amag = plc_M_norm(A);
 		
 		value = dot/(prevLen*thisLen);
 		if( value >= 1 )
@@ -345,9 +345,9 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
 			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
 			
-			N.c[0] = cross.c[0]/octrope_norm(cross);
-			N.c[1] = cross.c[1]/octrope_norm(cross);
-			N.c[2] = cross.c[2]/octrope_norm(cross);
+			N.c[0] = cross.c[0]/plc_M_norm(cross);
+			N.c[1] = cross.c[1]/plc_M_norm(cross);
+			N.c[2] = cross.c[2]/plc_M_norm(cross);
 			
 			double Lconst, Mconst, Nconst;
 			
@@ -396,9 +396,9 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
 			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
 			
-			N.c[0] = cross.c[0]/octrope_norm(cross);
-			N.c[1] = cross.c[1]/octrope_norm(cross);
-			N.c[2] = cross.c[2]/octrope_norm(cross);
+			N.c[0] = cross.c[0]/plc_M_norm(cross);
+			N.c[1] = cross.c[1]/plc_M_norm(cross);
+			N.c[2] = cross.c[2]/plc_M_norm(cross);
 			
 			double Lconst, Mconst, Nconst;
 			
@@ -554,7 +554,7 @@ placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, octrope_link* inLink, oct
 /* I think this next one is legacy code that isn't actually called anymore. */
 
 static void
-placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minradStruts, 
+placeMinradStruts2( double* rigidityA, plCurve* inLink, octrope_mrloc* minradStruts, 
 	int minradLocs, search_state* inState, int contactStruts )
 {
 	int mItr;
@@ -562,11 +562,11 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 	
 	for( mItr=0; mItr<minradLocs; mItr++ )
 	{
-		octrope_vector B, A, cross, As, Bs, Cs;
+		plc_vector B, A, cross, As, Bs, Cs;
 		double	bmag, amag;
 		double value, angle;
 		double kappa, dot, prevLen, thisLen;
-		octrope_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
+		plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
 		
 		int vItr = minradStruts[mItr].vert;
 		int cItr = minradStruts[mItr].component;
@@ -579,9 +579,9 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
 		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
 		
-		dot = octrope_dot(prevSide, thisSide);
-		prevLen = octrope_norm(prevSide);
-		thisLen = octrope_norm(thisSide);
+		dot = plc_M_dot(prevSide, thisSide);
+		prevLen = plc_M_norm(prevSide);
+		thisLen = plc_M_norm(thisSide);
 
 		// B = b-v
 		B.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
@@ -593,8 +593,8 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 		A.c[1] = inLink->cp[cItr].vt[vItr-1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
 		A.c[2] = inLink->cp[cItr].vt[vItr-1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
 		
-		bmag = octrope_norm(B);
-		amag = octrope_norm(A);
+		bmag = plc_M_norm(B);
+		amag = plc_M_norm(A);
 		
 		value = dot/(prevLen*thisLen);
 		if( value >= 1 )
@@ -621,9 +621,9 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
 			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
 			
-			N.c[0] = cross.c[0]/octrope_norm(cross);
-			N.c[1] = cross.c[1]/octrope_norm(cross);
-			N.c[2] = cross.c[2]/octrope_norm(cross);
+			N.c[0] = cross.c[0]/plc_M_norm(cross);
+			N.c[1] = cross.c[1]/plc_M_norm(cross);
+			N.c[2] = cross.c[2]/plc_M_norm(cross);
 			
 			double Lconst, Mconst, Nconst;
 			
@@ -672,9 +672,9 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
 			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
 			
-			N.c[0] = cross.c[0]/octrope_norm(cross);
-			N.c[1] = cross.c[1]/octrope_norm(cross);
-			N.c[2] = cross.c[2]/octrope_norm(cross);
+			N.c[0] = cross.c[0]/plc_M_norm(cross);
+			N.c[1] = cross.c[1]/plc_M_norm(cross);
+			N.c[2] = cross.c[2]/plc_M_norm(cross);
 			
 			double Lconst, Mconst, Nconst;
 			
@@ -801,7 +801,7 @@ placeMinradStruts2( double* rigidityA, octrope_link* inLink, octrope_mrloc* minr
 /* This is probably debugging code for a fixed bug. */
 
 static void
-glom( octrope_link* inLink, search_state* inState )
+glom( plCurve* inLink, search_state* inState )
 {
 	octrope_mrloc strut;
 	
@@ -820,8 +820,8 @@ glom( octrope_link* inLink, search_state* inState )
 	
 	for( i=0; i<1000; i++ )
 	{
-		octrope_vector motion[3];
-		octrope_vector foo;
+		plc_vector motion[3];
+		plc_vector foo;
 		double initialMR;
 		
 		dpsum = 0;
@@ -840,20 +840,20 @@ glom( octrope_link* inLink, search_state* inState )
 		foo.c[0] = A[0];
 		foo.c[1] = A[1];
 		foo.c[2] = A[2];
-		dpsum += octrope_dot(foo,motion[0]);
+		dpsum += plc_M_dot(foo,motion[0]);
 		foo.c[0] = A[3];
 		foo.c[1] = A[4];
 		foo.c[2] = A[5];
-		dpsum += octrope_dot(foo,motion[1]);
+		dpsum += plc_M_dot(foo,motion[1]);
 		foo.c[0] = A[6];
 		foo.c[1] = A[7];
 		foo.c[2] = A[8];
-		dpsum += octrope_dot(foo,motion[2]);
+		dpsum += plc_M_dot(foo,motion[2]);
 		
 		for( dx=1e-1; dx>1e-10; dx *= 0.1 )
 		{
-			octrope_link* workerLink = octrope_link_copy(inLink);
-			octrope_link_fix_wrap(workerLink);
+			plCurve* workerLink = plc_copy(inLink);
+			plc_fix_wrap(workerLink);
 			step( workerLink, dx, motion, inState );
 			
 			// if everything's right: (minrad of workerLink) - (minrad of inLink) <--- ~= dpsum*dx. we'll see!
@@ -861,7 +861,7 @@ glom( octrope_link* inLink, search_state* inState )
 			printf( "diff: %e / dpsum*dx: %e / (diff - dpsum*dx): %e / still!!: %e\n", 
 				diff, dpsum*dx, diff-(dpsum*dx), (diff-(dpsum*dx))/dx );
 			
-			octrope_link_free(workerLink);
+			plc_free(workerLink);
 		}
 	}
 	
@@ -874,7 +874,7 @@ extern int gVerboseFiling;
 int	gCorrectionAttempts = 0;
 
 void 
-bsearch_stepper( octrope_link** inLink, search_state* inState )
+bsearch_stepper( plCurve** inLink, search_state* inState )
 {
 	unsigned int i, offset = 0;
 	int cItr, vItr;
@@ -948,7 +948,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			sprintf( fname, "%s_%d.maxItr", adjustedName, inState->totalVerts );
 			maxFile = fopen(fname, "w");
 			
-			octrope_link_write(maxFile, *inLink);
+			plc_write(maxFile, *inLink);
 			fclose(maxFile);
 
 			break;
@@ -969,7 +969,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			inState->curvature_step = 0;
 			
 			FILE* verts = fopen("/tmp/verts.vect", "w");
-			octrope_link_draw(verts, *inLink);
+			plCurve_draw(verts, *inLink);
 			fclose(verts);
 			
 			printf( "" );
@@ -1066,7 +1066,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 		
 			preptmpname(fname, "torsion", inState);
 			FILE* tFile = fopen(fname,"w");
-			octrope_link_torsion(*inLink, tFile);
+			plCurve_torsion(*inLink, tFile);
 			fclose(tFile);
 			
 			preptmpname(fname, "per_vert_residual", inState);
@@ -1146,7 +1146,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
 			bestFile = fopen(fname, "w");
 			
-			octrope_link_write(bestFile, *inLink);
+			plc_write(bestFile, *inLink);
 			fclose(bestFile);
 		
 			if( inState->totalVerts > inState->refineUntil*(2*inState->ropelength) )
@@ -1158,11 +1158,11 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			// the strut set can get violent after this change, so let's make sure none exist.
 			// it's a lot easier on the condition number if it reemerges quickly than if it's changing
 			// rapidly
-			link_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
+			plc_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
 		
-			octrope_link* oldLink = *inLink;
-			*inLink = octrope_double_edges(*inLink);  /* in linklib_additions-- NOT a std octrope call */
-			octrope_link_free(oldLink);
+			plCurve* oldLink = *inLink;
+			*inLink = octrope_double_edges(*inLink);  /* in octrope_additions-- NOT a std octrope call */
+			plc_free(oldLink);
 			
 			gConditionCheck = 20; // check condition number for next 10 evals -- this is where we'll fail
 			
@@ -1179,8 +1179,8 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			   we actually use it for anything. Probably, this doesn't hurt, however. */
 			
 		//	inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
-		//	if( kStepScale*octrope_link_short_edge(*inLink) < inState->stepSize )
-		//		inState->stepSize = kStepScale*octrope_link_short_edge(*inLink);
+		//	if( kStepScale*plCurve_short_edge(*inLink) < inState->stepSize )
+		//		inState->stepSize = kStepScale*plCurve_short_edge(*inLink);
 			offset = 0;
 			for( i=0; i<(*inLink)->nc; i++ )
 			{
@@ -1266,7 +1266,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			if( gQuiet == 0 )
 				printf( "saved restart: %s\n", fname );
 			frame = fopen( fname, "w" );
-			octrope_link_write(frame, *inLink);
+			plc_write(frame, *inLink);
 			fclose(frame);
 			
 			if( inState->movie != 0 )
@@ -1278,7 +1278,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 								inState->lastStepStrutCount,
 								inState->length );
 				frame = fopen( fname, "w" );
-				octrope_link_write(frame, *inLink);
+				plc_write(frame, *inLink);
 				fclose(frame);
 				
 				char cmd[1024];
@@ -1372,7 +1372,7 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 			char	fname[1024];
 			preptmpname(fname,"verts.vect",inState);
 			FILE* verts = fopen(fname, "w");
-			octrope_link_draw(verts, *inLink);
+			plCurve_draw(verts, *inLink);
 			fclose(verts);
 		}
 
@@ -1417,13 +1417,13 @@ bsearch_stepper( octrope_link** inLink, search_state* inState )
 	// clean up
 	free(inState->compOffsets);  /* <- we must have a "flat" representation of all verts in order to 
 									   define columns in the rigidity matrix. This defines it. We 
-									   could make this process more natural in the octrope_link 
+									   could make this process more natural in the plCurve 
 									   representation, but it's not clear that it's worth it. */
 	
 }
 
 static void
-dumpVertsStruts(octrope_link* link, octrope_strut* strutSet, int strutCount)
+dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount)
 {
 	int cItr, vItr, totalVerts=0;
 	FILE* fp = fopen("ridgeverts","w");
@@ -1485,7 +1485,7 @@ dumpAxb( taucs_ccs_matrix* A, double* x, double* b )
 }
 
 static void
-dumpDvdt( octrope_vector* dvdt, int size )
+dumpDvdt( plc_vector* dvdt, int size )
 {
 	int vItr;
 	FILE* fp = fopen("/Users/michaelp/dvdt","a");
@@ -1501,7 +1501,7 @@ dumpDvdt( octrope_vector* dvdt, int size )
 }
 
 void
-step( octrope_link* inLink, double stepSize, octrope_vector* dVdt, search_state* inState )
+step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState )
 {
 	int cItr, vItr, dVdtItr;
 	for( cItr=0, dVdtItr=0; cItr<inLink->nc; cItr++ )
@@ -1543,7 +1543,7 @@ equalStruts( const octrope_strut* s1, const octrope_strut* s2 )
 }
 
 static void
-barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
+barForce( plc_vector* dVdt, plCurve* inLink, search_state* inState )
 {
 	/* solve the unconstrained least squares problem Ax=b where A is the rigidity
 	 * matrix formed by bars on the vertices of the link, and b is the change in each
@@ -1553,14 +1553,14 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 	int			barVerts=0, cItr, vItr;
 	int			bars=0, aIndexer;
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		if( inState->conserveLength[cItr] != 0 )
 		{
 			barVerts += inLink->cp[cItr].nv;
-			bars += octrope_pline_edges(&inLink->cp[cItr]);
+			bars += plc_strand_edges(&inLink->cp[cItr]);
 		}
 	}
 	
@@ -1569,7 +1569,7 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 	b = (double*)calloc(barVerts*3, sizeof(double));
 
 	/* now compute b, the change in each dimension of each vertex required to get to eq */
-	octrope_vector* sides;
+	plc_vector* sides;
 	double*			lengths;
 	int				edges;
 		
@@ -1578,11 +1578,11 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 		if( inState->conserveLength[cItr] != 0 )
 		{
 			double length;
-			edges = octrope_pline_edges(&inLink->cp[cItr]);
+			edges = plc_strand_edges(&inLink->cp[cItr]);
 				
 			for( vItr=0; vItr<edges; vItr++ )
 			{
-				octrope_vector s1, s2, side;
+				plc_vector s1, s2, side;
 				s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
 				s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
 				s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
@@ -1593,7 +1593,7 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 				side.c[1] = s2.c[1] - s1.c[1];
 				side.c[2] = s2.c[2] - s1.c[2];
 				
-				length = octrope_norm(side);
+				length = plc_M_norm(side);
 				
 				// unit-ize sides since we will use these as the tangential motion basis below
 				side.c[0] /= length;
@@ -1687,7 +1687,7 @@ barForce( octrope_vector* dVdt, octrope_link* inLink, search_state* inState )
 }
 
 static void
-normalizeVects( octrope_vector* dvdt, int size )
+normalizeVects( plc_vector* dvdt, int size )
 {
 	double sum = 0;
 	int i;
@@ -1708,13 +1708,13 @@ normalizeVects( octrope_vector* dvdt, int size )
 	}
 }
 
-octrope_link*
-bsearch_step( octrope_link* inLink, search_state* inState )
+plCurve*
+bsearch_step( plCurve* inLink, search_state* inState )
 {	
 	int stepAttempts;
 	int dvdtItr;
 	double  lastDCSD, lastMR, eps = inState->stepSize*inState->stepSize;
-	octrope_link* workerLink;
+	plCurve* workerLink;
 	
 //	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/50;
 	double ERROR_BOUND = 1e-5;
@@ -1722,9 +1722,9 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	double MR_ERROR_BOUND = 1e-5;
 
 	// create initial vector field for which we want to move along in this step
-	octrope_vector* dVdt;
+	plc_vector* dVdt;
 	
-	dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+	dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
 	
 	struct rusage stopTime;
 	struct rusage startTime;
@@ -1753,7 +1753,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	{
 		inState->minrad = octrope_minradval(inLink);
 		inState->shortest = octrope_poca(inLink, NULL, 0);
-		inState->length = octrope_curvelength(inLink);
+		inState->length = plc_arclength(inLink);
 
 		free(dVdt);
 
@@ -1801,14 +1801,14 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	*/	
 		// move along dVdt
 		if( workerLink != NULL )
-			octrope_link_free(workerLink);
-		workerLink = octrope_link_copy(inLink); /* This must not be standard octrope_link_copy. */
-		octrope_link_fix_wrap(workerLink);      /* Requires fixwrap after. */
+			plc_free(workerLink);
+		workerLink = plc_copy(inLink); /* This must not be standard plc_copy. */
+		plc_fix_wrap(workerLink);      /* Requires fixwrap after. */
 								
 		if( inState->curvature_step != 0 )
 		{
 			step(workerLink, inState->stepSize, dVdt, inState);
-			workingLength = octrope_curvelength(workerLink);
+			workingLength = plc_arclength(workerLink);
 		}
 		else
 		{
@@ -1910,7 +1910,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 		inState->time += inState->stepSize;
 	}
 	
-	octrope_link_free(inLink);
+	plc_free(inLink);
 	inLink = workerLink;
 		
 	// we're good, double step size and continue jamming
@@ -1928,7 +1928,7 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	inState->avgDvdtMag=0;
 	for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ )
 	{
-		inState->avgDvdtMag += octrope_norm(dVdt[dvdtItr]);
+		inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
 	}
 	inState->avgDvdtMag /= inState->totalVerts;
 
@@ -1945,23 +1945,23 @@ bsearch_step( octrope_link* inLink, search_state* inState )
 	
 	free(dVdt);
 	
-	inState->length = octrope_curvelength(inLink);
+	inState->length = plc_arclength(inLink);
 	
 	return inLink;
 }
 
-static octrope_link*
-old_bsearch_step( octrope_link* inLink, search_state* inState )
+static plCurve*
+old_bsearch_step( plCurve* inLink, search_state* inState )
 {	
 	int stepAttempts;
 	int dvdtItr;
 	double  lastDCSD, eps = inState->stepSize*inState->stepSize;
-	octrope_link* workerLink;
+	plCurve* workerLink;
 
 	// create initial vector field for which we want to move along in this step
-	octrope_vector* dVdt;
+	plc_vector* dVdt;
 	
-	dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+	dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
 	
 	/* 
 	 * we need to get the initial strut set to compare our steps to.
@@ -1989,9 +1989,9 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 				
 		// move along dVdt
 		if( workerLink != NULL )
-			octrope_link_free(workerLink);
-		workerLink = octrope_link_copy(inLink);
-		octrope_link_fix_wrap(workerLink);
+			plc_free(workerLink);
+		workerLink = plc_copy(inLink);
+		plc_fix_wrap(workerLink);
 		step(workerLink, inState->stepSize, dVdt, inState);
 		if( gOutputFlag == 1 )
 		{
@@ -2006,7 +2006,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 		
 		// get new dvdt and basically see if we've overrun our error bound for
 		// strut length
-		dVdt = calloc(inState->totalVerts, sizeof(octrope_vector));
+		dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
 		firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
 				
 		if( inState->shortest < lastDCSD-eps )
@@ -2040,7 +2040,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 	if( inState->curvature_step != 0 && inState->eq_step == 0 )
 		inState->cstep_time += inState->stepSize;
 	
-	octrope_link_free(inLink);
+	plc_free(inLink);
 	inLink = workerLink;
 		
 	// we're good, double step size and continue jamming
@@ -2058,7 +2058,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 	inState->avgDvdtMag=0;
 	for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ )
 	{
-		inState->avgDvdtMag += octrope_norm(dVdt[dvdtItr]);
+		inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
 	}
 	inState->avgDvdtMag /= inState->totalVerts;
 
@@ -2079,7 +2079,7 @@ old_bsearch_step( octrope_link* inLink, search_state* inState )
 }
 
 static void
-placeContactStrutsSparse( taucs_ccs_matrix* A, octrope_link* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
+placeContactStrutsSparse( taucs_ccs_matrix* A, plCurve* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
 {
 	int sItr, totalStruts;
 	
@@ -2089,7 +2089,7 @@ placeContactStrutsSparse( taucs_ccs_matrix* A, octrope_link* inLink, octrope_str
 	// in constructing the ridigity matrix, we will need the struts as viewed 
 	// as force vectors on the edges, so we create normalized vectors for each strut
 	// here
-	octrope_vector* strutDirections = (octrope_vector*)calloc(strutCount, sizeof(octrope_vector));
+	plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
 	normalizeStruts( strutDirections, strutSet, inLink, strutCount );
 
 	totalStruts = minradStruts + strutCount;
@@ -2192,7 +2192,7 @@ placeContactStrutsSparse( taucs_ccs_matrix* A, octrope_link* inLink, octrope_str
 }
 
 static void
-placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
+placeContactStruts( double* A, plCurve* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
 {
 	int sItr, totalStruts;
 	
@@ -2202,7 +2202,7 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 	// in constructing the ridigity matrix, we will need the struts as viewed 
 	// as force vectors on the edges, so we create normalized vectors for each strut
 	// here
-	octrope_vector* strutDirections = (octrope_vector*)calloc(strutCount, sizeof(octrope_vector));
+	plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
 	normalizeStruts( strutDirections, strutSet, inLink, strutCount );
 
 	totalStruts = minradStruts + strutCount;
@@ -2284,7 +2284,7 @@ placeContactStruts( double* A, octrope_link* inLink, octrope_strut* strutSet, in
 }
 
 void
-updateSideLengths( octrope_link* inLink, search_state* inState )
+updateSideLengths( plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
@@ -2304,7 +2304,7 @@ updateSideLengths( octrope_link* inLink, search_state* inState )
 	{
 		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
 		{
-			octrope_vector s1, s2, side;
+			plc_vector s1, s2, side;
 			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
 			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
 			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
@@ -2315,8 +2315,8 @@ updateSideLengths( octrope_link* inLink, search_state* inState )
 			side.c[1] = s2.c[1] - s1.c[1];
 			side.c[2] = s2.c[2] - s1.c[2];
 		
-			inState->sideLengths[inState->compOffsets[cItr] + vItr] = octrope_norm(side);
-			inState->avgSideLength += octrope_norm(side);
+			inState->sideLengths[inState->compOffsets[cItr] + vItr] = plc_M_norm(side);
+			inState->avgSideLength += plc_M_norm(side);
 			tot++;
 		}
 	}
@@ -2324,13 +2324,13 @@ updateSideLengths( octrope_link* inLink, search_state* inState )
 }
 
 void
-placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState )
+placeVertexBars( double* A, plCurve* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState )
 {
 	int totalStruts = contactStruts + totalBars;
 	int cItr, vItr, sItr, next;
 	
-	octrope_vector  strutDirection;
-	octrope_vector  points[2];
+	plc_vector  strutDirection;
+	plc_vector  points[2];
 	double norm = 0;
 
 	int thresh = ((totalBarVerts+contactStruts)*3)*(totalBars+contactStruts);
@@ -2344,7 +2344,7 @@ placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBa
 	{
 		if( inState->conserveLength[cItr] != 0 )
 		{
-			for( vItr=0; vItr<octrope_pline_edges(&inLink->cp[cItr]); vItr++ )
+			for( vItr=0; vItr<plc_strand_edges(&inLink->cp[cItr]); vItr++ )
 			{
 				next = ((vItr+1)%inLink->cp[cItr].nv);
 			
@@ -2375,7 +2375,7 @@ placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBa
 		strutDirection.c[1] = points[0].c[1] - points[1].c[1];
 		strutDirection.c[2] = points[0].c[2] - points[1].c[2];
 		
-		norm = octrope_norm(strutDirection);
+		norm = plc_M_norm(strutDirection);
 		strutDirection.c[0] /= norm;
 		strutDirection.c[1] /= norm;
 		strutDirection.c[2] /= norm;
@@ -2473,22 +2473,22 @@ placeVertexBars( double* A, octrope_link* inLink, int contactStruts, int totalBa
 }
 
 static void
-placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts, 
+placeMinradStruts( double* A, plCurve* inLink, octrope_mrloc* minradStruts, 
 	int minradLocs, search_state* inState, int contactStruts )
 {
 	int mItr, i;
 	double norm = 0;
 		
-	octrope_vector dlda, dldv, dldb;
-	octrope_vector dxda, dxdv, dxdb;
+	plc_vector dlda, dldv, dldb;
+	plc_vector dxda, dxdv, dxdb;
 	double x, dtanconst;
 
 	int totalStruts = contactStruts + minradLocs;
 		
 	for( mItr=0; mItr<minradLocs; mItr++ )
 	{
-		octrope_vector  a, v, b, As, Bs, Cs;
-		octrope_vector  prevSide, thisSide;
+		plc_vector  a, v, b, As, Bs, Cs;
+		plc_vector  prevSide, thisSide;
 		double dot, prevLen, thisLen;
 		int vItr = minradStruts[mItr].vert;
 		int cItr = minradStruts[mItr].component;
@@ -2513,9 +2513,9 @@ placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts,
 		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
 		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
 		
-		dot = octrope_dot(prevSide, thisSide);
-		prevLen = octrope_norm(prevSide);
-		thisLen = octrope_norm(thisSide);
+		dot = plc_M_dot(prevSide, thisSide);
+		prevLen = plc_M_norm(prevSide);
+		thisLen = plc_M_norm(thisSide);
 		
 		double value, angle;
 		value = dot/(prevLen*thisLen);
@@ -2533,7 +2533,7 @@ placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts,
 			angle = acos(value);
 		}
 				
-		if( octrope_norm(prevSide) < octrope_norm(thisSide) )
+		if( plc_M_norm(prevSide) < plc_M_norm(thisSide) )
 		{
 			printf( "prevSide shorter\n" );
 		
@@ -2622,17 +2622,17 @@ placeMinradStruts( double* A, octrope_link* inLink, octrope_mrloc* minradStruts,
 
 		}
 		
-	/*	As.c[0] /= octrope_norm(As);
-		As.c[1] /= octrope_norm(As);
-		As.c[2] /= octrope_norm(As);
+	/*	As.c[0] /= plc_M_norm(As);
+		As.c[1] /= plc_M_norm(As);
+		As.c[2] /= plc_M_norm(As);
 		
-		Bs.c[0] /= octrope_norm(Bs);
-		Bs.c[1] /= octrope_norm(Bs);
-		Bs.c[2] /= octrope_norm(Bs);
+		Bs.c[0] /= plc_M_norm(Bs);
+		Bs.c[1] /= plc_M_norm(Bs);
+		Bs.c[2] /= plc_M_norm(Bs);
 		
-		Cs.c[0] /= octrope_norm(Cs);
-		Cs.c[1] /= octrope_norm(Cs);
-		Cs.c[2] /= octrope_norm(Cs);
+		Cs.c[0] /= plc_M_norm(Cs);
+		Cs.c[1] /= plc_M_norm(Cs);
+		Cs.c[2] /= plc_M_norm(Cs);
 	*/	
 		
 		// temporarily increment the strut's verts based on their component interactions
@@ -2784,7 +2784,7 @@ collapseStruts( octrope_strut** struts, int* count )
 
 #define kMinradForceScale 0.1
 static void
-minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
+minradForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
@@ -2793,14 +2793,14 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 	
 	// note to self - this can be made much faster by not being dumb
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 	
 	// grab unit edges
     double* norms;
     //vector* units;
     int nextVert, totalVerts=0, dlItr;
-    octrope_vector* diffVectors;
-    octrope_vector* unitsCopy;
+    plc_vector* diffVectors;
+    plc_vector* unitsCopy;
     
     totalVerts = 0;
 	for( cItr=0; cItr<inLink->nc; cItr++ )
@@ -2808,8 +2808,8 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
     
     norms = (double*)malloc(sizeof(double)*totalVerts);
     //units = (vector*)malloc(sizeof(struct vector_type)*totalVerts);
-    diffVectors = (octrope_vector*)calloc(totalVerts, sizeof(struct octrope_vector_type));
-    unitsCopy = (octrope_vector*)malloc(sizeof(struct octrope_vector_type)*totalVerts);
+    diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
+    unitsCopy = (plc_vector*)malloc(sizeof(struct plc_vector_type)*totalVerts);
     
     fatalifnull_(norms);
     fatalifnull_(diffVectors);
@@ -2845,7 +2845,7 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		
 		// now diffVectors are forward units, sum with opposite of previous to get dLen field
 		// duplicate the units since daxpy will operate in place
-		memcpy( unitsCopy, diffVectors, sizeof(struct octrope_vector_type)*totalVerts );
+		memcpy( unitsCopy, diffVectors, sizeof(struct plc_vector_type)*totalVerts );
 		i=0;
 		int prev;
 		for( cItr=0; cItr<inLink->nc; cItr++ )
@@ -2902,29 +2902,29 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 	{
 		// the first thing to do is grab edge lengths
 		int edges;
-		octrope_link* L = inLink;
+		plCurve* L = inLink;
 		
 		int i,j;
 		double mr = {DBL_MAX}, alpha, rad;
-		octrope_vector in,out;
+		plc_vector in,out;
 		double normin, normout;
 		double rplus, rminus, this_mr;
 		int start,end;
 		double target = inState->injrad;
 		
-		edges = octrope_pline_edges(&inLink->cp[cItr]);
+		edges = plc_strand_edges(&inLink->cp[cItr]);
 								
 		i = cItr;
 		if (L->cp[i].acyclic) {
 			start = 1;
 			end = L->cp[i].nv - 1;
-			out = octrope_vminus(L->cp[i].vt[1],L->cp[i].vt[0]);      
-			normout = octrope_norm(out); 
+			out = plc_vect_diff(L->cp[i].vt[1],L->cp[i].vt[0]);      
+			normout = plc_M_norm(out); 
 		} else {
 			start = 0;
 			end = L->cp[i].nv;
-			out = octrope_vminus(L->cp[i].vt[0],L->cp[i].vt[-1]);      
-			normout = octrope_norm(out); 
+			out = plc_vect_diff(L->cp[i].vt[0],L->cp[i].vt[-1]);      
+			normout = plc_M_norm(out); 
 		}
 
 		/* Now we handle the main loop. */
@@ -2933,10 +2933,10 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			in     = out;                
 			normin = normout;               
 
-			out = octrope_vminus(L->cp[i].vt[j+1],L->cp[i].vt[j]);
-			normout = octrope_norm(out);
+			out = plc_vect_diff(L->cp[i].vt[j+1],L->cp[i].vt[j]);
+			normout = plc_M_norm(out);
 
-			alpha = acos(octrope_dot(in,out)/(normin*normout));
+			alpha = acos(plc_M_dot(in,out)/(normin*normout));
 			rad   = 1/(2*tan(alpha/2));
 
 			rminus = normin*rad;
@@ -2992,32 +2992,32 @@ minradForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 }
 
 static void
-spinForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
+spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
 	// note to self - this can be made much faster by not being dumb
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 		
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		// the first thing to do is grab edge lengths
 		int edges;
 		double* lengths;
-		octrope_vector* sides;
-		octrope_vector* adjustments;
+		plc_vector* sides;
+		plc_vector* adjustments;
 		double  averageLength;
 		
-		edges = octrope_pline_edges(&inLink->cp[cItr]);
+		edges = plc_strand_edges(&inLink->cp[cItr]);
 		
 		lengths = (double*)malloc(sizeof(double)*edges);
-		sides = (octrope_vector*)malloc(sizeof(octrope_vector)*edges);
-		adjustments = (octrope_vector*)calloc(edges, sizeof(octrope_vector));
+		sides = (plc_vector*)malloc(sizeof(plc_vector)*edges);
+		adjustments = (plc_vector*)calloc(edges, sizeof(plc_vector));
 		
 		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
 		{
-			octrope_vector s1, s2;
+			plc_vector s1, s2;
 			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
 			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
 			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
@@ -3028,7 +3028,7 @@ spinForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			sides[vItr].c[1] = s2.c[1] - s1.c[1];
 			sides[vItr].c[2] = s2.c[2] - s1.c[2];
 			
-			lengths[vItr] = octrope_norm(sides[vItr]);
+			lengths[vItr] = plc_M_norm(sides[vItr]);
 			
 			// unit-ize sides since we will use these as the tangential motion basis below
 			sides[vItr].c[0] /= lengths[vItr];
@@ -3064,13 +3064,13 @@ spinForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 }
 
 void
-specialForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
+specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
 	// note to self - this can be made much faster by not being dumb
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 		
 /*	for( cItr=0; cItr<1; cItr++ )
 	{
@@ -3102,13 +3102,13 @@ specialForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState 
 }
 
 static void
-eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
+eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	
 	// note to self - this can be made much faster by not being dumb
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 	
 	if( gOutputFlag )
 	{
@@ -3134,25 +3134,25 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 		// the first thing to do is grab edge lengths
 		int edges;
 		double* lengths;
-		octrope_vector* sides;
-		octrope_vector* adjustments;
+		plc_vector* sides;
+		plc_vector* adjustments;
 		double  averageLength;
 		double  usedLength;
 		double  scaleFactor;
 		
-		edges = octrope_pline_edges(&inLink->cp[cItr]);
+		edges = plc_strand_edges(&inLink->cp[cItr]);
 		
 	//	printf( "edges: %d\n", edges );
 		
 		lengths = (double*)malloc(sizeof(double)*edges);
-		sides = (octrope_vector*)malloc(sizeof(octrope_vector)*edges);
-		adjustments = (octrope_vector*)calloc(edges, sizeof(octrope_vector));
+		sides = (plc_vector*)malloc(sizeof(plc_vector)*edges);
+		adjustments = (plc_vector*)calloc(edges, sizeof(plc_vector));
 		
 		averageLength = 0;
 		
 		for( vItr=0; vItr<edges; vItr++ )
 		{
-			octrope_vector s1, s2;
+			plc_vector s1, s2;
 			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
 			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
 			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
@@ -3163,7 +3163,7 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			sides[vItr].c[1] = s2.c[1] - s1.c[1];
 			sides[vItr].c[2] = s2.c[2] - s1.c[2];
 			
-			lengths[vItr] = octrope_norm(sides[vItr]);
+			lengths[vItr] = plc_M_norm(sides[vItr]);
 			
 			// unit-ize sides since we will use these as the tangential motion basis below
 			sides[vItr].c[0] /= lengths[vItr];
@@ -3220,18 +3220,18 @@ eqForce( octrope_vector* dlen, octrope_link* inLink, search_state* inState )
 			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*(sides[vItr].c[2]+sides[vItr+1].c[2])/2.0;
 			
 			// adjustment should have same magnitude as unadjusted dlen vector at this vertex
-		/*	adjustments[(vItr+1)%edges].c[0] /= octrope_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] /= octrope_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] /= octrope_norm(dlen[(vItr+1)%edges]);
+		/*	adjustments[(vItr+1)%edges].c[0] /= plc_M_norm(dlen[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[1] /= plc_M_norm(dlen[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[2] /= plc_M_norm(dlen[(vItr+1)%edges]);
 		*/
 		
-		/*	adjustments[(vItr+1)%edges].c[0] /= octrope_norm(adjustments[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] /= octrope_norm(adjustments[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] /= octrope_norm(adjustments[(vItr+1)%edges]);
+		/*	adjustments[(vItr+1)%edges].c[0] /= plc_M_norm(adjustments[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[1] /= plc_M_norm(adjustments[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[2] /= plc_M_norm(adjustments[(vItr+1)%edges]);
 		*/	
-		/*	adjustments[(vItr+1)%edges].c[0] *= octrope_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] *= octrope_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] *= octrope_norm(dlen[(vItr+1)%edges]);
+		/*	adjustments[(vItr+1)%edges].c[0] *= plc_M_norm(dlen[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[1] *= plc_M_norm(dlen[(vItr+1)%edges]);
+			adjustments[(vItr+1)%edges].c[2] *= plc_M_norm(dlen[(vItr+1)%edges]);
 		*/		
 		//	printf( "adjustment %d: %lf %lf %lf\n", (vItr+1)%edges, adjustments[(vItr+1)%edges].c[0],
 		//						adjustments[(vItr+1)%edges].c[1], adjustments[(vItr+1)%edges].c[2] );
@@ -3344,7 +3344,7 @@ int gDeferredStrutExport = 0;
 int gFoo = 0;
 
 void
-firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
+firstVariation( plc_vector* dl, plCurve* inLink, search_state* inState,
 		octrope_strut** outStruts, int* outStrutsCount, int dlenStep )
 {
 	/*
@@ -3353,7 +3353,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	 * returned by liboctrope.
 	 */
 	 	
-	octrope_vector*		dVdt = NULL;
+	plc_vector*		dVdt = NULL;
 	int					strutStorageSize = 0;
 	int					strutCount = 0;
 	octrope_strut*		strutSet = NULL;
@@ -3381,7 +3381,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 	if( dlenStep != 0 )
 		dlenForce(dl, inLink, inState);
 	
-//	dl = (octrope_vector*)calloc(inState->totalVerts, sizeof(struct octrope_vector_type));
+//	dl = (plc_vector*)calloc(inState->totalVerts, sizeof(struct plc_vector_type));
 		
 	// acquire the strut set, we probably haven't increased the strut count much 
 	// beyond inState.lastStrutCount, so it's probably safe to assume that we can fit
@@ -3483,7 +3483,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		if( inState->conserveLength[cItr] != 0 )
 		{
 			barVerts += inLink->cp[cItr].nv;
-			minradLocs += octrope_pline_edges(&inLink->cp[cItr]);
+			minradLocs += plc_strand_edges(&inLink->cp[cItr]);
 		}
 	}
 
@@ -3519,7 +3519,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 		inState->avgDvdtMag = 0;
 		for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 		{
-			inState->avgDvdtMag += octrope_norm(dl[dlItr]);
+			inState->avgDvdtMag += plc_M_norm(dl[dlItr]);
 		}
 		inState->avgDvdtMag /= inState->totalVerts;
 	}
@@ -3823,8 +3823,8 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				end o' test		*/ 
 
 				
-				/*octrope_vector* ofvVec;
-				ofvVec = (octrope_vector*)malloc(sizeof(octrope_vector)*inState->totalVerts);
+				/*plc_vector* ofvVec;
+				ofvVec = (plc_vector*)malloc(sizeof(plc_vector)*inState->totalVerts);
 				int i;
 				for( i=0; i<inState->totalVerts; i++ )
 				{
@@ -3837,12 +3837,12 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 				*/
 			/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 				{
-					octrope_vector  vert;
+					plc_vector  vert;
 					double  norm;
 					vert.c[0] = ofv[3*dlItr+0];
 					vert.c[1] = ofv[3*dlItr+1];
 					vert.c[2] = ofv[3*dlItr+2];
-					norm = octrope_norm(vert);
+					norm = plc_M_norm(vert);
 					if( norm != 0 )
 					{
 						ofv[3*dlItr+0] /= norm;
@@ -3934,12 +3934,12 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			*/	
 			/*	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 				{
-					octrope_vector  vert;
+					plc_vector  vert;
 					double  norm;
 					vert.c[0] = minusDL[3*dlItr+0];
 					vert.c[1] = minusDL[3*dlItr+1];
 					vert.c[2] = minusDL[3*dlItr+2];
-					norm = octrope_norm(vert);
+					norm = plc_M_norm(vert);
 					if( norm != 0 )
 					{
 						minusDL[3*dlItr+0] /= norm;
@@ -3960,7 +3960,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			
 		/*		if( gOutputFlag == 1 )
 				{
-					octrope_vector  debug[500];
+					plc_vector  debug[500];
 					for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 					{
 						debug[dlItr].c[0] = 0.5*minusDL[3*dlItr+0];
@@ -4187,7 +4187,7 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 			printf( "strut %d compression: %lf\n", dlItr, compressions[dlItr] );
 	*/	
 		
-		dVdt = (octrope_vector*)calloc(inState->totalVerts, sizeof(octrope_vector));
+		dVdt = (plc_vector*)calloc(inState->totalVerts, sizeof(plc_vector));
 		// dVdt = dl + A*compressions is this for loop
 		for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
 		{
@@ -4360,12 +4360,12 @@ firstVariation( octrope_vector* dl, octrope_link* inLink, search_state* inState,
 #pragma mark -
 
 void
-normalizeStruts( octrope_vector* strutDirections, octrope_strut* strutSet, octrope_link* inLink, int strutCount )
+normalizeStruts( plc_vector* strutDirections, octrope_strut* strutSet, plCurve* inLink, int strutCount )
 {
 	int sItr;
 	for( sItr=0; sItr<strutCount; sItr++ )
 	{
-		octrope_vector  points[2];
+		plc_vector  points[2];
 		double norm = 0;
 		octrope_strut_ends( inLink, &strutSet[sItr], points );
 		
@@ -4374,7 +4374,7 @@ normalizeStruts( octrope_vector* strutDirections, octrope_strut* strutSet, octro
 		strutDirections[sItr].c[1] = points[0].c[1] - points[1].c[1];
 		strutDirections[sItr].c[2] = points[0].c[2] - points[1].c[2];
 		
-		norm = octrope_norm(strutDirections[sItr]);
+		norm = plc_M_norm(strutDirections[sItr]);
 		strutDirections[sItr].c[0] /= norm;
 		strutDirections[sItr].c[1] /= norm;
 		strutDirections[sItr].c[2] /= norm;
@@ -4383,11 +4383,11 @@ normalizeStruts( octrope_vector* strutDirections, octrope_strut* strutSet, octro
 }
 
 double
-maxovermin( octrope_link* inLink, search_state* inState )
+maxovermin( plCurve* inLink, search_state* inState )
 {
 	int cItr, vItr;
 	double max = 0, min = DBL_MAX;
-	octrope_vector s1, s2;
+	plc_vector s1, s2;
 	double max_maxovermin = 0, len=0;
 	int edges, totalEdges=0;
 	int maxVert, maxComp, minVert, minComp;
@@ -4400,7 +4400,7 @@ maxovermin( octrope_link* inLink, search_state* inState )
 		max = 0;
 		min = DBL_MAX;
 		
-		edges = octrope_pline_edges(&inLink->cp[cItr]);
+		edges = plc_strand_edges(&inLink->cp[cItr]);
 		totalEdges += edges;
 		
 		for( vItr=0; vItr<edges; vItr++ )
@@ -4421,8 +4421,8 @@ maxovermin( octrope_link* inLink, search_state* inState )
 			s2.c[1] = inLink->cp[cItr].vt[cvertex].c[1];
 			s2.c[2] = inLink->cp[cItr].vt[cvertex].c[2];
 			
-			octrope_vsub(s1, s2);
-			norm = octrope_norm(s1);
+			plc_M_sub_vect(s1, s2);
+			norm = plc_M_norm(s1);
 			
 			inState->sideLengths[inState->compOffsets[cItr] + vItr] = norm;
 			inState->avgSideLength += norm;
@@ -4464,7 +4464,7 @@ maxovermin( octrope_link* inLink, search_state* inState )
 }
 
 void
-computeCompressPush( octrope_link* inLink, octrope_strut* strutSet,
+computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
 				octrope_mrloc* minradSet, int strutCount, int minradLocs )
 {
 	

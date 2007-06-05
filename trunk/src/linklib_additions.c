@@ -1,113 +1,97 @@
 /*
-   Functions to be included in the octrope_link library.
+   Functions to be included in the plCurve library.
 */
 
-#include "gradient/eqedge.h"
-#include "gradient/stepper.h"
+#include "ridgerunner.h"
 
-int    octrope_pline_edges(octrope_pline *P)
+int    plc_strand_edges(plc_strand *P)
 
      /* Procedure computes the number of edges in a pline. */
      /* This is either equal to, or one less than, the number */
      /* of vertices, depending on whether the pline is closed. */
 
 {
-
+  
   return P->nv - (P->acyclic ? 1:0);
-
-}
-
-void
-link_scale( octrope_link* inLink, double factor )
-{
-	int cItr, vItr;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-		{
-			inLink->cp[cItr].vt[vItr].c[0] *= factor;
-			inLink->cp[cItr].vt[vItr].c[1] *= factor;
-			inLink->cp[cItr].vt[vItr].c[2] *= factor;
-		}
-	}
+  
 }
 
 double
-octrope_link_torsion( octrope_link* inLink, FILE* outPlot )
+plCurve_torsion( plCurve* inLink, FILE* outPlot )
 {
-	double			totalTorsion = 0;
-	octrope_vector	cross1, cross2;
-	double			temp;
-	int				cItr, vItr;
-
-	bzero(&cross1,sizeof(octrope_vector));
-	bzero(&cross2,sizeof(octrope_vector));
-
-	int				e1, e2, e3;	
-	double			lengthOffset = 0;
-	int				vertOffset = 0;
-
-	totalTorsion = 0;
-
-	for( cItr=0; cItr<inLink->nc; cItr++ )
+  double			totalTorsion = 0;
+  plc_vector	cross1, cross2;
+  double			temp;
+  int				cItr, vItr;
+  
+  bzero(&cross1,sizeof(plc_vector));
+  bzero(&cross2,sizeof(plc_vector));
+  
+  int				e1, e2, e3;	
+  double			lengthOffset = 0;
+  int				vertOffset = 0;
+  
+  totalTorsion = 0;
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ )
+    {
+      for( vItr=0; vItr<plc_strand_edges(&inLink->cp[cItr]); vItr++)
 	{
-		for( vItr=0; vItr<octrope_pline_edges(&inLink->cp[cItr]); vItr++)
-		{
-			octrope_vector s1, s2, s3;
-		
-			e1 = vItr-1;
-			e2 = vItr;
-			e3 = vItr+1;
-			
-			s1 = octrope_vminus( inLink->cp[cItr].vt[e1+1], inLink->cp[cItr].vt[e1] );
-			s2 = octrope_vminus( inLink->cp[cItr].vt[e2+1], inLink->cp[cItr].vt[e2] );
-			s3 = octrope_vminus( inLink->cp[cItr].vt[(e3+1)%octrope_pline_edges(&inLink->cp[cItr])], inLink->cp[cItr].vt[e3] );
-
-			/* This is the torsion at edge vItr */
-			cross1 = octrope_cross(s1, s2); 
-			cross2 = octrope_cross(s2, s3); 
-
-			if( (octrope_norm(cross1)*octrope_norm(cross2)) != 0 )
-			{
-				temp = (octrope_dot(cross1,cross2))/(octrope_norm(cross1)*octrope_norm(cross2));
-
-				if(temp >= 1)
-					temp = 0;
-				else if(temp <= -1)
-					temp = M_PI;
-				else
-					temp = acos(temp);
-
-				totalTorsion += temp;
-				
-				fprintf(outPlot, "%d %3.8lf %3.8lf %3.8lf\n", vertOffset, lengthOffset, temp, 2*tan(temp*.5)/octrope_norm(s1));
-			}
-			else
-			{
-				// The norm of one of these cross products is 0.  If that's the
-				// case, the the sin of the angle between two of the edges must be 0 or
-				// Pi, which implies that they are colinear, which implies that the
-				// osculating plane isn't changing, which means that there shouldn't be
-				// any torsion at this edge.
-				
-				// then again, this probably never happens numerically.
-				totalTorsion += 0; // for emphasis!
-				
-				fprintf(outPlot, "%d %3.8lf 0.0 0.0\n", vertOffset, lengthOffset);
-			}
-			
-			lengthOffset += octrope_norm(s2);
-			vertOffset++;
-			
-		} // vert itr
-	} // component itr
-	return totalTorsion;
+	  plc_vector s1, s2, s3;
+	  
+	  e1 = vItr-1;
+	  e2 = vItr;
+	  e3 = vItr+1;
+	  
+	  s1 = plc_vect_diff( inLink->cp[cItr].vt[e1+1], inLink->cp[cItr].vt[e1] );
+	  s2 = plc_vect_diff( inLink->cp[cItr].vt[e2+1], inLink->cp[cItr].vt[e2] );
+	  s3 = plc_vect_diff( inLink->cp[cItr].vt[(e3+1)%plc_strand_edges(&inLink->cp[cItr])], inLink->cp[cItr].vt[e3] );
+	  
+	  /* This is the torsion at edge vItr */
+	  cross1 = plc_cross_prod(s1, s2); 
+	  cross2 = plc_cross_prod(s2, s3); 
+	  
+	  if( (plc_M_norm(cross1)*plc_M_norm(cross2)) != 0 )
+	    {
+	      temp = (plc_M_dot(cross1,cross2))/(plc_M_norm(cross1)*plc_M_norm(cross2));
+	      
+	      if(temp >= 1)
+		temp = 0;
+	      else if(temp <= -1)
+		temp = M_PI;
+	      else
+		temp = acos(temp);
+	      
+	      totalTorsion += temp;
+	      
+	      fprintf(outPlot, "%d %3.8lf %3.8lf %3.8lf\n", vertOffset, lengthOffset, temp, 2*tan(temp*.5)/plc_M_norm(s1));
+	    }
+	  else
+	    {
+	      // The norm of one of these cross products is 0.  If that's the
+	      // case, the the sin of the angle between two of the edges must be 0 or
+	      // Pi, which implies that they are colinear, which implies that the
+	      // osculating plane isn't changing, which means that there shouldn't be
+	      // any torsion at this edge.
+	      
+	      // then again, this probably never happens numerically.
+	      totalTorsion += 0; // for emphasis!
+	      
+	      fprintf(outPlot, "%d %3.8lf 0.0 0.0\n", vertOffset, lengthOffset);
+	    }
+	  
+	  lengthOffset += plc_M_norm(s2);
+	  vertOffset++;
+	  
+	} // vert itr
+    } // component itr
+  return totalTorsion;
 }
 
-octrope_link*
-octrope_equalize_density( octrope_link* inLink, search_state* inState )
+plCurve*
+octrope_equalize_density( plCurve* inLink, search_state* inState )
 {
-/*	octrope_link*   doubled;
+  /*	plCurve*   doubled;
 	int*			newVerts = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			cyclicity = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			color_count = (int*)malloc(sizeof(int)*inLink->nc);
@@ -126,17 +110,17 @@ octrope_equalize_density( octrope_link* inLink, search_state* inState )
 		color_count[cItr] = 1;
 	}
 	
-	doubled = octrope_link_new( inLink->nc,
+	doubled = plc_new( inLink->nc,
 						newVerts,
 						cyclicity, 
 						color_count );
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 						
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		// preserve color
-		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(octrope_color) );
+		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(plc_color) );
 	
 		doubled->cp[cItr].clr[0].r = inLink->cp[cItr].clr[0].r;
 		doubled->cp[cItr].clr[0].g = inLink->cp[cItr].clr[0].g;
@@ -173,13 +157,13 @@ octrope_equalize_density( octrope_link* inLink, search_state* inState )
 	return NULL;
 }
 
-octrope_link*
-octrope_double_component( octrope_link* inLink, int comp )
+plCurve*
+octrope_double_component( plCurve* inLink, int comp )
 {
 	/* double number of sides through bisection -- keeps things eq and shouldn't munger too much with
 	 * struts
 	 */
-	octrope_link*   doubled;
+	plCurve*   doubled;
 	int*			newVerts = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			cyclicity = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			color_count = (int*)malloc(sizeof(int)*inLink->nc);
@@ -192,18 +176,18 @@ octrope_double_component( octrope_link* inLink, int comp )
 		color_count[cItr] = 1;
 	}
 	
-	doubled = octrope_link_new( inLink->nc,
+	doubled = plc_new( inLink->nc,
 						newVerts,
 						cyclicity, 
 						color_count );
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 
 	cItr = comp;
 //	for( cItr=inDo; cItr<inLink->nc; cItr++ )
 	{
 		// preserve color
-		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(octrope_color) );
+		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(plc_color) );
 	
 		doubled->cp[cItr].clr[0].r = inLink->cp[cItr].clr[0].r;
 		doubled->cp[cItr].clr[0].g = inLink->cp[cItr].clr[0].g;
@@ -229,13 +213,13 @@ octrope_double_component( octrope_link* inLink, int comp )
 	return doubled;
 }
 
-octrope_link*
-octrope_double_edges( octrope_link* inLink )
+plCurve*
+octrope_double_edges( plCurve* inLink )
 {
 	/* double number of sides through bisection -- keeps things eq and shouldn't munger too much with
 	 * struts
 	 */
-	octrope_link*   doubled;
+	plCurve*   doubled;
 	int*			newVerts = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			cyclicity = (int*)malloc(sizeof(int)*inLink->nc);
 	int*			color_count = (int*)malloc(sizeof(int)*inLink->nc);
@@ -248,17 +232,17 @@ octrope_double_edges( octrope_link* inLink )
 		color_count[cItr] = 1;
 	}
 	
-	doubled = octrope_link_new( inLink->nc,
+	doubled = plc_new( inLink->nc,
 						newVerts,
 						cyclicity, 
 						color_count );
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 						
 	for( cItr=0; cItr<inLink->nc; cItr++ )
 	{
 		// preserve color
-		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(octrope_color) );
+		//memcpy( &doubled->cp[cItr].clr[0], &inLink->cp[cItr].clr[0], sizeof(plc_color) );
 	
 		doubled->cp[cItr].clr[0].r = inLink->cp[cItr].clr[0].r;
 		doubled->cp[cItr].clr[0].g = inLink->cp[cItr].clr[0].g;
@@ -290,32 +274,32 @@ octrope_double_edges( octrope_link* inLink )
  * polygonal runaround -- not to be confused with the spherical runaround or the tangential 
  * stepper. Contacts: rawdon@mathcs.duq.edu piatek@mathcs.duq.edu
  */
-octrope_link*
-octrope_fixlength( octrope_link* inLink )
+plCurve*
+octrope_fixlength( plCurve* inLink )
 {
-	octrope_link* fixed;
+	plCurve* fixed;
 	int cItr, vItr;
 	
-	fixed = octrope_link_copy(inLink);
+	fixed = plc_copy(inLink);
 	
-	octrope_link_fix_wrap(inLink);
+	plc_fix_wrap(inLink);
 	
 	for( cItr=0; cItr<fixed->nc; cItr++ )
 	{
 		double goal, used, tmpgoal, left;
 		int i=0, j=1, edges;
 		double* lengths;
-		octrope_vector* sides;
+		plc_vector* sides;
 		
-		edges = octrope_pline_edges(&inLink->cp[cItr]);
-		goal = octrope_pline_length(&inLink->cp[cItr]) / (double)edges;
+		edges = plc_strand_edges(&inLink->cp[cItr]);
+		goal = plc_strand_length(&inLink->cp[cItr]) / (double)edges;
 		
 		// we need the edge lengths and sides
 		lengths = (double*)malloc(sizeof(double)*edges);
-		sides = (octrope_vector*)malloc(sizeof(octrope_vector)*edges);
+		sides = (plc_vector*)malloc(sizeof(plc_vector)*edges);
 		for( vItr=0; vItr<edges; vItr++ )
 		{
-			octrope_vector s1, s2;
+			plc_vector s1, s2;
 			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
 			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
 			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
@@ -325,7 +309,7 @@ octrope_fixlength( octrope_link* inLink )
 			sides[vItr].c[0] = s2.c[0] - s1.c[0];
 			sides[vItr].c[1] = s2.c[1] - s1.c[1];
 			sides[vItr].c[2] = s2.c[2] - s1.c[2];
-			lengths[vItr] = octrope_norm(sides[vItr]);
+			lengths[vItr] = plc_M_norm(sides[vItr]);
 		}
 		
 		left = lengths[0];
@@ -360,22 +344,22 @@ octrope_fixlength( octrope_link* inLink )
 	return fixed;
 }
 
-double octrope_pline_length(octrope_pline *P) 
+double plc_strand_length(plc_strand *P) 
 
      /* Procedure computes the length of P. Assumes wraparound addressing. */
      
 {
   int i, edges;
   double len = 0;
-  octrope_vector V;
+  plc_vector V;
 
-  edges = octrope_pline_edges(P);
+  edges = plc_strand_edges(P);
 
   for(i=0;i<edges;i++) {
 
     V = P->vt[i];
-    octrope_vsub(V,P->vt[i+1]);      
-    len += octrope_norm(V);
+    plc_M_sub_vect(V,P->vt[i+1]);      
+    len += plc_M_norm(V);
 
   }
 
@@ -384,23 +368,23 @@ double octrope_pline_length(octrope_pline *P)
   
 
 
-double octrope_link_short_edge(octrope_link *L)
+double plCurve_short_edge(plCurve *L)
 
      /* Procedure finds the length of the shortest edge. */
 
 {
   int i,comp;
   double minLen = {DBL_MAX};
-  octrope_vector diff;
+  plc_vector diff;
 
   for(comp=0;comp < L->nc;comp++) {
 
     for(i=0;i < L->cp[comp].nv - (L->cp[comp].acyclic ? 1:0);i++) {
 
       diff = L->cp[comp].vt[i];
-      octrope_vsub(diff,L->cp[comp].vt[i+1]);
+      plc_M_sub_vect(diff,L->cp[comp].vt[i+1]);
       
-      minLen =  (octrope_norm(diff) < minLen) ? octrope_norm(diff) : minLen;
+      minLen =  (plc_M_norm(diff) < minLen) ? plc_M_norm(diff) : minLen;
 
     }
 
@@ -409,23 +393,23 @@ double octrope_link_short_edge(octrope_link *L)
   return minLen;
 }
 
-double octrope_link_long_edge(octrope_link *L)
+double plCurve_long_edge(plCurve *L)
 
      /* Procedure finds the length of the shortest edge. */
 
 {
   int i,comp;
   double maxLen = {0};
-  octrope_vector diff;
+  plc_vector diff;
 
   for(comp=0;comp < L->nc;comp++) {
 
     for(i=0;i < L->cp[comp].nv - (L->cp[comp].acyclic ? 1:0);i++) {
 
       diff = L->cp[comp].vt[i];
-      octrope_vsub(diff,L->cp[comp].vt[i+1]);
+      plc_M_sub_vect(diff,L->cp[comp].vt[i+1]);
       
-      maxLen =  (octrope_norm(diff) > maxLen) ? octrope_norm(diff) : maxLen;
+      maxLen =  (plc_M_norm(diff) > maxLen) ? plc_M_norm(diff) : maxLen;
 
     }
 
@@ -434,7 +418,7 @@ double octrope_link_long_edge(octrope_link *L)
   return maxLen;
 }
 
-void octrope_link_draw(FILE *outfile, octrope_link *L) 
+void plCurve_draw(FILE *outfile, plCurve *L) 
 
      /* Procedure draws the link in Geomview, complete
 	with red/blue alternating vertices and little spheres 
@@ -449,12 +433,12 @@ void octrope_link_draw(FILE *outfile, octrope_link *L)
   fprintf(outfile, "LIST \n\n");
   
   fprintf(outfile, "{ = "); 
-  octrope_link_write(outfile,L); 
+  plc_write(outfile,L); 
   fprintf(outfile, " } \n\n");
 
   /* Now we get ready to write the vertices. */
 
-  ballrad = octrope_link_short_edge(L)/10.0;
+  ballrad = plCurve_short_edge(L)/10.0;
 
   /* And write them to the file, too. */
 
@@ -473,20 +457,20 @@ void octrope_link_draw(FILE *outfile, octrope_link *L)
 
 }
 
-octrope_vector octrope_link_edge_dir(octrope_link *L, int comp, int edge)
+plc_vector plCurve_edge_dir(plCurve *L, int comp, int edge)
 
      /* Procedure returns a unit vector in the (forward) direction along
 	the given edge. Assumes wraparound addressing. */
 
 {
-  octrope_vector V;
+  plc_vector V;
   double nV;
 
   /* Check sanity */
 
-  if (edge >= octrope_pline_edges(&L->cp[comp]) || (edge < 0 && L->cp[comp].acyclic)) {
+  if (edge >= plc_strand_edges(&L->cp[comp]) || (edge < 0 && L->cp[comp].acyclic)) {
 
-    fprintf(stderr,"octrope_link_edge_dir: Illegal edge number %d.\n",edge);
+    fprintf(stderr,"plCurve_edge_dir: Illegal edge number %d.\n",edge);
     exit(2);
 
   }
@@ -494,37 +478,37 @@ octrope_vector octrope_link_edge_dir(octrope_link *L, int comp, int edge)
   /* Now do work. */
 
   V = L->cp[comp].vt[edge+1];
-  octrope_vsub(V,L->cp[comp].vt[edge]);
-  nV = octrope_norm(V);
-  octrope_vsmult(1/nV,V);
+  plc_M_sub_vect(V,L->cp[comp].vt[edge]);
+  nV = plc_M_norm(V);
+  plc_M_scale_vect(1/nV,V);
 
   return V;
 }
   
-octrope_vector octrope_link_tangent_vector(octrope_link *L, int comp, int vert) 
+plc_vector plCurve_tangent_vector(plCurve *L, int comp, int vert) 
 
      /* Procedure computes a (unit) tangent vector at <vert>. 
 	Handles closed and open curves correctly. */
 
 {
-  octrope_vector V,Tleft,Tright;
+  plc_vector V,Tleft,Tright;
   double nV;
 
   /* We need some special-case code at acyclic endpoints. */
 
   if (L->cp[comp].acyclic) {
 
-    if (vert == 0) return octrope_link_edge_dir(L,comp,0);
-    if (vert == L->cp[comp].nv-1) return octrope_link_edge_dir(L,comp,vert-1);
+    if (vert == 0) return plCurve_edge_dir(L,comp,0);
+    if (vert == L->cp[comp].nv-1) return plCurve_edge_dir(L,comp,vert-1);
 
   }
 
-  Tleft = octrope_link_edge_dir(L,comp,vert-1);
-  Tright = octrope_link_edge_dir(L,comp,vert);
+  Tleft = plCurve_edge_dir(L,comp,vert-1);
+  Tright = plCurve_edge_dir(L,comp,vert);
 
-  octrope_vweighted(V,0.5,Tleft,Tright);
-  nV = octrope_norm(V);
-  octrope_vsmult(1/nV,V);
+  plc_M_vweighted(V,0.5,Tleft,Tright);
+  nV = plc_M_norm(V);
+  plc_M_scale_vect(1/nV,V);
 
   return V;
 }

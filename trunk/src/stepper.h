@@ -147,9 +147,9 @@ typedef struct
  * the link approximately equilateral.
  *
  */
-void bsearch_stepper( octrope_link** inLink, search_state* inState );
-double maxovermin( octrope_link* inLink, search_state* inState );
-void updateSideLengths( octrope_link* inLink, search_state* inState );
+void bsearch_stepper( plCurve** inLink, search_state* inState );
+double maxovermin( plCurve* inLink, search_state* inState );
+void updateSideLengths( plCurve* inLink, search_state* inState );
 void reloadDump( double* A, int rows, int cols, double* x, double* b );
 
 #endif // _H_stepper
