@@ -1,6 +1,6 @@
 
 
-#include "gradient/eqedge.h"
+#include "eqedge.h"
 #include "errors.h"
 
 void init_display()
