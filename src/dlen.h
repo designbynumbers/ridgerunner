@@ -14,6 +14,6 @@
 
 // note that we return dlen as a concatenated list of dlen for 
 // each component in ascending order
-void dlenForce( octrope_vector* ioDL, octrope_link* inLink, search_state* inState );
+void dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState );
 
 #endif // _H_dlen

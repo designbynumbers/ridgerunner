@@ -27,7 +27,7 @@
 
 void usage();
 void reload_handler( int sig );
-void initializeState( search_state* state, octrope_link** inLink, const char* fname );
+void initializeState( search_state* state, plCurve** inLink, const char* fname );
 
 int gVerboseFiling = 0;
 int gSuppressOutput = 0;
@@ -72,7 +72,7 @@ int gFastCorrectionSteps = 0;
 int
 main( int argc, char* argv[] )
 {
-	octrope_link*	link = NULL;
+	plCurve*	link = NULL;
 	FILE*			linkFile = NULL;
 	int				cItr=0;
 	search_state	state;
@@ -246,7 +246,7 @@ main( int argc, char* argv[] )
 					fprintf(stderr, "Specified file: %s doesn't exist\n", optarg);
 					return -1;
 				}
-				link = octrope_link_read(linkFile);
+				link = plc_read(linkFile);
 				strcpy(fname, optarg);
 				fclose(linkFile);
 				break;
@@ -282,23 +282,23 @@ main( int argc, char* argv[] )
 		
 	if( fixlengths == 1 )
 	{
-		octrope_link* tempLink = link;
+		plCurve* tempLink = link;
 		link = octrope_fixlength(tempLink);
-		octrope_link_free(tempLink);
+		plc_free(tempLink);
 		tempLink = link;
 		link = octrope_fixlength(tempLink);
-		octrope_link_free(tempLink);
+		plc_free(tempLink);
 		tempLink = link;
 		link = octrope_fixlength(tempLink);
-		octrope_link_free(tempLink);
+		plc_free(tempLink);
 	}
 	
 	int dItr;
 	for( dItr=0; dItr<doubleCount; dItr++ )
 	{
-		octrope_link* tempLink = link;
+		plCurve* tempLink = link;
 		link = octrope_double_edges(tempLink);
-		octrope_link_free(tempLink);
+		plc_free(tempLink);
 	}
 	
 	initializeState( &state, &link, fname);
@@ -326,11 +326,11 @@ main( int argc, char* argv[] )
 	if( autoscale == 1 )
 	{
 		printf( "autoscaling with injrad %f, scale factor: %e\n", state.injrad, ((2*state.injrad)/octrope_thickness(link, 1, NULL, 0))-(2*state.injrad) );
-		link_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
+		plc_scale(link, (2*state.injrad)/octrope_thickness(link, 1, NULL, 0) );
 	}
 	else
 	{
-		link_scale(link, scaleAmt );
+		plc_scale(link, scaleAmt );
 	}
 	
 	if( gVerboseFiling == 1 )
@@ -338,7 +338,7 @@ main( int argc, char* argv[] )
 		char fname[1024];
 		preptmpname(fname,"scaled.vect",&state);
 		FILE* sf = fopen(fname,"w");
-		octrope_link_write(sf, link);
+		plc_write(sf, link);
 		fclose(sf);
 	}
 		
@@ -361,7 +361,7 @@ main( int argc, char* argv[] )
 	{
 		preptmpname(fname, "orig.vect", &state);
 		FILE* verts = fopen(fname, "w");
-		octrope_link_draw(verts, link);
+		plCurve_draw(verts, link);
 		fclose(verts);
 		
 		if( state.fancyVisualization != 0 )
@@ -433,7 +433,7 @@ main( int argc, char* argv[] )
 	}
 							
 	bsearch_stepper(&link, &state);
-	octrope_link_free(link);
+	plc_free(link);
 	
 	if( gPaperInfoInTmp != 0 )
 		free(state.perVertexResidual);
@@ -459,7 +459,7 @@ rgetline( char* outLine, int inSize, FILE* fp )
 }
 
 void
-initializeState( search_state* state, octrope_link** inLink, const char* fname )
+initializeState( search_state* state, plCurve** inLink, const char* fname )
 {
 	int cItr, i, offset=0;
 	char	line[1024];
@@ -472,7 +472,7 @@ initializeState( search_state* state, octrope_link** inLink, const char* fname )
 	
 	state->injrad = 0.5; // fix this for now
 		
-	state->maxStepSize = 0.1*octrope_link_short_edge(*inLink);
+	state->maxStepSize = 0.1*plCurve_short_edge(*inLink);
 		
 	if( state->maxStepSize > 1e-3 )
 		state->maxStepSize = 1e-3;

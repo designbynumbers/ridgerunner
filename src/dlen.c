@@ -22,7 +22,7 @@
 
 #include "dlen.h"
 #include "../errors.h"
-#include "octrope_link.h"
+#include "plCurve.h"
 #include "eqedge.h"
 
 /*
@@ -31,14 +31,14 @@
  *				THAT THE USER MUST DISPOSE OF
  */
 void
-dlenForce( octrope_vector* ioDL, octrope_link* inLink, search_state* inState )
+dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
 {
     // grab unit edges
     double* norms;
     //vector* units;
     int cItr, vItr, nextVert, totalVerts=0, dlItr;
-    octrope_vector* diffVectors;
-    octrope_vector* unitsCopy;
+    plc_vector* diffVectors;
+    plc_vector* unitsCopy;
     
     totalVerts = 0;
 	for( cItr=0; cItr<inLink->nc; cItr++ )
@@ -46,8 +46,8 @@ dlenForce( octrope_vector* ioDL, octrope_link* inLink, search_state* inState )
     
     norms = (double*)malloc(sizeof(double)*totalVerts);
     //units = (vector*)malloc(sizeof(struct vector_type)*totalVerts);
-    diffVectors = (octrope_vector*)calloc(totalVerts, sizeof(struct octrope_vector_type));
-    unitsCopy = (octrope_vector*)malloc(sizeof(struct octrope_vector_type)*totalVerts);
+    diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
+    unitsCopy = (plc_vector*)malloc(sizeof(struct plc_vector_type)*totalVerts);
     
     fatalifnull_(norms);
     fatalifnull_(diffVectors);
@@ -83,7 +83,7 @@ dlenForce( octrope_vector* ioDL, octrope_link* inLink, search_state* inState )
 		
 		// now diffVectors are forward units, sum with opposite of previous to get dLen field
 		// duplicate the units since daxpy will operate in place
-		memcpy( unitsCopy, diffVectors, sizeof(struct octrope_vector_type)*totalVerts );
+		memcpy( unitsCopy, diffVectors, sizeof(struct plc_vector_type)*totalVerts );
 		i=0;
 		int prev;
 		for( cItr=0; cItr<inLink->nc; cItr++ )

@@ -28,10 +28,10 @@ DebugWarning( int inErr, const char* inFile, long inLine )
 }
 
 void
-error_write( octrope_link* inLink )
+error_write( plCurve* inLink )
 {
 	FILE* fp = fopen("/tmp/err.vect","w");
-	octrope_link_write(fp,inLink);
+	plc_write(fp,inLink);
 	fclose(fp);
 }
 

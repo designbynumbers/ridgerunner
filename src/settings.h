@@ -10,7 +10,7 @@
 #ifndef _H_settings
 #define _H_settings
 
-#include "gradient/stepper.h"
+#include "stepper.h"
 
 typedef struct
 {

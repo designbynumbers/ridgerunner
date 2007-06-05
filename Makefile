@@ -89,11 +89,18 @@ install_sh = /Users/cantarel/ridgerunner/install-sh
 AM_CFLAGS = -g -finline-functions -Wall
 
 bin_PROGRAMS = ridgerunner
-
-ridgerunner_SOURCES = ./src/display.c ./src/errors.c ./src/linklib_additions.c \
-	              ./src/settings.c ./src/dlen.c ./src/ridgerunner_main.c \
-                      ./src/stepper.c ./src/dlen.h ./src/eqedge.h ./src/errors.h \
-                      ./src/settings.h ./src/stepper.h 
+ridgerunner_SOURCES = ./src/display.c \
+	./src/errors.c \
+	./src/linklib_additions.c \
+	./src/settings.c \
+	./src/dlen.c \
+	./src/ridgerunner_main.c \
+        ./src/stepper.c \
+	./src/dlen.h \
+	./src/eqedge.h \
+	./src/errors.h \
+        ./src/settings.h \
+	./src/stepper.h 
 
 
 ridgerunner_LDADD = -lplCurve -ltsnnls 

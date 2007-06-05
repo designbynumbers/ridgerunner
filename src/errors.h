@@ -10,6 +10,7 @@
 #define _H_errors
 
 #include "octrope.h"
+#include "plCurve.h"
 
 #ifndef true
 #define true (1==1)
@@ -30,7 +31,7 @@ enum
 void DebugThrow( int inErr, const char* inFile, long inLine );
 void DebugWarning( int inErr, const char* inFile, long inLine );
 
-void error_write( octrope_link* inLink );
+void error_write( plCurve* inLink );
 
 #define fatal_(err) DebugThrow( (err), __FILE__, __LINE__ )
 #define warning_(err) DebugWarning( (err), __FILE__, __LINE__ )

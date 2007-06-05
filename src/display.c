@@ -1,7 +1,10 @@
+/*
 
+   Display.c : code to update a Geomview display as the program runs. 
 
-#include "eqedge.h"
-#include "errors.h"
+*/
+
+#include "ridgerunner.h"
 
 void init_display()
 {
@@ -14,7 +17,7 @@ shutdown_display()
 	fclose(gclpipe);
 }
 
-void refresh_display(octrope_link *L) 
+void refresh_display(plCurve *L) 
 
      /* Procedure displays the curve on the linked copy of Geomview. */
      /* We note that OOGLPIPE must be running in Geomview, and we must */
@@ -27,7 +30,7 @@ void refresh_display(octrope_link *L)
   /* Open the curve file and update it. */
 
    curvepipe = fopen("/tmp/curvepipe.oogl","w");
-  octrope_link_draw(curvepipe,L);
+  plCurve_draw(curvepipe,L);
   fclose(curvepipe);
 
   /* Now tell Geomview about the situation. */
@@ -46,7 +49,7 @@ void refresh_display(octrope_link *L)
 extern int gSuppressOutput;
 
 void
-export_ted(octrope_link* inLink, octrope_strut* strutSet, 
+export_ted(plCurve* inLink, octrope_strut* strutSet, 
 			int inSize, octrope_mrloc* minradSet, int minradLocs, 
 			double* compressions, search_state* inState)
 {
@@ -88,7 +91,7 @@ short gSurfaceIndex = 0; // the next filename for the surface building
 short gSurfaceItr = 0; // how long till next surface output
 
 void 
-export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
+export_struts(plCurve* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
 {
 	if( inSize == 0 || compressions == NULL )
 		return;
@@ -96,7 +99,7 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	if( gSuppressOutput == 1 )
 		return;
 		
-	double time = inState->time;
+	// double time = inState->time;
 
 	char	fname[1024];
 
@@ -141,7 +144,7 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 	
 	for( i=0; i<inSize; i++ )
 	{
-		octrope_vector  points[2];
+		plc_vector  points[2];
 		
 		octrope_strut_ends( inLink, &strutSet[i], points );
 		
@@ -196,7 +199,7 @@ export_struts(octrope_link* inLink, octrope_strut* strutSet, int inSize, double*
 }
 
 void
-exportVect( const octrope_vector* dl, octrope_link* link, const char* fname )
+exportVect( const plc_vector* dl, plCurve* link, const char* fname )
 {
 	int totalVerts = 0, cItr, vItr, i;
 	FILE* fp = fopen( fname, "w" );
