@@ -3,143 +3,121 @@
  *  ridgerunner3
  *
  *  Created by Michael Piatek on Sun Jan 18 2004.
- *  Copyright (c) 2004 __MyCompanyName__. All rights reserved.
- *
- *  PROBLEMS:
- *
- *  THOUGHTS:
- *      - we might be able to squeeze more speed out of a G4 version of things 
- *          by turning off Java mode
- *
+ *  Edited/ported JHC 6/2007.
+
+    New version doesn't attempt to use blas operations to construct
+    the field, instead sticks with plCurve primitives. This should be
+    slower, but more portable and maintainable.
+
+ *  
  */
-#include <math.h>
 
-#ifdef __APPLE__
-#include <vecLib/vBLAS.h>
-#else
-#include <gsl/gsl_cblas.h>
-#endif // __APPLE__
-
-#include "dlen.h"
-#include "../errors.h"
-#include "plCurve.h"
-#include "eqedge.h"
+#include"ridgerunner.h"
 
 /*
  * on input - a link for which to calculate dlen
  * on output - a vector field of the elastic force on vertices 
  *				THAT THE USER MUST DISPOSE OF
+
+   We note that ioDL is a buffer of plc_verts(inLink) plc_vectors,
+   containing velocity vectors for each of the vertices in inLink,
+   in the order 
+
+   inLink->cp[0].vt[0] 
+   .
+   .
+   .
+   inLink->cp[0].vt[inLink->cp[0].nv-1]
+   inLink->cp[1].vt[0]
+   .
+   .
+   .
+   inLink->cp[1].vt[inLink->cp[1].nv-1]
+   .
+   .
+   .
+   inLink->cp[inLink->nc-1].vt[..]
+
+   The dlenForce vector is added to ioDL. This is because the
+   equilaterization force may be already added to ioDL.
+
  */
 void
 dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
 {
-    // grab unit edges
-    double* norms;
-    //vector* units;
-    int cItr, vItr, nextVert, totalVerts=0, dlItr;
-    plc_vector* diffVectors;
-    plc_vector* unitsCopy;
-    
-    totalVerts = 0;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-		totalVerts += inLink->cp[cItr].nv;
-    
-    norms = (double*)malloc(sizeof(double)*totalVerts);
-    //units = (vector*)malloc(sizeof(struct vector_type)*totalVerts);
-    diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
-    unitsCopy = (plc_vector*)malloc(sizeof(struct plc_vector_type)*totalVerts);
-    
-    fatalifnull_(norms);
-    fatalifnull_(diffVectors);
-    fatalifnull_(unitsCopy);
-	
-//	if( (rand() % 2) == 1 )
-	{
-		int i=0;
-		inState->curvature_step = 1;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{		
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-			{
-				nextVert = (vItr+1)%inLink->cp[cItr].nv;
-				diffVectors[i].c[0] = inLink->cp[cItr].vt[nextVert].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-				diffVectors[i].c[1] = inLink->cp[cItr].vt[nextVert].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-				diffVectors[i].c[2] = inLink->cp[cItr].vt[nextVert].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-				
-				// ddot is dot product
-				norms[i] = sqrt(cblas_ddot(3, &diffVectors[i].c[0], 1, &diffVectors[i].c[0], 1));
-				i++;
-			}
-		}
-		
-		// dscal is scale
-		i=0;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			// effectively divide by norm
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, i++ )
-				cblas_dscal( 3, (1/norms[i]), &diffVectors[i].c[0], 1 );
-		}
-		
-		// now diffVectors are forward units, sum with opposite of previous to get dLen field
-		// duplicate the units since daxpy will operate in place
-		memcpy( unitsCopy, diffVectors, sizeof(struct plc_vector_type)*totalVerts );
-		i=0;
-		int prev;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++)
-			{
-				// cblas_daxpy - adds a constant times a vector to another vector
-				prev = (vItr == 0) ? (inLink->cp[cItr].nv - 1) : (vItr-1);
-				prev += i;
-				cblas_daxpy( 3, -1, &unitsCopy[prev].c[0], 1, &diffVectors[i+vItr].c[0], 1 );
-			}
-			i += inLink->cp[cItr].nv;
-		
-			// if this component is open, zero the end guys so things aren't screwy
-			if( inLink->cp[cItr].acyclic != 0  )
-			{
-				diffVectors[i-inLink->cp[cItr].nv].c[0] = 0;
-				diffVectors[i-inLink->cp[cItr].nv].c[1] = 0;
-				diffVectors[i-inLink->cp[cItr].nv].c[2] = 0;
-				diffVectors[i-1].c[0] = 0;
-				diffVectors[i-1].c[1] = 0;
-				diffVectors[i-1].c[2] = 0;
-			}
-		}
+  int cItr, vItr, totalVerts=0, dlItr;
+  plc_vector* diffVectors;
+  
+  /* Allocate a "flat" buffer of vectors which will be used to construct
+     the dLen vector */
+  
+  totalVerts = plc_num_verts(inLink);
+  diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
+  fatalifnull_(diffVectors);
+
+  /* Now construct the vector. */
+  
+  int i=0,istart,iend,nv;
+  bool normok;
+
+  inState->curvature_step = 1;
+
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {		   
+    for( vItr=0, istart=i; vItr<inLink->cp[cItr].nv; vItr++ ) {
+
+      /* dLen[v_i] = (v_{i+1} - v_i)/|v_{i+1} - v_i| +(v_{i-1} - v_i)/|v_{i-1} + v_i|.*/
+
+      diffVectors[i] = plc_vect_sum(
+				    
+		         plc_normalize_vect(
+					    plc_vect_diff(inLink->cp[cItr].vt[vItr-1],
+							  inLink->cp[cItr].vt[vItr]),
+					    &normok),
+
+			 plc_normalize_vect(
+					    plc_vect_diff(inLink->cp[cItr].vt[vItr+1],
+							  inLink->cp[cItr].vt[vItr]),
+					    &normok)
+			 );
+      i++;
     }
-//	else
-//	{
-//		printf( "*" );
-//		inState->nocurvature_step = 1;
-//	}
-	
-    free(norms);
-    free(unitsCopy);
-	
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-		{
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-			{
-				diffVectors[vItr+inState->compOffsets[cItr]].c[0] = 0;
-				diffVectors[vItr+inState->compOffsets[cItr]].c[1] = 0;
-				diffVectors[vItr+inState->compOffsets[cItr]].c[2] = 0;
-			}
-		}
-	}
 
-	for( dlItr=0; dlItr<inState->totalVerts; dlItr++ )
-	{
-		ioDL[dlItr].c[0] += diffVectors[dlItr].c[0];
-		ioDL[dlItr].c[1] += diffVectors[dlItr].c[1];
-		ioDL[dlItr].c[2] += diffVectors[dlItr].c[2];
-	}
+    if (inLink->cp[cItr].open) { /* We need to make sure that end vectors are set
+				    correctly for open curves. */
+      iend = i-1;
+      nv = inLink->cp[cItr].nv;
 
-	free(diffVectors);
-	
-//    return diffVectors; // by now, the actual dlen field
+      diffVectors[istart] = plc_normalize_vect(plc_vect_diff(inLink->cp[cItr].vt[1],
+							     inLink->cp[cItr].vt[0]),
+					       &normok);
+
+      diffVectors[iend] = plc_normalize_vect(plc_vect_diff(inLink->cp[cItr].vt[nv-2],
+							   inLink->cp[cItr].vt[nv-1]),
+					     &normok);
+    }  
+  }
+
+  /* We leave in some old code here which zeros the field if "conserveLength" is set. */
+  /* I'd like to delete this, but I'm not sure what it does. */
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+    if( inState->conserveLength[cItr] != 0 ) {
+      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
+	{
+	  diffVectors[vItr+inState->compOffsets[cItr]].c[0] = 0;
+	  diffVectors[vItr+inState->compOffsets[cItr]].c[1] = 0;
+	  diffVectors[vItr+inState->compOffsets[cItr]].c[2] = 0;
+	}
+    }
+  }
+  
+  for( dlItr=0; dlItr<inState->totalVerts; dlItr++ ) {
+
+    plc_M_add_vect(ioDL[dlItr],diffVectors[dlItr]); /* A += B */
+
+  }
+  
+  free(diffVectors);
+
 }
 
