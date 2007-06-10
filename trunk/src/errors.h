@@ -25,7 +25,9 @@ enum
     kNULLPointer        = 100,
     kFileIOErr          = 200,
     kUnsupportFileType  = 201,
-    kGenericNumerics    = 300
+    kGenericNumerics    = 300,
+    kSplineProblem      = 400
+
 };
 
 void DebugThrow( int inErr, const char* inFile, long inLine );

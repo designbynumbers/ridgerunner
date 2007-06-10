@@ -876,549 +876,636 @@ int	gCorrectionAttempts = 0;
 void 
 bsearch_stepper( plCurve** inLink, search_state* inState )
 {
-	unsigned int i, offset = 0;
-	int cItr, vItr;
-	int lastEq = 0;
-	unsigned int cSteps = 0;
-	
-	double maxmaxmin = 0;
-	double minthickness = 500;
-	double  nextMovieOutput = 0.0;
-	
-	gConditionCheck = 0;
-	int firstRun = 1, secondRun = 0;
-	
-	FILE*   gnuplotPipes[kTotalGraphTypes];
-	FILE*   gnuplotDataFiles[kTotalGraphTypes];
-		
-	clock_t startTime;
-	startTime = clock();
-	
-	inState->steps = 0;
-	
-	/* inititalize piping if we are to use it */
-	for( i=0; i<kTotalGraphTypes; i++ )
+  unsigned int i, offset = 0;
+  int cItr, vItr;
+  int lastEq = 0;
+  unsigned int cSteps = 0;
+  
+  double maxmaxmin = 0;
+  double minthickness = 500;
+  double  nextMovieOutput = 0.0;
+  
+  gConditionCheck = 0;
+  int firstRun = 1, secondRun = 0;
+  
+  FILE*   gnuplotPipes[kTotalGraphTypes];
+  FILE*   gnuplotDataFiles[kTotalGraphTypes];
+  
+  clock_t startTime;
+  startTime = clock();
+  
+  inState->steps = 0;
+  
+  /* inititalize piping if we are to use it */
+  for( i=0; i<kTotalGraphTypes; i++ )
+    {
+      gnuplotPipes[i] = NULL;
+      gnuplotDataFiles[i] = NULL;
+      if( inState->graphing[i] != 0 )
 	{
-		gnuplotPipes[i] = NULL;
-		gnuplotDataFiles[i] = NULL;
-		if( inState->graphing[i] != 0 )
-		{
-			char	fname[255];
-			char	cmd[512];
-			
-			// we only use gnuplot if we have a display, otherwise
-			// just create data files
-			if( getenv("DISPLAY") != NULL )
-			{
-				sprintf( fname, "%dpipe", i );
-				sprintf( cmd, "rm -f %s ; mkfifo %s", fname, fname );
-				system(cmd);
-				
-				// get gnuplot going and reading our commands
-				sprintf( cmd, "/sw/bin/gnuplot < %s &", fname );
-				system(cmd);
-				
-				// open the pipe for our input
-				gnuplotPipes[i] = fopen(fname, "w");
-			
-				fprintf( gnuplotPipes[i], "set term x11\n" );
-			}
-		
-			sprintf(fname, "%ddat", i);
-			gnuplotDataFiles[i] = fopen(fname, "w");
-		} 
+	  char	fname[255];
+	  char	cmd[512];
+	  
+	  // we only use gnuplot if we have a display, otherwise
+	  // just create data files
+	  if( getenv("DISPLAY") != NULL )
+	    {
+	      sprintf( fname, "%dpipe", i );
+	      sprintf( cmd, "rm -f %s ; mkfifo %s", fname, fname );
+	      system(cmd);
+	      
+	      // get gnuplot going and reading our commands
+	      sprintf( cmd, "/sw/bin/gnuplot < %s &", fname );
+	      system(cmd);
+	      
+	      // open the pipe for our input
+	      gnuplotPipes[i] = fopen(fname, "w");
+	      
+	      fprintf( gnuplotPipes[i], "set term x11\n" );
+	    }
+	  
+	  sprintf(fname, "%ddat", i);
+	  gnuplotDataFiles[i] = fopen(fname, "w");
+	} 
+    }
+  
+  int stepItr;
+  struct rusage startStepTime, stopStepTime;
+  
+  for( stepItr=0; 1==1; stepItr++ )  /* Main loop */
+    {
+      int lastSet;
+      
+      /* Writing the final position in cwd if you quit because max iterations reached. */
+      
+      if( stepItr > inState->maxItrs && inState->maxItrs > 0 
+	  && inState->curvature_step == 1 )
+	{
+	  FILE* maxFile = NULL;
+	  char    fname[512];
+	  char adjustedName[512];
+	  
+	  strcpy(adjustedName, inState->fname);
+	  sprintf( fname, "%s_%d.maxItr", adjustedName, inState->totalVerts );
+	  maxFile = fopen(fname, "w");
+	  
+	  plc_write(maxFile, *inLink);
+	  fclose(maxFile);
+	  
+	  break;
 	}
-	
-	int stepItr;
-	struct rusage startStepTime, stopStepTime;
-	
-	for( stepItr=0; 1==1; stepItr++ )  /* Main loop */
-	{
-		int lastSet;
+      
+      lastSet = inState->lastStepStrutCount;
+      
+      //if( (i%50)==0 )
+      
+      //	inState->curvature_step = 1;
+      
+      // we need to eq if we're below threshold or if last step hasn't brough us back 
+      // within an acceptable range
+      /*	if( inState->eqThreshold <= inState->lastMaxMin ||
+		(inState->eq_step == 1 && inState->lastMaxMin >
+		(1+((inState->eqThreshold - 1)/2))) ) {
+		inState->eq_step = 1; inState->curvature_step = 0;
 		
-		/* Writing the final position in cwd if you quit because max iterations reached. */
+		FILE* verts = fopen("/tmp/verts.vect", "w");
+		plCurve_draw(verts, *inLink);
+		fclose(verts);
 		
-		if( stepItr > inState->maxItrs && inState->maxItrs > 0 && inState->curvature_step == 1 )
-		{
-			FILE* maxFile = NULL;
-			char    fname[512];
-			char adjustedName[512];
-			
-			strcpy(adjustedName, inState->fname);
-			sprintf( fname, "%s_%d.maxItr", adjustedName, inState->totalVerts );
-			maxFile = fopen(fname, "w");
-			
-			plc_write(maxFile, *inLink);
-			fclose(maxFile);
-
-			break;
-		}
-			
-		lastSet = inState->lastStepStrutCount;
-			
-		//if( (i%50)==0 )
-		
-	//	inState->curvature_step = 1;
-		
-		// we need to eq if we're below threshold or if last step hasn't brough us back 
-		// within an acceptable range
-	/*	if( inState->eqThreshold <= inState->lastMaxMin || 
-			(inState->eq_step == 1 && inState->lastMaxMin > (1+((inState->eqThreshold - 1)/2))) )
-		{
-			inState->eq_step = 1;
-			inState->curvature_step = 0;
-			
-			FILE* verts = fopen("/tmp/verts.vect", "w");
-			plCurve_draw(verts, *inLink);
-			fclose(verts);
-			
-			printf( "" );
+		printf( "" );
 		}
 		else*/
-			inState->eq_step = 0;
-			
-		if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
-		{
-			if( gQuiet == 0 )
-				printf( "last correction step lsqr residual: %e\n", inState->ofvResidual );
-		}
-
-		/* This gem detects whether we are shrinking or correcting errors. 
-			
-			The default state is "curvature_step = 1", which means shrinking. 
-		
-			But the "if" here can trigger a round of correction steps by changing curvature_step to 0.
-			Once that happens, we will again set curvature_step to 0 by running the "if" if things are
-			still very bad, but we will be in the "else" if things have improved.
-	     */
-			
-		if( (inState->shortest < ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
-			(inState->minrad < inState->minradOverstepTol && !inState->ignore_minrad) )
-		{
-			// reset counter, this is our first correction attempt
-			if( inState->curvature_step != 0 )
-			{
-				// before reset, output last number if we're recording this
-				if( gPaperInfoInTmp != 0 )
-				{
-					char	fname[512];
-					preptmpname(fname,"correction_convergence",inState);
-					FILE* tcc = fopen(fname,"a");
-					fprintf(tcc, "%d\n", gCorrectionAttempts);
-					fclose(tcc);
-				}
-				
-				gCorrectionAttempts = 1;
-			}
-					
-			inState->curvature_step = 0;
-		}
-		else 
-			
-			/* The current situation is not bad enough to trigger a new round of correction stepping. 
-			   But it might be bad enough to continue an existing round of correction stepping if we 
-			   not yet reached the green zone. */
-		{
-			
-			double thickness = 2*inState->injrad;
-			double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
-			if( (inState->curvature_step == 0 && inState->shortest < greenZone	) ) //||
-//				(inState->curvature_step == 0 && inState->minrad < 0.49999 && inState->ignore_minrad==0) )
-			{
-				// we haven't finished yet, record
-				gCorrectionAttempts++;
-				
-				inState->curvature_step = 0;
-			}
-			else
-				inState->curvature_step = 1;
-			
-			if( inState->eq_step == 0 )
-				cSteps++;
-			else
-				inState->curvature_step = 0;
-		}
-		
-		
-		/* Don't worry-- gOutputFlag will be set to 0 again later in bsearch_step */
-		/* by the way, "g" stands for global in variable names */
-																																					
-		if( (stepItr%50)==0 || gVerboseFiling != 0 )
-			gOutputFlag = 1;
-		
-		if( gSuppressOutput == 1 )
-			gOutputFlag = 0;
-				
-		
-		/************************************************************************/
-		
-		*inLink = bsearch_step(*inLink, inState);
-		
-		/************************************************************************/
-		
-		if( gPaperInfoInTmp != 0 )
-		{
-			char fname[512];
-			preptmpname(fname,"stepsizes", inState);
-			FILE* ssFile = fopen(fname,"a");
-			fprintf(ssFile, "%3.15lf\n", inState->stepSize);
-			fclose(ssFile);
-		
-			preptmpname(fname, "torsion", inState);
-			FILE* tFile = fopen(fname,"w");
-			plCurve_torsion(*inLink, tFile);
-			fclose(tFile);
-			
-			preptmpname(fname, "per_vert_residual", inState);
-			FILE* rFile = fopen(fname,"w");
-			for( vItr=0; vItr<inState->totalVerts; vItr++ )
-			{
-				fprintf(rFile, "%d %3.16lf\n", vItr, cblas_dnrm2(3, &inState->perVertexResidual[3*vItr], 1) );
-			}
-			fclose(rFile);
-		}
-		
-		/*	getrusage(RUSAGE_SELF, &stopStepTime);
-			user = SECS(stopStepTime.ru_utime) - SECS(startStepTime.ru_utime);
-			printf( "STEP TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
-		*/
-
-		inState->steps++;
-		
-	//	gOutputFlag = 1;
-				
-	//	if( lastSet != state.lastStepStrutCount || (i%50)==0 )
-		if( (i%50) == 0 ) // check things out every 50 steps
-		{
-	//		refresh_display(*inLink);
-	//		printf( "eqing\n" );
-		}
-		
-		/* This fixes a potential octrope bug (still present?) where the 
-		   thickness would be reported as NaN or DBL_MAX or something when 
-		   the curve had a pair of straight segments. Note that 
-		   
-		   injrad == theoretical thickness of the core curve
-		   shortest == actual current thickness of the core curve (presumably less)
-		   
-		*/
-		
-		if( inState->shortest > 2*inState->injrad )
-			inState->shortest = 2*inState->injrad;
-		
-		/* minthickness is a data tracking variable-- the lowest thickness recorded during this run */
-		
-		if( inState->shortest < minthickness && inState->shortest != 0 )
-			minthickness = inState->shortest;
-		
-		/* by the way, k stands for "constant" variable */
-		
-		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
-		{
-			printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf rsdl: %e t: %lf\n", 
-						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						inState->residual, inState->time );
-		}
-		
-		/* we are now going to check for whether we should terminate */
-				
-		if( inState->oldLengthTime == 0 )
-		{
-			inState->oldLengthTime = inState->cstep_time;
-			inState->oldLength = inState->length;
-		}
-		
-		/* these are the actual current criteria for completion */
-		/* in particular, this will double verts and keep going if desired. */
-			
-		if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
-			fabs(inState->oldLength-inState->length) < inState->checkThreshold &&
-			inState->residualThreshold >= inState->residual
-			/*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
-		{
-			// if we're going to die, it'll be after this, so save our best
-			FILE* bestFile = NULL;
-			char    fname[512];
-			char adjustedName[512];
-			
-			strcpy(adjustedName, inState->fname);
-			sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
-			bestFile = fopen(fname, "w");
-			
-			plc_write(bestFile, *inLink);
-			fclose(bestFile);
-		
-			if( inState->totalVerts > inState->refineUntil*(2*inState->ropelength) )
-			{
-				// we are DONE!
-				break;
-			}
-			
-			// the strut set can get violent after this change, so let's make sure none exist.
-			// it's a lot easier on the condition number if it reemerges quickly than if it's changing
-			// rapidly
-			plc_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
-		
-			plCurve* oldLink = *inLink;
-			*inLink = octrope_double_edges(*inLink);  /* in octrope_additions-- NOT a std octrope call */
-			plc_free(oldLink);
-			
-			gConditionCheck = 20; // check condition number for next 10 evals -- this is where we'll fail
-			
-			// we need to update some state information also
-			inState->totalVerts = 0;
-			for( cItr=0; cItr<(*inLink)->nc; cItr++ )
-			{
-				inState->totalVerts += (*inLink)->cp[cItr].nv;
-			}
-			
-			updateSideLengths(*inLink, inState); 
-			
-			/* We maintain a list of current side lengths in state, though it's not clear 
-			   we actually use it for anything. Probably, this doesn't hurt, however. */
-			
-		//	inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
-		//	if( kStepScale*plCurve_short_edge(*inLink) < inState->stepSize )
-		//		inState->stepSize = kStepScale*plCurve_short_edge(*inLink);
-			offset = 0;
-			for( i=0; i<(*inLink)->nc; i++ )
-			{
-				inState->compOffsets[i] = offset;
-				offset += (*inLink)->cp[i].nv;
-			}
-			
-			gOutputFlag = 1;
-			
-			inState->residual = 500; // make this big
-		}
-		
-		if( (inState->oldLengthTime + inState->checkDelta) < inState->cstep_time )
-		{
-			inState->oldLength = inState->length;
-			inState->oldLengthTime = inState->cstep_time;
-			if( gQuiet == 0 )
-				printf( "* Checked delta rope and continuing\n" );
-		}
-		
-		double maxmin;
-		maxmin = maxovermin(*inLink, inState);
-		inState->lastMaxMin = maxmin;
-		if( maxmin > maxmaxmin )
-			maxmaxmin = maxmin;
-	//	inState->eqMultiplier = 1;
-		
-/*		if( maxmin > 1.0001 )
-			inState->eq_step = 1;
-		else
-			inState->eq_step = 0;
-*/		
-		if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
-		{
-			printf( "mm: %3.5lf eqM: %3.5lf (max mm: %3.5lf) (min thick: %3.5lf) lrcond: %e cstep: %d eqAvgDif: %e\n", 
-						maxmin, inState->eqMultiplier, maxmaxmin, minthickness, inState->rcond, inState->curvature_step,
-						inState->eqAvgDiff );
-			printf( "cstep/step ratio: %lf delta length: %lf next check: %lf check threshold: %lf\n", 
-					((double)cSteps)/((double)stepItr+1), fabs(inState->oldLength-inState->length),
-					inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
-		}
-		
-		/* This next block outputs VECTS for moviemaking. */
-
-		if( inState->time >= nextMovieOutput )
-		{
-			char	fname[512];
-			FILE*   frame = NULL;
-			
-			struct rusage stopTime;
-			double user;
-			
-			// grab time for this frame and reset counter
-			getrusage(RUSAGE_SELF, &stopTime);
-			user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
-			if( gQuiet == 0 )
-				printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
-			else
-			{
-				// same stats when quiet, but not just once / viz output
-				printf( "s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: %lf minrad: %lf rsdl: %e t: %lf cratio: %lf\n", 
-						inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-						inState->length, 2*inState->ropelength, inState->stepSize, inState->shortest, inState->minrad, 
-						inState->residual, inState->time, ((double)cSteps)/((double)stepItr+1) );
-			}
-			getrusage(RUSAGE_SELF, &inState->frameStart);
-			
-			if( inState->saveConvergence != 0 )
-			{
-				preptmpname(fname, "rrconvergence.txt", inState);
-				FILE* conv = fopen(fname,"a");
-				fprintf( conv, "%3.14lf %3.14lf\n", inState->time, max(2*inState->length,2*inState->ropelength) );
-				// flushes, most importantly
-				fclose(conv);
-			}
-			
-		//	nextMovieOutput += 0.05;
-			// make things 24 fps
-			nextMovieOutput += 0.041666666667;
-					
-			sprintf( fname, "restart_%s", inState->fname );
-		//	(strstr(fname,".vect"))[0] = '\0';
-			if( gQuiet == 0 )
-				printf( "saved restart: %s\n", fname );
-			frame = fopen( fname, "w" );
-			plc_write(frame, *inLink);
-			fclose(frame);
-			
-			if( inState->movie != 0 )
-			{
-				sprintf( fname, "movie%s/rmov.%lf_evals-%d_strts-%d_length-%lf.vect", 
-								inState->fname,
-								inState->time, 
-								inState->tsnnls_evaluations, 
-								inState->lastStepStrutCount,
-								inState->length );
-				frame = fopen( fname, "w" );
-				plc_write(frame, *inLink);
-				fclose(frame);
-				
-				char cmd[1024];
-				if( inState->lastStepStrutCount != 0 )
-				{
-					char	foobear[1024];
-					preptmpname(foobear,"struts.vect",inState);
-					sprintf(cmd, "cp %s movie%s/struts.%lf.vect", foobear, inState->fname, inState->time);
-					system(cmd);
-				}
-				
-				if( gQuiet == 0 )
-					printf( "movie frame output (tsnnls evals: %d)\n", inState->tsnnls_evaluations );
-
-			}
-			
-			gOutputFlag = 1;
-			
-			/* also do graph outputs */
-			for( i=0; i<kTotalGraphTypes; i++ )
-			{
-				if( inState->graphing[i] != 0 )
-				{
-					char fname[255];
-					sprintf(fname, "%ddat", i);
-					if( i != kConvergence )
-						fprintf( gnuplotDataFiles[i], "%lf\t", inState->time );
-					else
-						fprintf( gnuplotDataFiles[i], "%u\t", inState->steps );
-					switch( i )
-					{
-						case kLength: fprintf( gnuplotDataFiles[i], "%lf", inState->length ); break;
-						case kConvergence: 
-						case kRopelength: fprintf( gnuplotDataFiles[i], "%lf", 2*inState->ropelength ); break;
-						case kStrutCount: fprintf( gnuplotDataFiles[i], "%d", inState->lastStepStrutCount ); break;
-						case kStepSize: fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); break;
-						case kThickness: fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); break;
-						case kMinrad: fprintf( gnuplotDataFiles[i], "%lf", inState->minrad ); break;
-						case kResidual: fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); break;
-						case kMaxOverMin: fprintf( gnuplotDataFiles[i], "%lf", maxmin ); break;
-						case kRcond: fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); break;
-						case kWallTime: fprintf( gnuplotDataFiles[i], "%lf", (clock() - startTime)/((double)CLOCKS_PER_SEC) ); break;
-						case kMaxVertexForce: fprintf( gnuplotDataFiles[i], "%lf", (inState->maxPush)/(inState->length/(double)inState->totalVerts) ); break;
-						case kEQVariance: fprintf( gnuplotDataFiles[i], "%3.15lf %3.15lf", inState->eqVariance, inState->eqAvgDiff ); break;
-					}
-					fprintf( gnuplotDataFiles[i], "\n" );
-					fflush(gnuplotDataFiles[i]);
-					// show only last 5 seconds
-			//		fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
-					if( i == kLength )
-					{
-						if( getenv("DISPLAY") != NULL )
-							fprintf( gnuplotPipes[i], "set xrange [%lf:%lf]\n", inState->time-1, inState->time );
-					}
-					
-					if( getenv("DISPLAY") != NULL )
-					{
-						if( i != kEQVariance )
-							fprintf( gnuplotPipes[i], "plot \"%s\" using 1:2 w lines title \'", fname );
-						else
-							fprintf( gnuplotPipes[i], "plot \"%s\" u 1:3 w lines, \"%s\" using 1:2 w lines title \'", fname, fname );
-						
-						switch( i )
-						{
-							case kLength: fprintf( gnuplotPipes[i], "Length" ); break;
-							case kRopelength: fprintf( gnuplotPipes[i], "Ropelength" ); break;
-							case kStrutCount: fprintf( gnuplotPipes[i], "Strut count" ); break;
-							case kStepSize: fprintf( gnuplotPipes[i], "Step size" ); break;
-							case kThickness: fprintf( gnuplotPipes[i], "Thickness" ); break;
-							case kMinrad: fprintf( gnuplotPipes[i], "Minrad" ); break;
-							case kResidual: fprintf( gnuplotPipes[i], "Residual" ); break;
-							case kMaxOverMin: fprintf( gnuplotPipes[i], "Max/min" ); break;
-							case kRcond: fprintf( gnuplotPipes[i], "reciprocal condition number of A (rigidity matrix)" ); break;
-							case kWallTime: fprintf( gnuplotPipes[i], "process computation time" ); break;
-							case kMaxVertexForce: fprintf( gnuplotPipes[i], "maximum compression sum" ); break;
-							case kConvergence: fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); break;
-							case kEQVariance: fprintf( gnuplotPipes[i], "edge length variance from average" ); break;
-						}
-						fprintf( gnuplotPipes[i], "\'\n" ); 
-						fflush( gnuplotPipes[i] );
-					} // if $DISPLAY defined
-				}
-			} // for graph outputs
-		}
-		
-		/* Now we're done with movies. */
-		/* The next block draws a nice Geomview picture of everything. */
-		
-		if( gOutputFlag == 1 && gSuppressOutput == 0 )
-		{
-			char	fname[1024];
-			preptmpname(fname,"verts.vect",inState);
-			FILE* verts = fopen(fname, "w");
-			plCurve_draw(verts, *inLink);
-			fclose(verts);
-		}
-
-																
-		// eq ourselves
-	//	maxovermin(*inLink);
-		//lapack_eqedge( *inLink, 4 );
-	
-		//lapack_eqedge(*inLink, 4);		
-				
-	//	maxovermin(*inLink);
-	}
-	
-	/* inititalize piping if we are to use it */
-	for( i=0; i<kTotalGraphTypes; i++ )
+      inState->eq_step = 0;
+      
+      if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
 	{
-		if( inState->graphing[i] != 0 )
-		{
-			char	cmd[512];
-			char	fname[255];
-			
-			if( getenv("DISPLAY") != NULL )
-			{
-				sprintf( fname, "%dpipe", i );
-				// this will quit gnuplot
-				sprintf( cmd, "echo quit >> %s", fname );
-				system(cmd);
-				fclose(gnuplotPipes[i]);
-				sprintf(cmd, "rm -f %s", fname);
-				system(cmd);
-			} 
-			
-			sprintf( fname, "%ddat", i );
-			fclose(gnuplotDataFiles[i]);
-		
-			// you might want to keep these, actually
-		//	sprintf( cmd, "rm -f %s", fname );
-		//	system(cmd);
-		} 
+	  if( gQuiet == 0 )
+	    printf( "last correction step lsqr residual: %e\n", inState->ofvResidual );
 	}
+      
+      /* This gem detects whether we are shrinking or correcting
+	 errors.  The default state is "curvature_step = 1", which
+	 means shrinking.  But the "if" here can trigger a round of
+	 correction steps by changing curvature_step to 0.  Once that
+	 happens, we will again set curvature_step to 0 by running the
+	 "if" if things are still very bad, but we will be in the
+	 "else" if things have improved.
+      */
+      
+      if( (inState->shortest < 
+	   ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
+	  (inState->minrad < inState->minradOverstepTol && !inState->ignore_minrad) )
+	{
+	  // reset counter, this is our first correction attempt
+	  if( inState->curvature_step != 0 )
+	    {
+	      // before reset, output last number if we're recording this
+	      if( gPaperInfoInTmp != 0 )
+		{
+		  char	fname[512];
+		  preptmpname(fname,"correction_convergence",inState);
+		  FILE* tcc = fopen(fname,"a");
+		  fprintf(tcc, "%d\n", gCorrectionAttempts);
+		  fclose(tcc);
+		}
+	      
+	      gCorrectionAttempts = 1;
+	    }
+	  
+	  inState->curvature_step = 0;
+	}
+      else 
 	
-	// clean up
-	free(inState->compOffsets);  /* <- we must have a "flat" representation of all verts in order to 
-									   define columns in the rigidity matrix. This defines it. We 
-									   could make this process more natural in the plCurve 
-									   representation, but it's not clear that it's worth it. */
+	/* The current situation is not bad enough to trigger a new
+	   round of correction stepping.  But it might be bad enough
+	   to continue an existing round of correction stepping if we
+	   not yet reached the green zone. */
+	{
+	  
+	  double thickness = 2*inState->injrad;
+	  double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
+	  if( (inState->curvature_step == 0 && inState->shortest < greenZone	) ) //||
+	    //	(inState->curvature_step == 0 && inState->minrad < 0.49999 
+	    //   && inState->ignore_minrad==0) )
+	    {
+	      // we haven't finished yet, record
+	      gCorrectionAttempts++;
+	      
+	      inState->curvature_step = 0;
+	    }
+	  else
+	    inState->curvature_step = 1;
+	  
+	  if( inState->eq_step == 0 )
+	    cSteps++;
+	  else
+	    inState->curvature_step = 0;
+	}
+      
+      
+      /* Don't worry-- gOutputFlag will be set to 0 again later in bsearch_step */
+      /* by the way, "g" stands for global in variable names */
+      
+      if( (stepItr%50)==0 || gVerboseFiling != 0 )
+	gOutputFlag = 1;
+      
+      if( gSuppressOutput == 1 )
+	gOutputFlag = 0;
+      
+      
+      /************************************************************************/
+      
+      *inLink = bsearch_step(*inLink, inState);
+      
+      /************************************************************************/
+      
+      if( gPaperInfoInTmp != 0 )
+	{
+	  char fname[512];
+	  preptmpname(fname,"stepsizes", inState);
+	  FILE* ssFile = fopen(fname,"a");
+	  fprintf(ssFile, "%3.15lf\n", inState->stepSize);
+	  fclose(ssFile);
+	  
+	  preptmpname(fname, "torsion", inState);
+	  FILE* tFile = fopen(fname,"w");
+	  plCurve_torsion(*inLink, tFile);
+	  fclose(tFile);
+	  
+	  preptmpname(fname, "per_vert_residual", inState);
+	  FILE* rFile = fopen(fname,"w");
+	  for( vItr=0; vItr<inState->totalVerts; vItr++ )
+	    {
+	      fprintf(rFile, "%d %3.16lf\n", vItr, 
+		      cblas_dnrm2(3, &inState->perVertexResidual[3*vItr], 1) );
+	    }
+	  fclose(rFile);
+	}
+      
+      /*	getrusage(RUSAGE_SELF, &stopStepTime); user =
+		SECS(stopStepTime.ru_utime) -
+		SECS(startStepTime.ru_utime); printf( "STEP TIME
+		(user): %f strts: %d\n", user,
+		inState->lastStepStrutCount );
+      */
+      
+      inState->steps++;
+      
+      //	gOutputFlag = 1;
+      
+      //	if( lastSet != state.lastStepStrutCount || (i%50)==0 )
+      if( (i%50) == 0 ) // check things out every 50 steps
+	{
+	  //		refresh_display(*inLink);
+	  //		printf( "eqing\n" );
+	}
+      
+      /* This fixes a potential octrope bug (still present?) where the 
+	 thickness would be reported as NaN or DBL_MAX or something when 
+	 the curve had a pair of straight segments. Note that 
+	 
+	 injrad == theoretical thickness of the core curve
+	 shortest == actual current thickness of the core curve (presumably less)
+	 
+      */
+      
+      if( inState->shortest > 2*inState->injrad )
+	inState->shortest = 2*inState->injrad;
+      
+      /* minthickness is a data tracking variable-- the lowest
+	 thickness recorded during this run */
+      
+      if( inState->shortest < minthickness && inState->shortest != 0 )
+	minthickness = inState->shortest;
+      
+      /* by the way, k stands for "constant" variable */
+		
+      if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
+	{
+	  printf("s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: "\
+		 "%lf minrad: %lf rsdl: %e t: %lf\n", 
+		 inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
+		 inState->length, 2*inState->ropelength, inState->stepSize, 
+		 inState->shortest, inState->minrad, 
+		 inState->residual, inState->time );
+	}
+      
+      /* we are now going to check for whether we should terminate */
+      
+      if( inState->oldLengthTime == 0 )
+	{
+	  inState->oldLengthTime = inState->cstep_time;
+	  inState->oldLength = inState->length;
+	}
+      
+      /* these are the actual current criteria for completion */
+      /* in particular, this will double verts and keep going if desired. */
+      
+      if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
+	  fabs(inState->oldLength-inState->length) < inState->checkThreshold &&
+	  inState->residualThreshold >= inState->residual
+	  /*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
+	{
+	  // if we're going to die, it'll be after this, so save our best
+	  FILE* bestFile = NULL;
+	  char    fname[512];
+	  char adjustedName[512];
+	  
+	  strcpy(adjustedName, inState->fname);
+	  sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
+	  bestFile = fopen(fname, "w");
+	  
+	  plc_write(bestFile, *inLink);
+	  fclose(bestFile);
+	  
+	  if( inState->totalVerts > inState->refineUntil*(2*inState->ropelength) )
+	    {
+	      // we are DONE!
+	      break;
+	    }
+	  
+	  // the strut set can get violent after this change, so let's
+	  // make sure none exist.  it's a lot easier on the condition
+	  // number if it reemerges quickly than if it's changing
+	  // rapidly
+	  
+	  plc_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
+	  
+	  plCurve* oldLink = *inLink;
+	  *inLink = octrope_double_edges(*inLink);  
+	  /* in octrope_additions-- NOT a std octrope call */
+	  plc_free(oldLink);
+	  
+	  gConditionCheck = 20;  
+	  /*check condition number for next 10 evals -- this is where we'll fail*/
+	  
+	  // we need to update some state information also
+	  inState->totalVerts = 0;
+	  for( cItr=0; cItr<(*inLink)->nc; cItr++ )
+	    {
+	      inState->totalVerts += (*inLink)->cp[cItr].nv;
+	    }
+	  
+	  updateSideLengths(*inLink, inState); 
+	  
+	  /* We maintain a list of current side lengths in state, though it's not clear 
+	     we actually use it for anything. Probably, this doesn't hurt, however. */
+	  
+	  //	inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+	  //	if( kStepScale*plCurve_short_edge(*inLink) < inState->stepSize )
+	  //		inState->stepSize = kStepScale*plCurve_short_edge(*inLink);
+	  offset = 0;
+	  for( i=0; i<(*inLink)->nc; i++ )
+	    {
+	      inState->compOffsets[i] = offset;
+	      offset += (*inLink)->cp[i].nv;
+	    }
+	  
+	  gOutputFlag = 1;
+	  
+	  inState->residual = 500; // make this big
+	}
+      
+      if( (inState->oldLengthTime + inState->checkDelta) < inState->cstep_time )
+	{
+	  inState->oldLength = inState->length;
+	  inState->oldLengthTime = inState->cstep_time;
+	  if( gQuiet == 0 )
+	    printf( "* Checked delta rope and continuing\n" );
+	}
+      
+      double maxmin;
+      maxmin = maxovermin(*inLink, inState);
+      inState->lastMaxMin = maxmin;
+      if( maxmin > maxmaxmin )
+	maxmaxmin = maxmin;
+      //inState->eqMultiplier = 1;
+      
+      /* if( maxmin > 1.0001 ) inState->eq_step = 1;
+	 else inState->eq_step = 0;
+      */		
+
+      if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
+	{
+	  printf( "mm: %3.5lf eqM: %3.5lf (max mm: %3.5lf) "\
+		  "(min thick: %3.5lf) lrcond: %e cstep: %d eqAvgDif: %e\n", 
+		  maxmin, inState->eqMultiplier, maxmaxmin, minthickness, 
+		  inState->rcond, inState->curvature_step,
+		  inState->eqAvgDiff );
+	  
+	  printf( "cstep/step ratio: %lf delta length: %lf next check: %lf "\
+		  "check threshold: %lf\n", 
+		  ((double)cSteps)/((double)stepItr+1), 
+		  fabs(inState->oldLength-inState->length),
+		  inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
+	}
+      
+      /* This next block outputs VECTS for moviemaking. */
+      
+      if( inState->time >= nextMovieOutput )
+	{
+	  char	fname[512];
+	  FILE*   frame = NULL;
+	  
+	  struct rusage stopTime;
+	  double user;
+	  
+	  // grab time for this frame and reset counter
+	  getrusage(RUSAGE_SELF, &stopTime);
+	  user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
+	  if( gQuiet == 0 )
+	    printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
+	  else
+	    {
+	      // same stats when quiet, but not just once / viz output
+	      printf( "s: %d ms: %d len: %lf r: %lf ssize: %e "\
+		      "dcsd: %lf minrad: %lf rsdl: %e t: %lf cratio: %lf\n", 
+		      inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
+		      inState->length, 2*inState->ropelength, inState->stepSize, 
+		      inState->shortest, inState->minrad, 
+		      inState->residual, inState->time, 
+		      ((double)cSteps)/((double)stepItr+1) );
+	    }
+	  getrusage(RUSAGE_SELF, &inState->frameStart);
+	  
+	  if( inState->saveConvergence != 0 )
+	    {
+	      preptmpname(fname, "rrconvergence.txt", inState);
+	      FILE* conv = fopen(fname,"a");
+	      fprintf( conv, "%3.14lf %3.14lf\n", 
+		       inState->time, max(2*inState->length,2*inState->ropelength) );
+	      // flushes, most importantly
+	      fclose(conv);
+	    }
+	  
+	  //	nextMovieOutput += 0.05;
+	  // make things 24 fps
+	  nextMovieOutput += 0.041666666667;
+	  
+	  sprintf( fname, "restart_%s", inState->fname );
+	  //	(strstr(fname,".vect"))[0] = '\0';
+	  if( gQuiet == 0 )
+	    printf( "saved restart: %s\n", fname );
+	  frame = fopen( fname, "w" );
+	  plc_write(frame, *inLink);
+	  fclose(frame);
+			
+	  if( inState->movie != 0 )
+	    {
+	      sprintf( fname, "movie%s/rmov.%lf_evals-%d_strts-%d_length-%lf.vect", 
+		       inState->fname,
+		       inState->time, 
+		       inState->tsnnls_evaluations, 
+		       inState->lastStepStrutCount,
+		       inState->length );
+	      frame = fopen( fname, "w" );
+	      plc_write(frame, *inLink);
+	      fclose(frame);
+	      
+	      char cmd[1024];
+	      if( inState->lastStepStrutCount != 0 )
+		{
+		  char	foobear[1024];
+		  preptmpname(foobear,"struts.vect",inState);
+		  sprintf(cmd, "cp %s movie%s/struts.%lf.vect", 
+			  foobear, inState->fname, inState->time);
+		  system(cmd);
+		}
+	      
+	      if( gQuiet == 0 )
+		printf( "movie frame output (tsnnls evals: %d)\n", 
+			inState->tsnnls_evaluations );
+	      
+	    }
+	  
+	  gOutputFlag = 1;
+	  
+	  /* also do graph outputs */
+	  for( i=0; i<kTotalGraphTypes; i++ )
+	    {
+	      if( inState->graphing[i] != 0 )
+		{
+		  char fname[255];
+		  sprintf(fname, "%ddat", i);
+		  if( i != kConvergence )
+		    fprintf( gnuplotDataFiles[i], "%lf\t", inState->time );
+		  else
+		    fprintf( gnuplotDataFiles[i], "%u\t", inState->steps );
+		  switch( i )
+		    {
+		    case kLength: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->length );
+		      break;
+		    case kConvergence: 
+		    case kRopelength: 
+		      fprintf( gnuplotDataFiles[i], "%lf", 
+			       2*inState->ropelength ); 
+		      break;
+		    case kStrutCount: 
+		      fprintf( gnuplotDataFiles[i], "%d", 
+			       inState->lastStepStrutCount ); 
+		      break;
+		    case kStepSize: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); 
+		      break;
+		    case kThickness: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); 
+		      break;
+		    case kMinrad: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->minrad ); 
+		      break;
+		    case kResidual: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); 
+		      break;
+		    case kMaxOverMin: 
+		      fprintf( gnuplotDataFiles[i], "%lf", maxmin ); 
+		      break;
+		    case kRcond: 
+		      fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); 
+		      break;
+		    case kWallTime: 
+		      fprintf( gnuplotDataFiles[i], "%lf", 
+			       (clock() - startTime)/((double)CLOCKS_PER_SEC) ); 
+		      break;
+		    case kMaxVertexForce: 
+		      fprintf( gnuplotDataFiles[i], "%lf", 
+			       (inState->maxPush)/ 
+			       (inState->length/(double)inState->totalVerts) ); 
+		      break;
+		    case kEQVariance: 
+		      fprintf( gnuplotDataFiles[i], "%3.15lf %3.15lf", 
+			       inState->eqVariance, inState->eqAvgDiff ); break;
+		    }
+		  fprintf( gnuplotDataFiles[i], "\n" );
+		  fflush(gnuplotDataFiles[i]);
+		  // show only last 5 seconds
+		  // fprintf( gnuplotPipes[i], 
+		  //          "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
+		  if( i == kLength )
+		    {
+		      if( getenv("DISPLAY") != NULL )
+			fprintf( gnuplotPipes[i], 
+				 "set xrange [%lf:%lf]\n", 
+				 inState->time-1, inState->time );
+		    }
+		  
+		  if( getenv("DISPLAY") != NULL )
+		    {
+		      if( i != kEQVariance )
+			fprintf( gnuplotPipes[i], 
+				 "plot \"%s\" using 1:2 w lines title \'", fname );
+		      else
+			fprintf( gnuplotPipes[i], 
+				 "plot \"%s\" u 1:3 w lines, \"%s\" using 1:2 w "\
+				 "lines title \'", fname, fname );
+		      
+		      switch( i )
+			{
+			case kLength: 
+			  fprintf( gnuplotPipes[i], "Length" ); 
+			  break;
+			case kRopelength: 
+			  fprintf( gnuplotPipes[i], "Ropelength" ); 
+			  break;
+			case kStrutCount: 
+			  fprintf( gnuplotPipes[i], "Strut count" ); 
+			  break;
+			case kStepSize: 
+			  fprintf( gnuplotPipes[i], "Step size" ); 
+			  break;
+			case kThickness: 
+			  fprintf( gnuplotPipes[i], "Thickness" ); 
+			  break;
+			case kMinrad: 
+			  fprintf( gnuplotPipes[i], "Minrad" ); 
+			  break;
+			case kResidual: 
+			  fprintf( gnuplotPipes[i], "Residual" ); 
+			  break;
+			case kMaxOverMin: 
+			  fprintf( gnuplotPipes[i], "Max/min" ); 
+			  break;
+			case kRcond: 
+			  fprintf( gnuplotPipes[i], 
+				   "reciprocal condition number of A (rigidity matrix)");
+			  break;
+			case kWallTime: 
+			  fprintf( gnuplotPipes[i], "process computation time" ); 
+			  break;
+			case kMaxVertexForce: 
+			  fprintf( gnuplotPipes[i], "maximum compression sum" ); 
+			  break;
+			case kConvergence: 
+			  fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); 
+			  break;
+			case kEQVariance: 
+			  fprintf( gnuplotPipes[i],"edge length variance from average");
+			  break;
+			}
+		      fprintf( gnuplotPipes[i], "\'\n" ); 
+		      fflush( gnuplotPipes[i] );
+		    } // if $DISPLAY defined
+		}
+	    } // for graph outputs
+	}
+      
+      /* Now we're done with movies. */
+      /* The next block draws a nice Geomview picture of everything. */
+      
+      if( gOutputFlag == 1 && gSuppressOutput == 0 )
+	{
+	  char	fname[1024];
+	  preptmpname(fname,"verts.vect",inState);
+	  FILE* verts = fopen(fname, "w");
+	  plCurve_draw(verts, *inLink);
+	  fclose(verts);
+	}
+      
+      
+      // eq ourselves
+      //	maxovermin(*inLink);
+      //lapack_eqedge( *inLink, 4 );
+      
+      //lapack_eqedge(*inLink, 4);		
+      
+      //	maxovermin(*inLink);
+    }
+  
+  /* inititalize piping if we are to use it */
+  for( i=0; i<kTotalGraphTypes; i++ )
+    {
+      if( inState->graphing[i] != 0 )
+	{
+	  char	cmd[512];
+	  char	fname[255];
+	  
+	  if( getenv("DISPLAY") != NULL )
+	    {
+	      sprintf( fname, "%dpipe", i );
+	      // this will quit gnuplot
+	      sprintf( cmd, "echo quit >> %s", fname );
+	      system(cmd);
+	      fclose(gnuplotPipes[i]);
+	      sprintf(cmd, "rm -f %s", fname);
+	      system(cmd);
+	    } 
+	  
+	  sprintf( fname, "%ddat", i );
+	  fclose(gnuplotDataFiles[i]);
+	  
+	  // you might want to keep these, actually
+	  //	sprintf( cmd, "rm -f %s", fname );
+	  //	system(cmd);
+	} 
+    }
+  
+  // clean up
+  free(inState->compOffsets);  
+
+  /* <- we must have a "flat" representation of all verts in order to
+     define columns in the rigidity matrix. This defines it. We could
+     make this process more natural in the plCurve representation, but
+     it's not clear that it's worth it. */
 	
 }
 

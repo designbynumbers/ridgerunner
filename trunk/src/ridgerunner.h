@@ -33,14 +33,10 @@ void our_matrix_write(double val, double *A, int LDA, int i, int j);
 double maxError(plCurve *L, int comp, search_state* inState);
 
 plCurve*  octrope_fixlength( plCurve* inLink );
-plCurve*  octrope_equilize_density( plCurve* inLink, search_state* inState );
 plCurve*  octrope_double_edges( plCurve* inLink );
-plCurve*  octrope_double_component( plCurve* inLink, int comp );
 
 double	  plCurve_torsion( plCurve* inLink, FILE* outPlot );
 
-int    plc_strand_edges(plc_strand *P);
-double plc_strand_length(plc_strand *P); 
 double plCurve_short_edge(plCurve *L);
 double plCurve_long_edge(plCurve *L);
 

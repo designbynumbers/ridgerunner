@@ -20,6 +20,34 @@ which need to be provided if system libraries are lacking.
   #include <stdio.h>
 #endif
 
+#ifdef HAVE_STRING_H
+  #include <string.h>
+#endif
+
+#ifdef HAVE_TIME_H
+  #include <time.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+  #include <unistd.h>
+#endif
+
+#ifdef HAVE_SIGNAL_H
+  #include <signal.h>
+#endif
+
+#ifdef HAVE_SYS_TYPES_H
+  #include <sys/types.h>
+#endif
+
+#ifdef HAVE_SYS_STAT_H
+  #include <sys/stat.h>
+#endif
+
+#ifdef HAVE_SYS_DIR_H
+  #include <sys/dir.h>
+#endif
+
 #ifdef HAVE_MATH_H
   #include <math.h>
 #endif
@@ -39,4 +67,6 @@ which need to be provided if system libraries are lacking.
      #endif
   #endif
 #endif
+
+
 
