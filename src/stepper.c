@@ -2373,41 +2373,41 @@ placeContactStruts( double* A, plCurve* inLink, octrope_strut* strutSet, int str
 void
 updateSideLengths( plCurve* inLink, search_state* inState )
 {
-	int cItr, vItr;
-	
-	inState->totalSides = 0;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
+  int cItr, vItr;
+  
+  inState->totalSides = 0;
+  for( cItr=0; cItr<inLink->nc; cItr++ )
+    {
+      inState->totalSides += inLink->cp[cItr].nv;
+    }
+  
+  if( inState->sideLengths != NULL )
+    free(inState->sideLengths);
+  
+  inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
+  
+  int tot = 0;
+  for( cItr=0; cItr<inLink->nc; cItr++ )
+    {
+      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
 	{
-		inState->totalSides += inLink->cp[cItr].nv;
+	  plc_vector s1, s2, side;
+	  s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
+	  s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
+	  s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
+	  s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
+	  s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
+	  s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
+	  side.c[0] = s2.c[0] - s1.c[0];
+	  side.c[1] = s2.c[1] - s1.c[1];
+	  side.c[2] = s2.c[2] - s1.c[2];
+	  
+	  inState->sideLengths[inState->compOffsets[cItr] + vItr] = plc_M_norm(side);
+	  inState->avgSideLength += plc_M_norm(side);
+	  tot++;
 	}
-	
-	if( inState->sideLengths != NULL )
-		free(inState->sideLengths);
-	
-	inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
-	
-	int tot = 0;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-		{
-			plc_vector s1, s2, side;
-			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-			s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-			s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-			s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-			side.c[0] = s2.c[0] - s1.c[0];
-			side.c[1] = s2.c[1] - s1.c[1];
-			side.c[2] = s2.c[2] - s1.c[2];
-		
-			inState->sideLengths[inState->compOffsets[cItr] + vItr] = plc_M_norm(side);
-			inState->avgSideLength += plc_M_norm(side);
-			tot++;
-		}
-	}
-	inState->avgSideLength /= (double)tot;
+    }
+  inState->avgSideLength /= (double)tot;
 }
 
 void

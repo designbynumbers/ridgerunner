@@ -33,7 +33,7 @@ void our_matrix_write(double val, double *A, int LDA, int i, int j);
 double maxError(plCurve *L, int comp, search_state* inState);
 
 plCurve*  octrope_fixlength( plCurve* inLink );
-plCurve*  octrope_double_edges( plCurve* inLink );
+plCurve*  plCurve_fixresolution( plCurve* inLink, double newres );
 
 double	  plCurve_torsion( plCurve* inLink, FILE* outPlot );
 

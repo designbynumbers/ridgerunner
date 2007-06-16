@@ -84,18 +84,21 @@ plCurve_torsion( plCurve* inLink, FILE* outPlot )
 }
 
 plCurve*
-octrope_double_edges( plCurve* inLink )
+plCurve_fixresolution( plCurve* inLink, double newres)
 {
-  /* double number of sides through splining. An original version
-     doubled by splitting edges in half -- this can be recovered from
-     any of the archived versions of this file. */
+  /* 
+     Spline the curve so that the resolution is approximately <newres> 
+     vertices per unit ropelength. Uses the global gLambda to compute the 
+     thickness of the curve. 
 
   /* The procedure is nondestructive to the original curve. */
 
-  plCurve*   doubled;
+  plCurve*   newver;
   plc_spline *splinever;
   bool       ok;
   int        i,*nv = malloc(sizeof(int)*inLink->nc);
+  double     thickness;
+  double     *length = malloc(sizeof(double)*inLink->nc);
 
   splinever = plc_convert_to_spline(inLink,&ok);
 
@@ -106,12 +109,22 @@ octrope_double_edges( plCurve* inLink )
 
   }
 
-  for(i=0;i<inLink->nc;i++) {nv[i] = 2*inLink->cp[i].nv;}   /* Fill the nv array. */
-  doubled = plc_convert_from_spline(splinever,nv);
+  /* Now compute the number of vertices needed for the new curve. */
+
+  thickness = octrope_thickness(inLink,NULL,0,gLambda);
+  plc_arclength(inLink,length);
+  for(i=0;i<inLink->nc;i++) {nv[i] = ceil(newres*length[i]/thickness);}   
+
+  /* Generate the new curve */
+
+  newver = plc_convert_from_spline(splinever,nv);
+
+  /* Free memory and return. */
 
   free(nv);
+  free(length);
   plc_spline_free(splinever);
-  return doubled;
+  return newver;
 
 }
 

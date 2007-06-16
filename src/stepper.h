@@ -25,38 +25,47 @@
 
 enum GraphTypes
 {
-	kLength = 0,
-	kRopelength,
-	kStrutCount,
-	kStepSize,
-	kThickness,
-	kMinrad, 
-	kResidual,
-	kMaxOverMin,
-	kRcond,			// reciprocal condition number as estimated by LAPACK -- note this slows things down a bit
-	kWallTime,		// the wall time since the beginnging of run, wall time vs evolution time is useful to see where we're spending computation time
-	kMaxVertexForce,
-	kConvergence,   // the ropelength vs the number of steps,
-	kEQVariance,	// the variance of the set of (edge lengths - the average)
-	
-	kTotalGraphTypes
+  kLength = 0,
+  kRopelength,
+  kStrutCount,
+  kStepSize,
+  kThickness,
+  kMinrad, 
+  kResidual,
+  kMaxOverMin,
+  kRcond,	 // reciprocal condition number as estimated by LAPACK
+		 // -- note this slows things down a bit
+  kWallTime,		// the wall time since the beginning of run,
+			// wall time vs evolution time is useful to
+			// see where we're spending computation time
+  kMaxVertexForce,
+  kConvergence,   // the ropelength vs the number of steps,
+  kEQVariance,	// the variance of the set of (edge lengths - the average)
+  
+  kTotalGraphTypes
 };
 
 typedef struct
 {
   long	maxItrs;     // maximum number of steps to perform before quit
   
+  double stop20;     // must decrease by this amount per 20 steps to continue
+  
   short	saveConvergence;    // saving convergence info?
   short	movie;		    // are we generating movie frames?
   short	fancyVisualization; // fancy visualization stuff w/ geomview, gnuplot, and tube
   FILE*	fancyPipe;	    // geomview pipe if we're fancy
   
-  char	fname[512];
+  char	fname[1024];
+  char  finalfilename[1024];
+  char  finalstrutname[1024];
+  char  logfilename[1024];
+  char  vectprefix[1024];
   
-  double	correctionStepDefault;	// default correction step size
-  double	overstepTol;		// the amount we are willing to
+  double  correctionStepDefault;	// default correction step size
+  double  overstepTol;		        // the amount we are willing to
                                         // overstep before correcting strut length
-  double	minradOverstepTol;
+  double  minradOverstepTol;
   
   double  injrad;	 // the user specified injectivity radius of the link
   double  minrad;	 // Rawdon's minimum radius of curvature
@@ -132,7 +141,13 @@ typedef struct
   double  residualThreshold;	// threshold for residual stopping, will use if nonzero
   int	  refineUntil;	// keep running until discretization refineuntil x ropelength
   int	  ignore_minrad; // control minrad
-  
+
+  FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
+  char    logfilenames[128][128] = {
+    {"length","ropelength","strutcount","stepsize","thickness","minrad","residual",
+     "maxovermin","rcond","walltime","maxvertforce","convergence","edgelenvariance"}};
+  int     nlogs = {13};
+
   struct rusage	frameStart;
   
 } search_state;
