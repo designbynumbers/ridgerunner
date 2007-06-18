@@ -91,7 +91,7 @@ plCurve_fixresolution( plCurve* inLink, double newres)
      vertices per unit ropelength. Uses the global gLambda to compute the 
      thickness of the curve. 
 
-  /* The procedure is nondestructive to the original curve. */
+     The procedure is nondestructive to the original curve. */
 
   plCurve*   newver;
   plc_spline *splinever;

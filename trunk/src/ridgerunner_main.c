@@ -13,18 +13,11 @@ void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, plCurve** inLink, const char* fname );
 
-int gVerboseFiling = 0;
-int gSuppressOutput = 0;
-int gQuiet = 0;
-int gSurfaceBuilding = 0;
-int gAvoidTmpConflicts = 0;
-int gPaperInfoInTmp = 0;
-int gFastCorrectionSteps = 0;
-double gLambda = 1.0;   /* lambda-stiffness of rope */
+/* globals moved to ridgerunner.h */
 
-/* Yadda. Yadda. Yadda. */
-
-#define min(a,b) ((a)<(b)) ? (a) : (b)
+#ifndef min
+  #define min(a,b) ((a)<(b)) ? (a) : (b)
+#endif
 
 /*	
 	struct options longopts[] = { {"avoidTmpConflicts",
@@ -587,7 +580,11 @@ initializeState( search_state* state, plCurve** inLink, const char* fname )
   int cItr, i, offset=0;
   char	line[1024];
   FILE* fp = fopen(fname, "r"); // we would have failed earlier if this didn't exist
-  
+  static char *log_fnames[] = {
+    "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
+    "maxovermin","rcond","walltime","maxvertforce","convergence","edgelenvariance"
+  }; 
+
   // zero all those pointers
   bzero(state, sizeof(search_state));
   
@@ -638,6 +635,10 @@ initializeState( search_state* state, plCurve** inLink, const char* fname )
   fclose(fp);
   
   getrusage(RUSAGE_SELF, &state->frameStart);
+
+  state->nlogs = sizeof(log_fnames);
+  for(i=0;i<state->nlogs;i++) {state->logfilenames[i] = log_fnames[i];}
+
 }
 
 void
