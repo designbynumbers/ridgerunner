@@ -1,0 +1,48 @@
+Notes on Ridgerunner logging and file behavior.
+
+A RR run will create a subdirectory of the current directory with the name
+
+basename.rr
+
+In this directory is stored several files:
+
+basename.vect                  The original file without any modifications.
+basename.atstart.vect	       The file after autoscaling, reresing, and eqing.
+rrlog.dat                      Basic data collection for the run (updated during run).
+basename.final.vect            The current state of the link (updated during run).
+basename.final.struts          The struts, saved from octrope.
+
+A subdirectory
+
+logfiles
+
+stores a large array of logfiles containing different information about the run
+
+length.dat
+ropelength.dat
+strutcount.dat
+stepsize.dat
+thickness.dat
+minrad.dat
+residual.dat
+maxovermin.dat
+rcond.dat
+walltime.dat
+maxvertforce.dat
+convergence.dat
+edgelenvariance.dat
+
+The names and numbers of the logfiles are stored in
+state.logfilenames[] and the actual filehandles are in
+state.logfiles[]. The logfiles are enumerated in the type GraphTypes
+in stepper.h.
+
+If suppressfiles is not on, we also store intermediate steps in the
+subdirectory
+
+vectfiles            
+
+basename.000001.vect 
+.
+.
+basename.nnnnnn.vect
