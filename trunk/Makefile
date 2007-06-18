@@ -70,44 +70,31 @@ EXEEXT =
 OBJEXT = o
 PATH_SEPARATOR = :
 AMTAR = ${SHELL} /Users/cantarel/ridgerunner/missing --run tar
-AR = ar
-AS = @AS@
 AWK = gawk
 BLAS_LIBS =  
 CC = gcc
-CXX = g++
-CXXCPP = g++ -E
 DEPDIR = .deps
-DLLTOOL = @DLLTOOL@
-ECHO = echo
-EGREP = grep -E
 F77 = g77
 FLIBS =  -L/sw/lib/gcc/powerpc-apple-darwin8.0.0/3.4.3 -L/sw/lib/gcc/powerpc-apple-darwin8.0.0/3.4.3/../../.. -lfrtbegin -lg2c -lSystemStubs -lSystem -lmx /usr/lib/gcc/powerpc-apple-darwin8/4.0.0/libgcc.a
-GCJ = @GCJ@
-GCJFLAGS = @GCJFLAGS@
 INSTALL_STRIP_PROGRAM = ${SHELL} $(install_sh) -c -s
 LAPACK_LIBS = -framework vecLib
-LIBTOOL = $(SHELL) $(top_builddir)/libtool
 LIB_VERSION = 1:0:1
-LN_S = ln -s
-OBJDUMP = @OBJDUMP@
 PACKAGE = ridgerunner
-RANLIB = ranlib
-RC = @RC@
-STRIP = strip
+STRIP = 
 VERSION = 1.0.1
 am__include = include
 am__quote = 
 install_sh = /Users/cantarel/ridgerunner/install-sh
 
 AM_CFLAGS = -g -finline-functions -Wall
+AM_CPPFLAGS = -I$(srcdir)/src/
 
-bin_PROGRAMS = ridgerunner
-ridgerunner_SOURCES = ./src/display.c \
-	./src/errors.c \
-	./src/linklib_additions.c \
+bin_PROGRAMS = src/ridgerunner
+src_ridgerunner_SOURCES = src/errors.c \
+	src/dlen.c \
+	src/display.c \
+	src/linklib_additions.c \
 	./src/settings.c \
-	./src/dlen.c \
 	./src/ridgerunner_main.c \
         ./src/stepper.c \
 	./src/dlen.h \
@@ -117,7 +104,7 @@ ridgerunner_SOURCES = ./src/display.c \
 	./src/stepper.h 
 
 
-ridgerunner_LDADD = -lplCurve -ltsnnls 
+src_ridgerunner_LDADD = -lplCurve -ltsnnls -largtable2 -loctrope
 
 
 # We include a copy of the knotplot distribution of loose knots for testing.
@@ -203,15 +190,15 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = config.h
 CONFIG_CLEAN_FILES =
-bin_PROGRAMS = ridgerunner$(EXEEXT)
+bin_PROGRAMS = src/ridgerunner$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 
-am_ridgerunner_OBJECTS = display.$(OBJEXT) errors.$(OBJEXT) \
-	linklib_additions.$(OBJEXT) settings.$(OBJEXT) dlen.$(OBJEXT) \
-	ridgerunner_main.$(OBJEXT) stepper.$(OBJEXT)
-ridgerunner_OBJECTS = $(am_ridgerunner_OBJECTS)
-ridgerunner_DEPENDENCIES =
-ridgerunner_LDFLAGS =
+am_src_ridgerunner_OBJECTS = errors.$(OBJEXT) dlen.$(OBJEXT) \
+	display.$(OBJEXT) linklib_additions.$(OBJEXT) \
+	settings.$(OBJEXT) ridgerunner_main.$(OBJEXT) stepper.$(OBJEXT)
+src_ridgerunner_OBJECTS = $(am_src_ridgerunner_OBJECTS)
+src_ridgerunner_DEPENDENCIES =
+src_ridgerunner_LDFLAGS =
 
 DEFS = -DHAVE_CONFIG_H
 DEFAULT_INCLUDES =  -I. -I$(srcdir) -I.
@@ -227,24 +214,21 @@ DEP_FILES = ./$(DEPDIR)/display.Po ./$(DEPDIR)/dlen.Po \
 	./$(DEPDIR)/settings.Po ./$(DEPDIR)/stepper.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) \
-	$(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
-LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 CFLAGS = -g -O2
-DIST_SOURCES = $(ridgerunner_SOURCES)
+DIST_SOURCES = $(src_ridgerunner_SOURCES)
 DIST_COMMON = README AUTHORS COPYING ChangeLog INSTALL Makefile.am \
 	Makefile.in NEWS acinclude.m4 aclocal.m4 config.guess \
 	config.h.in config.sub configure configure.ac depcomp \
 	install-sh ltmain.sh missing mkinstalldirs
-SOURCES = $(ridgerunner_SOURCES)
+SOURCES = $(src_ridgerunner_SOURCES)
 
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .lo .o .obj
+.SUFFIXES: .c .o .obj
 
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno
@@ -285,11 +269,10 @@ install-binPROGRAMS: $(bin_PROGRAMS)
 	@list='$(bin_PROGRAMS)'; for p in $$list; do \
 	  p1=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
 	  if test -f $$p \
-	     || test -f $$p1 \
 	  ; then \
 	    f=`echo "$$p1" | sed 's,^.*/,,;$(transform);s/$$/$(EXEEXT)/'`; \
-	   echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(binPROGRAMS_INSTALL) $$p $(DESTDIR)$(bindir)/$$f"; \
-	   $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(binPROGRAMS_INSTALL) $$p $(DESTDIR)$(bindir)/$$f; \
+	   echo " $(INSTALL_PROGRAM_ENV) $(binPROGRAMS_INSTALL) $$p $(DESTDIR)$(bindir)/$$f"; \
+	   $(INSTALL_PROGRAM_ENV) $(binPROGRAMS_INSTALL) $$p $(DESTDIR)$(bindir)/$$f; \
 	  else :; fi; \
 	done
 
@@ -302,27 +285,27 @@ uninstall-binPROGRAMS:
 	done
 
 clean-binPROGRAMS:
-	@list='$(bin_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
-	done
-display.$(OBJEXT): ./src/display.c
-errors.$(OBJEXT): ./src/errors.c
-linklib_additions.$(OBJEXT): ./src/linklib_additions.c
+	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
+errors.$(OBJEXT): src/errors.c
+dlen.$(OBJEXT): src/dlen.c
+display.$(OBJEXT): src/display.c
+linklib_additions.$(OBJEXT): src/linklib_additions.c
 settings.$(OBJEXT): ./src/settings.c
-dlen.$(OBJEXT): ./src/dlen.c
 ridgerunner_main.$(OBJEXT): ./src/ridgerunner_main.c
 stepper.$(OBJEXT): ./src/stepper.c
-ridgerunner$(EXEEXT): $(ridgerunner_OBJECTS) $(ridgerunner_DEPENDENCIES) 
-	@rm -f ridgerunner$(EXEEXT)
-	$(LINK) $(ridgerunner_LDFLAGS) $(ridgerunner_OBJECTS) $(ridgerunner_LDADD) $(LIBS)
+src/.dirstamp:
+	@$(mkinstalldirs) src
+	@: > src/.dirstamp
+src/ridgerunner$(EXEEXT): $(src_ridgerunner_OBJECTS) $(src_ridgerunner_DEPENDENCIES) src/.dirstamp
+	@rm -f src/ridgerunner$(EXEEXT)
+	$(LINK) $(src_ridgerunner_LDFLAGS) $(src_ridgerunner_OBJECTS) $(src_ridgerunner_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT) core *.core
 
 distclean-compile:
 	-rm -f *.tab.c
+	-rm -f src/.dirstamp
 
 include ./$(DEPDIR)/display.Po
 include ./$(DEPDIR)/dlen.Po
@@ -347,65 +330,53 @@ distclean-depend:
 	$(CCDEPMODE) $(depcomp) \
 	$(COMPILE) -c `cygpath -w $<`
 
-.c.lo:
-	source='$<' object='$@' libtool=yes \
-	depfile='$(DEPDIR)/$*.Plo' tmpdepfile='$(DEPDIR)/$*.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LTCOMPILE) -c -o $@ `test -f '$<' || echo '$(srcdir)/'`$<
-
-display.o: ./src/display.c
-	source='./src/display.c' object='display.o' libtool=no \
-	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.o `test -f './src/display.c' || echo '$(srcdir)/'`./src/display.c
-
-display.obj: ./src/display.c
-	source='./src/display.c' object='display.obj' libtool=no \
-	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.obj `cygpath -w ./src/display.c`
-
-display.lo: ./src/display.c
-	source='./src/display.c' object='display.lo' libtool=yes \
-	depfile='$(DEPDIR)/display.Plo' tmpdepfile='$(DEPDIR)/display.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.lo `test -f './src/display.c' || echo '$(srcdir)/'`./src/display.c
-
-errors.o: ./src/errors.c
-	source='./src/errors.c' object='errors.o' libtool=no \
+errors.o: src/errors.c
+	source='src/errors.c' object='errors.o' libtool=no \
 	depfile='$(DEPDIR)/errors.Po' tmpdepfile='$(DEPDIR)/errors.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o errors.o `test -f './src/errors.c' || echo '$(srcdir)/'`./src/errors.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o errors.o `test -f 'src/errors.c' || echo '$(srcdir)/'`src/errors.c
 
-errors.obj: ./src/errors.c
-	source='./src/errors.c' object='errors.obj' libtool=no \
+errors.obj: src/errors.c
+	source='src/errors.c' object='errors.obj' libtool=no \
 	depfile='$(DEPDIR)/errors.Po' tmpdepfile='$(DEPDIR)/errors.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o errors.obj `cygpath -w ./src/errors.c`
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o errors.obj `cygpath -w src/errors.c`
 
-errors.lo: ./src/errors.c
-	source='./src/errors.c' object='errors.lo' libtool=yes \
-	depfile='$(DEPDIR)/errors.Plo' tmpdepfile='$(DEPDIR)/errors.TPlo' \
+dlen.o: src/dlen.c
+	source='src/dlen.c' object='dlen.o' libtool=no \
+	depfile='$(DEPDIR)/dlen.Po' tmpdepfile='$(DEPDIR)/dlen.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o errors.lo `test -f './src/errors.c' || echo '$(srcdir)/'`./src/errors.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.o `test -f 'src/dlen.c' || echo '$(srcdir)/'`src/dlen.c
 
-linklib_additions.o: ./src/linklib_additions.c
-	source='./src/linklib_additions.c' object='linklib_additions.o' libtool=no \
+dlen.obj: src/dlen.c
+	source='src/dlen.c' object='dlen.obj' libtool=no \
+	depfile='$(DEPDIR)/dlen.Po' tmpdepfile='$(DEPDIR)/dlen.TPo' \
+	$(CCDEPMODE) $(depcomp) \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.obj `cygpath -w src/dlen.c`
+
+display.o: src/display.c
+	source='src/display.c' object='display.o' libtool=no \
+	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
+	$(CCDEPMODE) $(depcomp) \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.o `test -f 'src/display.c' || echo '$(srcdir)/'`src/display.c
+
+display.obj: src/display.c
+	source='src/display.c' object='display.obj' libtool=no \
+	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
+	$(CCDEPMODE) $(depcomp) \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.obj `cygpath -w src/display.c`
+
+linklib_additions.o: src/linklib_additions.c
+	source='src/linklib_additions.c' object='linklib_additions.o' libtool=no \
 	depfile='$(DEPDIR)/linklib_additions.Po' tmpdepfile='$(DEPDIR)/linklib_additions.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.o `test -f './src/linklib_additions.c' || echo '$(srcdir)/'`./src/linklib_additions.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.o `test -f 'src/linklib_additions.c' || echo '$(srcdir)/'`src/linklib_additions.c
 
-linklib_additions.obj: ./src/linklib_additions.c
-	source='./src/linklib_additions.c' object='linklib_additions.obj' libtool=no \
+linklib_additions.obj: src/linklib_additions.c
+	source='src/linklib_additions.c' object='linklib_additions.obj' libtool=no \
 	depfile='$(DEPDIR)/linklib_additions.Po' tmpdepfile='$(DEPDIR)/linklib_additions.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.obj `cygpath -w ./src/linklib_additions.c`
-
-linklib_additions.lo: ./src/linklib_additions.c
-	source='./src/linklib_additions.c' object='linklib_additions.lo' libtool=yes \
-	depfile='$(DEPDIR)/linklib_additions.Plo' tmpdepfile='$(DEPDIR)/linklib_additions.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.lo `test -f './src/linklib_additions.c' || echo '$(srcdir)/'`./src/linklib_additions.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.obj `cygpath -w src/linklib_additions.c`
 
 settings.o: ./src/settings.c
 	source='./src/settings.c' object='settings.o' libtool=no \
@@ -419,30 +390,6 @@ settings.obj: ./src/settings.c
 	$(CCDEPMODE) $(depcomp) \
 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.obj `cygpath -w ./src/settings.c`
 
-settings.lo: ./src/settings.c
-	source='./src/settings.c' object='settings.lo' libtool=yes \
-	depfile='$(DEPDIR)/settings.Plo' tmpdepfile='$(DEPDIR)/settings.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.lo `test -f './src/settings.c' || echo '$(srcdir)/'`./src/settings.c
-
-dlen.o: ./src/dlen.c
-	source='./src/dlen.c' object='dlen.o' libtool=no \
-	depfile='$(DEPDIR)/dlen.Po' tmpdepfile='$(DEPDIR)/dlen.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.o `test -f './src/dlen.c' || echo '$(srcdir)/'`./src/dlen.c
-
-dlen.obj: ./src/dlen.c
-	source='./src/dlen.c' object='dlen.obj' libtool=no \
-	depfile='$(DEPDIR)/dlen.Po' tmpdepfile='$(DEPDIR)/dlen.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.obj `cygpath -w ./src/dlen.c`
-
-dlen.lo: ./src/dlen.c
-	source='./src/dlen.c' object='dlen.lo' libtool=yes \
-	depfile='$(DEPDIR)/dlen.Plo' tmpdepfile='$(DEPDIR)/dlen.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.lo `test -f './src/dlen.c' || echo '$(srcdir)/'`./src/dlen.c
-
 ridgerunner_main.o: ./src/ridgerunner_main.c
 	source='./src/ridgerunner_main.c' object='ridgerunner_main.o' libtool=no \
 	depfile='$(DEPDIR)/ridgerunner_main.Po' tmpdepfile='$(DEPDIR)/ridgerunner_main.TPo' \
@@ -455,12 +402,6 @@ ridgerunner_main.obj: ./src/ridgerunner_main.c
 	$(CCDEPMODE) $(depcomp) \
 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.obj `cygpath -w ./src/ridgerunner_main.c`
 
-ridgerunner_main.lo: ./src/ridgerunner_main.c
-	source='./src/ridgerunner_main.c' object='ridgerunner_main.lo' libtool=yes \
-	depfile='$(DEPDIR)/ridgerunner_main.Plo' tmpdepfile='$(DEPDIR)/ridgerunner_main.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.lo `test -f './src/ridgerunner_main.c' || echo '$(srcdir)/'`./src/ridgerunner_main.c
-
 stepper.o: ./src/stepper.c
 	source='./src/stepper.c' object='stepper.o' libtool=no \
 	depfile='$(DEPDIR)/stepper.Po' tmpdepfile='$(DEPDIR)/stepper.TPo' \
@@ -472,22 +413,7 @@ stepper.obj: ./src/stepper.c
 	depfile='$(DEPDIR)/stepper.Po' tmpdepfile='$(DEPDIR)/stepper.TPo' \
 	$(CCDEPMODE) $(depcomp) \
 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.obj `cygpath -w ./src/stepper.c`
-
-stepper.lo: ./src/stepper.c
-	source='./src/stepper.c' object='stepper.lo' libtool=yes \
-	depfile='$(DEPDIR)/stepper.Plo' tmpdepfile='$(DEPDIR)/stepper.TPlo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.lo `test -f './src/stepper.c' || echo '$(srcdir)/'`./src/stepper.c
 CCDEPMODE = depmode=gcc3
-
-mostlyclean-libtool:
-	-rm -f *.lo
-
-clean-libtool:
-	-rm -rf .libs _libs
-
-distclean-libtool:
-	-rm -f libtool
 uninstall-info-am:
 
 ETAGS = etags
@@ -646,13 +572,12 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic clean-libtool mostlyclean-am
+clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 distclean-am: clean-am distclean-compile distclean-depend \
-	distclean-generic distclean-hdr distclean-libtool \
-	distclean-tags
+	distclean-generic distclean-hdr distclean-tags
 
 dvi: dvi-am
 
@@ -679,23 +604,21 @@ maintainer-clean-am: distclean-am maintainer-clean-generic
 
 mostlyclean: mostlyclean-am
 
-mostlyclean-am: mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool
+mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
 uninstall-am: uninstall-binPROGRAMS uninstall-info-am
 
 .PHONY: GTAGS all all-am check check-am clean clean-binPROGRAMS \
-	clean-generic clean-libtool dist dist-all dist-gzip distcheck \
-	distclean distclean-compile distclean-depend distclean-generic \
-	distclean-hdr distclean-libtool distclean-tags distcleancheck \
-	distdir dvi dvi-am info info-am install install-am \
-	install-binPROGRAMS install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	tags uninstall uninstall-am uninstall-binPROGRAMS \
-	uninstall-info-am
+	clean-generic dist dist-all dist-gzip distcheck distclean \
+	distclean-compile distclean-depend distclean-generic \
+	distclean-hdr distclean-tags distcleancheck distdir dvi dvi-am \
+	info info-am install install-am install-binPROGRAMS \
+	install-data install-data-am install-exec install-exec-am \
+	install-info install-info-am install-man install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic tags uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-info-am
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

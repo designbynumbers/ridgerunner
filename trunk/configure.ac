@@ -45,7 +45,6 @@ AM_CONFIG_HEADER([config.h])
 
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_LIBTOOL
 
 # Checks for functions
 AC_CHECK_FUNCS([memset memcpy])
