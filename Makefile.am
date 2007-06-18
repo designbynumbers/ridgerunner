@@ -3,13 +3,14 @@
 #
 
 AM_CFLAGS = -g -finline-functions -Wall
+AM_CPPFLAGS = -I$(srcdir)/src/
 
-bin_PROGRAMS = ridgerunner
-ridgerunner_SOURCES = ./src/display.c \
-	./src/errors.c \
-	./src/linklib_additions.c \
+bin_PROGRAMS = src/ridgerunner
+src_ridgerunner_SOURCES = src/errors.c \
+	src/dlen.c \
+	src/display.c \
+	src/linklib_additions.c \
 	./src/settings.c \
-	./src/dlen.c \
 	./src/ridgerunner_main.c \
         ./src/stepper.c \
 	./src/dlen.h \
@@ -18,7 +19,7 @@ ridgerunner_SOURCES = ./src/display.c \
         ./src/settings.h \
 	./src/stepper.h 
 
-ridgerunner_LDADD = -lplCurve -ltsnnls 
+src_ridgerunner_LDADD = -lplCurve -ltsnnls -largtable2 -loctrope
 
 # We include a copy of the knotplot distribution of loose knots for testing.
 
