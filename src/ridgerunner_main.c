@@ -33,7 +33,7 @@ void initializeState( search_state* state, plCurve** inLink, const char* fname )
 		&fancyViz, 1}, {"infile", required_argument, NULL,
 		'a'}, {"scale", required_argument, NULL, 'b'},
 		{"checkDelta", required_argument, NULL, 'c'},
-		{"injrad", required_argument, NULL, 'd'},
+		{"tube_radius", required_argument, NULL, 'd'},
 		{"eqMultiplier", required_argument, NULL, 'e'},
 		{"residualThreshold", required_argument, NULL, 'f'},
 		{"refineUntil", required_argument, NULL, 'g'},
@@ -56,7 +56,7 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_curveopts = arg_rem("","Operations on input curve before run");
 
   struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","automatically scale curve "
-					    "to thickness 2.001");
+					    "to thickness 1.001");
 
   struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<# verts/unit ropelength>",
 					     "spline the curve to this resolution");
@@ -122,15 +122,11 @@ main( int argc, char* argv[] )
 
   plCurve*	link = NULL;
   FILE*		linkFile = NULL;
-  int		cItr=0;
   search_state	state;
-  char		opt;
-  char		cmd[1024];
-  short		autoscale = 0, fixlengths = 0, movie = 0;
+  short		autoscale = 0, movie = 0;
   double	refineUntil = -1;  /* Used to be an int */
-  int           ignorecurvature=0;
   
-  double	injrad = 0.5, overstepTol=0.0001; /* Should this be injrad = 1? */
+  double	tube_radius = 0.5, overstepTol=0.0001; /* Should this be tube_radius = 1? */
   double	residualThreshold = 65000;
   
   /*double	checkThreshold = 0.05;
@@ -139,17 +135,15 @@ main( int argc, char* argv[] )
   double        stop20 = 0.0;
 
   double        eqMult = 2.0;
-  int		doubleCount = 0;
+
 
   char		fname[1024];
-  short		fancyViz = 0, saveConvergence = 0;
-  double	scaleAmt = 1;
   double	maxStep = -1;
   long		maxItrs = -1;
   int		graphIt[kTotalGraphTypes];
-  int		gItr;
   double	correctionStepSize = 0.25;
   double	minradOverstepTol = 0.499975;
+  int           i;
   
   for(i=0;i<kTotalGraphTypes;i++) {graphIt[i] = 0;}
   srand(time(NULL));
@@ -192,6 +186,8 @@ main( int argc, char* argv[] )
     arg_freetable(argtable,sizeof(argtable)/sizeof(argtable[0]));
     return 1;
   }
+
+  /* Now we move the arguments into local variables. */
    
   if (arg_cstep_size->count > 0) { 
 
@@ -207,7 +203,7 @@ main( int argc, char* argv[] )
 
   /* Note: there used to be a way to turn on "gSurfaceBuilding" and "gVerboseFiling" */
 
-  if (arg_mroverstep->count > 0) {minradOverstepTol = lambda - arg_mroverstep->dval[0];}
+  if (arg_mroverstep->count > 0) {minradOverstepTol = gLambda - arg_mroverstep->dval[0];}
 
   if (arg_suppressfiles->count > 0) { gSuppressOutput = 1; }
 
@@ -223,7 +219,7 @@ main( int argc, char* argv[] )
 
   if (arg_eqmult->count > 0) { eqMult = arg_eqmult->dval[0]; }
 
-  /* Note: There used to be a way to change "injrad", "scaleamt", and "fixlengths" 
+  /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
   
   if (arg_autoscale->count > 0) { autoscale = 1; }
@@ -231,15 +227,126 @@ main( int argc, char* argv[] )
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
 
-  /* We now open the given link file. */
+  /* We now set as much of "state" as we can from this amount of data. */
+  
+  initializeState( &state, &link, fname);
+  updateSideLengths(link, &state);
 
-  linkFile = fopen(arg_infile->filename[0],"r");
+  state.stop20 = stop20;
+  
+  state.refineUntil = refineUntil;
+  state.movie = movie;
+  
+  state.overstepTol = overstepTol;
+  state.minradOverstepTol = minradOverstepTol;
+  state.minminrad = minradOverstepTol;
+  
+  state.eqMultiplier = eqMult;
+  state.residualThreshold = residualThreshold;
 
-  if( linkFile == NULL ) {
-    
-    fprintf(stderr, "ridgerunner: Couldn't open file %s\n", arg_infile->filename);
+  sprintf(state.finalfilename,"./%s.rr/%s.final.vect",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  sprintf(state.finalstrutname,"./%s.rr/%s.final.struts",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  sprintf(state.vectprefix,"./%s.rr/vectfiles/%s",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  sprintf(state.logfilename,"./%s.rr/%s.log",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  sprintf(state.fprefix,"./%s.rr/",arg_infile->basename[0]);
+
+  /* We now open the local directory for storing output. */
+  
+  char cmdline[1024];
+  
+  sprintf(cmdline,"rm -fr %s.rr",arg_infile->basename[0]);
+  system(cmdline);
+  sprintf(cmdline,"mkdir %s.rr",arg_infile->basename[0]);
+
+  if (system(cmdline) > 0) {
+
+    printf("Created directory %s.rr to hold output of this run.\n",
+	   arg_infile->basename[0]);
+
+  } else {
+
+    printf("WARNING. Creation of output directory %s.rr may have failed.\n",
+	   arg_infile->basename[0]);
+
+  }
+
+  sprintf(cmdline,"mkdir %s.rr/logfiles",arg_infile->basename[0]);
+
+  if (system(cmdline) <= 0) {
+
+    printf("WARNING. Creation of logfile directory %s.rr/logfiles may have failed.\n",
+	   arg_infile->basename[0]);
+
+  }
+
+  if (arg_suppressfiles->count == 0) {
+
+    sprintf(cmdline,"mkdir %s.rr/vectfiles",arg_infile->basename[0]);
+
+  }
+
+  /* We now initialize the log with a lot of (hopefully) helpful information
+     about the run. */
+
+  gLogfile = fopen(state.logfilename,"w");
+  if (gLogfile == NULL) { 
+    fprintf(stderr,"Ridgerunner: Couldn't open logfile %s.\n",state.logfilename);
     exit(1);
   }
+
+  fprintf(gLogfile,"Ridgerunner logfile.\n");
+
+  #ifdef HAVE_ASCTIME
+  #ifdef HAVE_LOCALTIME
+  #ifdef HAVE_TIME
+  
+  time_t start_time;
+  start_time = time(NULL);
+
+  fprintf(gLogfile,"Run began: %s.\n",asctime(localtime(&start_time)));
+
+  #else
+
+  fprintf(gLogfile,
+	  "Warning: system doesn't have 'time' function.\n"
+	  "         data logs won't include time information.\n");
+
+  #endif
+  #else
+
+  fprintf(gLogfile,
+	  "Warning: system doesn't have 'localtime' function.\n"
+	  "         data logs won't include time information.\n");
+  
+  #endif
+  #else
+
+  fprintf(gLogfile,
+	  "Warning: system doesn't have 'asctime' function.\n"
+	  "         data logs won't include time information");
+  #endif
+
+  fprintf(gLogfile,"Initial filename: %s.\n",
+	  arg_infile->filename[0]);
+
+  fprintf(gLogfile,"Command line: ");
+
+  for(i=0;i<argc;i++) {
+
+    fprintf(gLogfile,"%s ",argv[i]);
+
+  } 
+  
+  fprintf(gLogfile,"\n");
+  fprintf(gLogfile,"------------------------------------------------\n");
+
+  /* We now open the given link file. */
+
+  linkFile = fopen_or_die(arg_infile->filename[0],"r", __FILE__ , __LINE__ );
 
   int plc_read_error_num;
   char plc_error_string[1024];
@@ -249,75 +356,37 @@ main( int argc, char* argv[] )
 
   if (plc_read_error_num != 0) {
 
-    fprintf(stderr,"ridgerunner: file %s had \n"
-	    "             plc_read error %s.\n",plc_error_string);
-    exit(1);
+    sprintf(errmsg,"ridgerunner: file %s had \n"
+	    "             plc_read error %s.\n",
+	    arg_infile->filename[0],plc_error_string);
+    FatalError(errmsg, __FILE__, __LINE__ );
     
   }
 
-  strncpy(fname,arg_infile->basename,sizeof(fname));
+  strncpy(fname,arg_infile->basename[0],sizeof(fname));
   fclose(linkFile);
 
   printf("Loaded %d component, %d vertex plCurve from %s.\n",
 	 link->nc,plc_num_verts(link),fname);
-
-  /* We now open the local directory for storing output. */
-
-  char cmdline[1024];
-
-  sprintf(cmdline,"rm -fr %s.rr",arg_infile->basename);
-  system(cmdline);
-  sprintf(cmdline,"mkdir %s.rr",arg_infile->basename);
-
-  if (system(cmdline) > 0) {
-
-    printf("Created directory %s.rr to hold output of this run.\n",
-	   arg_infile->basename);
-
-  } else {
-
-    printf("WARNING. Creation of output directory %s.rr may have failed.\n",
-	   arg_infile->basename);
-
-  }
-
-  sprintf(cmdline,"mkdir %s.rr/logfiles",arg_infile->basename);
-
-  if (system(cmdline) <= 0) {
-
-    printf("WARNING. Creation of logfile directory %s.rr/logfiles may have failed.\n");
-
-  }
-
-  if (arg_suppressfiles->count == 0) {
-
-    sprintf(cmdline,"mkdir %s.rr/vectfiles",arg_infile->basename);
-
-  }
+  fprintf(gLogfile,"Loaded %d component, %d vertex plCurve from %s.\n",
+	 link->nc,plc_num_verts(link),fname);
 
   /* We archive a version of the initial input file in the run directory. */
 
   char filename[1024];
   FILE *savefile;
 
-  sprintf(filename,"./%s.rr/%s.vect",arg_infile->basename,arg_infile->basename);
-  
-  savefile = fopen(filename,"w");
-  
-  if (savefile == NULL) {
-
-    fprintf(stderr,"ridgerunner: Couldn't open archive copy %s for writing.\n",
-	    filename);
-    exit(1);
-
-  }
-
+  sprintf(filename,"./%s.rr/%s.vect",arg_infile->basename[0],arg_infile->basename[0]);
+  savefile = fopen_or_die(filename,"w", __FILE__, __LINE__ );
   plc_write(savefile,link);
   fclose(savefile);
 
-  printf("Saved copy of %s to %s.\n",arg_infile->filename,filename);
+  printf("Saved copy of %s to %s.\n",arg_infile->filename[0],filename);
+  fprintf(gLogfile,"Saved copy of %s to %s.\n",arg_infile->filename[0],filename);
 
   /* Now perform initial operations. */
+
+  plCurve *tempLink;
 
   if (arg_resolution->count > 0) {
 
@@ -326,6 +395,8 @@ main( int argc, char* argv[] )
     link = tempLink;
 
     printf("Splined to resolution of %g verts/rop. New curve has %d verts.\n",
+	   arg_resolution->dval[0],plc_num_verts(link));
+    fprintf(gLogfile,"Splined to resolution of %g verts/rop. New curve has %d verts.\n",
 	   arg_resolution->dval[0],plc_num_verts(link));
 
   }
@@ -342,26 +413,32 @@ main( int argc, char* argv[] )
 
     printf("Equilateralized curve has max edgelength/min edgelength %g.\n",
 	   plCurve_long_edge(link)/plCurve_short_edge(link));
+    fprintf(gLogfile,"Equilateralized curve has max edgelength/min edgelength %g.\n",
+	   plCurve_long_edge(link)/plCurve_short_edge(link));
 
   }
 
-  if( arg_autoscale->count > 0 ) {
+  double thickness;
+  thickness = octrope_thickness(link,NULL,0,gLambda);
 
-    double thickness;
+  if( arg_autoscale->count > 0 || thickness < state.tube_radius + 0.001)) {
 
+    printf("Curve has thickness %g. Scaling to thickness %g.\n",
+	   thickness,state.tube_radius + 0.001);
+    fprintf(gLogfile,"Curve has thickness %g. Scaling to thickness %g.\n",
+	    thickness,state.tube_radius + 0.001);
+
+    plc_scale(link,(state.tube_radius + 0.001)/thickness);
     thickness = octrope_thickness(link,NULL,0,gLambda);
-    printf("Curve has thickness %g. Autoscaling to thickness 2.001.\n",
-	   thickness);
-    plc_scale(link,2.001/thickness);
-    thickness = octrope_thickness(link,NULL,0,gLambda);
+    
     printf("Scaled curve has thickness %g.",thickness);
+    fprintf(gLogfile,"Scaled curve has thickness %g.",thickness);
+    
+    if (fabs(thickness - (state.tube_radius + 0.001) > 1e-12) {
 
-    if (fabs(thickness - 2.001) > 1e-12) {
-
-      printf("\n");
-      fprintf(stderr,"ridgerunner: Failed to scale %s to thickness 2.001."
+      sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness 1.001."
 	      "             Aborting run.\n",fname);
-      exit(1);
+      FatalError(errmsg, __FILE__ , __LINE__ );
 
     } else {
 
@@ -373,52 +450,19 @@ main( int argc, char* argv[] )
 
   /* Now save the modified file so that we record what we actually ran with. */
 
-  sprintf(filename,"./%s.rr/%s.atstart.vect",arg_infile->basename,arg_infile->basename);
-  savefile = fopen(filename,"w");
-  
-  if (savefile == NULL) {
-
-    fprintf(stderr,"ridgerunner: Couldn't open atstart save version %s for writing.\n",
-	    filename);
-    exit(1);
-
-  }
-
+  sprintf(filename,"./%s.rr/%s.atstart.vect",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  savefile = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   plc_write(savefile,link);
   fclose(savefile);
 
-  printf("Rerez'd, autoscaled, eq'd file written to %s.\n",filename);
+  printf("ridgerunner: Rerez'd, autoscaled, eq'd file written to %s.\n",filename);
+  fprintf(gLogfile,"ridgerunner: Rerez'd, autoscaled, eq'd file written to %s.\n",
+	  filename);
     
-  /* Now get the rest of the program ready to go. */
-  
-  initializeState( &state, &link, fname);
-  updateSideLengths(link, &state);
+  /* We now initialize the link-dependent parts of "state". */
 
-  state.stop20 = stop20;
-  
-  state.refineUntil = refineUntil;
-  state.checkDelta = checkDelta;
-  state.checkThreshold = checkThreshold;
-  state.movie = movie;
-  
-  state.injrad = injrad;
-  state.overstepTol = overstepTol;
-  state.minradOverstepTol = minradOverstepTol;
-  state.minminrad = minradOverstepTol;
-  
-  state.eqMultiplier = eqMult;
-  state.residualThreshold = residualThreshold;
-
-  sprintf(state.finalfilename,"./%s.rr/%s.final.vect",
-	  arg_infile->basename,arg_infile->basename);
-  sprintf(state.finalstrutname,"./%s.rr/%s.final.struts",
-	  arg_infile->basename,arg_infile->basename);
-  sprintf(state.logfilename,"./%s.rr/%s.rrlog.dat",
-	  arg_infile->basename,arg_infile->basename);
-  sprintf(state.vectprefix,"./%s.rr/vectfiles/%s",
-	  arg_infile->basename,arg_infile->basename); 
-
-    /* Piatek's realtime graphing fanciness has been replaced by
+  /* Piatek's realtime graphing fanciness has been replaced by
      comprehensive data logging, so a bunch of code was deleted
      here. */
     
@@ -431,71 +475,21 @@ main( int argc, char* argv[] )
   state.stepSize = min(state.stepSize, state.maxStepSize);
   state.maxItrs = maxItrs;  
   state.correctionStepDefault = correctionStepSize;
-  
+
+  state.minrad = octrope_minradval(link);
+  state.thickness = octrope_thickness(link,NULL,0,gLambda);
+  state.ropelength = plc_arclength(link,NULL)/state.thickness;
+  state.residual = DBL_MAX;
+  state.shortest = state.thickness+1.0;
+
   printf( "Overstep tolerance: %f of thickness %f (%f) minminrad: %3.8lf\n", 
-	  state.overstepTol, state.injrad*2, 
-	  state.injrad*2 - state.overstepTol*state.injrad*2, 
+	  state.overstepTol, state.tube_radius, 
+	  state.tube_radius - state.overstepTol*state.tube_radius, 
 	  state.minminrad );
   
   // use amd column ordering if the user hasn't specified something else
   setenv("COL_ORDERING", "amd", 0);
-  
-  /* We now initialize the log with a lot of (hopefully) helpful information
-     about the run. */
-
-  FILE *logfile;
-  
-  logfile = fopen(state.logfilename,"w");
-  if (logfile == NULL) { 
-    fprintf(stderr,"Ridgerunner: Couldn't open logfile %s.\n",state.logfilename);
-    exit(1);
-  }
-
-  fprintf(logfile,"Ridgerunner logfile.\n");
-
-  #ifdef HAVE_ASCTIME
-  #ifdef HAVE_LOCALTIME
-  #ifdef HAVE_TIME
-  
-  fprintf(logfile,"Run began: %s.\n",asctime(localtime(time(NULL))));
-
-  #else
-
-  fprintf(logfile,
-	  "Warning: system doesn't have 'time' function.\n"
-	  "         data logs won't include time information.\n");
-
-  #endif
-  #else
-
-  fprintf(logfile,
-	  "Warning: system doesn't have 'localtime' function.\n"
-	  "         data logs won't include time information.\n");
-  
-  #endif
-  #else
-
-  fprintf(logfile,
-	  "Warning: system doesn't have 'asctime' function.\n"
-	  "         data logs won't include time information");
-  #endif
-
-  fprintf(logfile,"Initial filename: %s.\n",
-	  arg_infile->filename);
-
-  fprintf(logfile,"Command line: ");
-
-  for(i=0;i<argc;i++) {
-
-    fprintf(logfile,"%s ",argv[i]);
-
-  } 
-  
-  fprintf(logfile,"\n");
-  fprintf(logfile,"------------------------------------------------\n");
-  
-  fclose(logfile);
-
+    
   /* Now we open the data logfiles in state. */
 
   char tmpfilename[1024];
@@ -503,18 +497,10 @@ main( int argc, char* argv[] )
   for(i=0;i<state.nlogs;i++) {
 
     sprintf(tmpfilename,"./%s.rr/logfiles/%s.dat",
-	    arg_infile->basename,
+	    arg_infile->basename[0],
 	    state.logfilenames[i]);
 
-    state.logfiles[i] = fopen(tmpfilename,"w");
-
-    if (state.logfiles[i] == NULL) {
-
-      fprintf(stderr,"ridgerunner: Couldn't open logfile %s.\n",
-	      tmpfilename);
-      exit(1);
-
-    }
+    state.logfiles[i] = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
 
   }
 
@@ -524,36 +510,52 @@ main( int argc, char* argv[] )
 
   /* We're done. Print some concluding text to the main logfile.*/
  
-  logfile = fopen(state.logfilename,"a");
-  if (logfile == NULL) { 
-    fprintf(stderr,"Ridgerunner: Couldn't open logfile %s.\n",state.logfilename);
-    exit(1);
-  }
-
-  fprintf(logfile,"--------------------------------------------------\n");
+  fprintf(gLogfile,"--------------------------------------------------\n");
   
   #ifdef HAVE_ASCTIME
   #ifdef HAVE_LOCALTIME
   #ifdef HAVE_TIME
   
-  fprintf(logfile,
+  time_t end_time;
+  end_time = time(NULL);
+
+  fprintf(gLogfile,
 	  "Run ended: %s.\n",
-	  asctime(localtime(time(NULL))),
-	  arg_infile->filename);
+	  asctime(localtime(&end_time)));
+
 
   #endif
   #endif
   #endif
 
-  /* Now close all of the datalogs. */
+  /* Now write the concluding file to the appropriate directory. */
 
-  for(i=0;i<state.nlogs;i++) {
+  sprintf(tmpfilename,"./%s.rr/%s.final.vect",
+	  arg_infile->basename[0],arg_infile->basename[0]);  
+  savefile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
+  plc_write(savefile,link);
+  fclose(savefile);
 
-    fclose(state.logfiles[i]);
+  /* Now write the final strut set (in octrope format). */
 
-  }
+  sprintf(tmpfilename,"./%s.rr/%s.final.struts",
+	  arg_infile->basename[0],arg_infile->basename[0]);
+  
+  savefile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
 
+  octrope_strutfile_write(state.lastStepStrutCount,
+			  state.lastStepStruts,
+			  state.lastStepMinradStrutCount,
+			  state.lastStepMRlist,
+			  savefile);
+
+  fclose(savefile);
+
+  /* Now clean up allocated memory and close files. */
+  
+  free_search_state(state);
   plc_free(link);
+
   return kNoErr;
 }
 
@@ -578,11 +580,10 @@ void
 initializeState( search_state* state, plCurve** inLink, const char* fname )
 {
   int cItr, i, offset=0;
-  char	line[1024];
-  FILE* fp = fopen(fname, "r"); // we would have failed earlier if this didn't exist
+
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
-    "maxovermin","rcond","walltime","maxvertforce","convergence","edgelenvariance"
+    "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance"
   }; 
 
   // zero all those pointers
@@ -590,14 +591,14 @@ initializeState( search_state* state, plCurve** inLink, const char* fname )
   
   strncpy(state->fname, fname, sizeof(state->fname)-1);
   
-  state->injrad = 0.5; // fix this for now
+  state->tube_radius = 0.5; // fix this for now
   
   state->maxStepSize = 0.1*plCurve_short_edge(*inLink);
   
   if( state->maxStepSize > 1e-3 )
     state->maxStepSize = 1e-3;
   //	state->maxStepSize = 1e-4;
-  state->shortest = 2*state->injrad;
+  state->shortest = 2*state->tube_radius;
   state->totalVerts = 0;
   state->eqThreshold = 1.05;
   state->eqMultiplier = 1;
@@ -630,59 +631,37 @@ initializeState( search_state* state, plCurve** inLink, const char* fname )
 	
   state->residual = 0;
   
-  state->checkDelta = 1.0;	// default check delta
-  
-  fclose(fp);
-  
-  getrusage(RUSAGE_SELF, &state->frameStart);
-
   state->nlogs = sizeof(log_fnames);
   for(i=0;i<state->nlogs;i++) {state->logfilenames[i] = log_fnames[i];}
 
 }
 
-void
-usage()
+void free_search_state(search_state *inState)
+
+     /* Free memory and close filehandles. */
+
 {
-	fprintf( stdout, 
-"ridgerunner \n\n \
--h threshold for check delta, will stop if length improvement < threshld in checkDelta time\n \
--d minrad control -- specify min minrad (should be less than thickness/2)\n \
--o tolerance\t Overstep tolerance (maybe not broken)\n \
--r mult\t Runs until stopping criteron satisfied, then divides, until verts < mult*ropelength\n \
--e mult\t Sets the eq-force multiplier\n \
--b amt\tscales curve by amt\n \
--i injrad\t Sets injrad constraint (probably broken)\n \
--c delta\t Stop if in delta timestep time, we haven't improved length more than 0.05\n \
--l\t\t Forces edge lengths to be approximately equal via Rawdon's tangential runaround\n \
--f file\t Specifies runtile knot (required!)\n \
--m\t\t Will create a directory with timestep frames and strut sets to facilitate movie creation\n \
--x\tmax step size\tspecifies the maxiumum size of integration step\n \
--n\t\t Run will ignore curvature constraint (useful if curvature breaks things)\n \
--a\t\t Autoscale specified knot to thickness 1.0. Useful to save scaling runtime\n \
--t threshold\t Sets additional residual stopping requirement that residual < threshold\n \
--s suppress out Suppresses the progress files in /tmp\n \
--p max itrs\tspecifies the maximum number of integration steps to be taken. default is inf\n \
--v\t\textra verbose filing, will output files _every_ step \n \
--y\t\tEnables geomview visualization fanciness, req. tube, gnuplot, geomview on path\n \
--g\tgraphing with arg: (l)ength (c)locktime (r)cond (m)inrad (r)esidual (s)truts (v)ariance of edge diff from avg (a)ll\n \
--u\tsurface strut gen\tgenerates multiple files in /tmp for use with surfaceBuilder, use with -v\n \
--w\twith: (f)ast correction stepper\n \
--z\tavoid conflicts in /tmp/ between multiple users by stamping with pid and file name\n \
--j\tpaper info, print avg times through bsearch, correction steps to green in /tmp/ and rcond every step if its graphing on\n \
--k\tcorrection step size, default 0.25\n"
-);
-	exit(kNoErr);
+
+  int i;
+
+  for(i=0;i<kTotalGraphTypes;i++) { fclose(inState->logfiles[i]); }
+
+  free(inState->compOffsets);  
+  free(inState->lastStepStruts);
+  free(inState->lastStepMRlist);
+  
 }
+
+
 
 void
 reload_handler( int sig )
 {
-	if( sig == SIGUSR1 )
-	{
-		// immediately reload config
-		
-		// reinstall handler
-		signal(SIGUSR1, reload_handler);
-	}
+  if( sig == SIGUSR1 )
+    {
+      // immediately reload config
+      
+      // reinstall handler
+      signal(SIGUSR1, reload_handler);
+    }
 }

@@ -221,7 +221,7 @@ DIST_SOURCES = $(src_ridgerunner_SOURCES)
 DIST_COMMON = README AUTHORS COPYING ChangeLog INSTALL Makefile.am \
 	Makefile.in NEWS acinclude.m4 aclocal.m4 config.guess \
 	config.h.in config.sub configure configure.ac depcomp \
-	install-sh ltmain.sh missing mkinstalldirs
+	install-sh missing mkinstalldirs
 SOURCES = $(src_ridgerunner_SOURCES)
 
 all: config.h
