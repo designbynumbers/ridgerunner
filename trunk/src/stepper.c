@@ -7,269 +7,181 @@
  *
  */
 
-#include <float.h>
-#include <stdlib.h>
-#include <math.h>
-#include <time.h>
+#include "ridgerunner.h"
 
-#include "tsnnls.h"
-#include "lsqr.h"
+/* Function prototypes */
 
-#include "plc_vector.h"
+plCurve*  bsearch_step( plCurve* inLink, search_state* inState );
+void	  step( plCurve* inLink, double stepSize, plc_vector* dVdt, 
+		search_state* inState );
+void	  firstVariation( plc_vector* inOutDvdt, plCurve* inLink, search_state* inState,
+			  octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
+void	  computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
+			       octrope_mrloc* minradSet, int strutCount, 
+			       int minradLocs );
 
-#include "stepper.h"
-#include "dlen.h"
-#include "eqedge.h"
-#include "settings.h"
-#include "../errors.h"
-
-plCurve*		bsearch_step( plCurve* inLink, search_state* inState );
-void				step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState );
-void				firstVariation( plc_vector* inOutDvdt, plCurve* inLink, search_state* inState,
-						octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
-void				computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
-						octrope_mrloc* minradSet, int strutCount, int minradLocs );
-
-extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
-extern void fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );						
+extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );	  	
+extern void fast_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );		
 
 // lesser utility functions
-int					equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
-void				normalizeStruts( plc_vector* strutDirections, 
-							octrope_strut* strutSet, plCurve* inLink, int strutCount );
+int    equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
+void   normalizeStruts( plc_vector* strutDirections, octrope_strut* strutSet, 
+			plCurve* inLink, int strutCount );
 
-void		placeVertexBars( double* A, plCurve* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState );
+void   placeVertexBars( double* A, plCurve* inLink, int contactStruts, 
+			int totalBarVerts, int totalBars, search_state* inState );
+
+/* Global variables */
+
 int displayEveryFrame = 0;
 
 extern int gQuiet;
 extern int gSurfaceBuilding;
 extern int gPaperInfoInTmp;
+extern double gLambda;
 
 static void
 swap_rigidity_verts( taucs_ccs_matrix* A, int v1, int v2, int col )
 {
-	/* here, verts are given in offset from 0 of the 4 or 3 per strut */
-	double vals[3];
-	double inds[3];
-	int j;
+  /* here, verts are given in offset from 0 of the 4 or 3 per strut */
+  double vals[3];
+  double inds[3];
+  int j;
 	
-	for( j=0; j<3; j++ )
-	{
-		vals[j] = A->values.d[A->colptr[col] + 3*v1 + j];
-		inds[j] = A->rowind[A->colptr[col] + 3*v1 + j];
-	}
+  for( j=0; j<3; j++ ) {
+
+    vals[j] = A->values.d[A->colptr[col] + 3*v1 + j];
+    inds[j] = A->rowind[A->colptr[col] + 3*v1 + j];
+ 
+  }
+  
+  for( j=0; j<3; j++ ) {
+
+    A->values.d[A->colptr[col] + 3*v1 + j] = A->values.d[A->colptr[col] + 3*v2 + j];
+    A->rowind[A->colptr[col] + 3*v1 + j] = A->rowind[A->colptr[col] + 3*v2 + j];
+  
+  }
 	
-	for( j=0; j<3; j++ )
-	{
-		A->values.d[A->colptr[col] + 3*v1 + j] = A->values.d[A->colptr[col] + 3*v2 + j];
-		A->rowind[A->colptr[col] + 3*v1 + j] = A->rowind[A->colptr[col] + 3*v2 + j];
-	}
-	
-	for( j=0; j<3; j++ )
-	{
-		A->values.d[A->colptr[col] + 3*v2 + j] = vals[j];
-		A->rowind[A->colptr[col] + 3*v2 + j] = inds[j];
-	}
+  for( j=0; j<3; j++ ) {
+
+    A->values.d[A->colptr[col] + 3*v2 + j] = vals[j];
+    A->rowind[A->colptr[col] + 3*v2 + j] = inds[j];
+  
+  }
 }
 
 static void
 taucs_enforce_ccs_sort( taucs_ccs_matrix* A, int strutCount )
 {
-	int cItr, rightBound, i;
-	for( cItr=0; cItr<A->n; cItr++ )
-	{
-		int col = cItr;
-		// we need to move things in blocks of three.
-		if( cItr < strutCount )
-		{
-			for( rightBound = 3; rightBound > 0; rightBound-- )
-			{
-				for( i=0; i<rightBound; i++ )
-				{
-					if(A->rowind[A->colptr[col]+3*i] > A->rowind[A->colptr[col]+3*(i+1)])
-						swap_rigidity_verts(A, i, i+1, col);
-				}
-			}
-		}// < strutCount? (thickness strut)
-		else
-		{
-			// bubble sort with three vertices.
-			if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
-				swap_rigidity_verts(A, 0, 1, col);
-			if( A->rowind[A->colptr[col]+3] > A->rowind[A->colptr[col]+6] )
-				swap_rigidity_verts(A, 1, 2, col);
-			if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
-				swap_rigidity_verts(A, 0, 1, col);
-		}
-		
-	} // for over columns
+  int cItr, rightBound, i;
+  for( cItr=0; cItr<A->n; cItr++ ) {
+
+    int col = cItr;
+    // we need to move things in blocks of three.
+    if( cItr < strutCount ) {
+
+      for( rightBound = 3; rightBound > 0; rightBound-- ) {
+
+	for( i=0; i<rightBound; i++ ) {
+
+	  if(A->rowind[A->colptr[col]+3*i] > A->rowind[A->colptr[col]+3*(i+1)])
+	    swap_rigidity_verts(A, i, i+1, col);
+	}
+      }
+    }// < strutCount? (thickness strut)
+    else {
+      // bubble sort with three vertices.
+      if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
+	swap_rigidity_verts(A, 0, 1, col);
+      if( A->rowind[A->colptr[col]+3] > A->rowind[A->colptr[col]+6] )
+	swap_rigidity_verts(A, 1, 2, col);
+      if( A->rowind[A->colptr[col]] > A->rowind[A->colptr[col]+3] )
+	swap_rigidity_verts(A, 0, 1, col);
+    }
+    
+  } // for over columns
 }
 
 // note to self -- get rid of THIS later too
 static double
 rigidityEntry( taucs_ccs_matrix* A, int strutCount, int minradLocs, int row, int col )
 {
-	int vItr;
-
-	// the most common case will be a 0, so get that out of the way quick --
-	// movd this check to firstVariation for speed purposes
-	
-	// also note that this exploits the t_snnls enforced ordering of row
-	// entries and doesn't work for generic ccs matrices
-/*	if( row < A->rowind[A->colptr[col]] || row > A->rowind[A->colptr[col+1]-1] )
-		return 0;
-*/
-	// now we look.
-	if( col < strutCount )
-	{
-		// we can manually unroll this loop -- data dependencies in here
-		// result in large slowdown according to shark.
-/*		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
-		{
-			if( A->rowind[vItr] == row )
-				return A->values.d[vItr];
-		}
-*/
-		vItr=A->colptr[col];
-		if( A->rowind[vItr+0] == row ) return A->values.d[vItr+0];
-		if( A->rowind[vItr+1] == row ) return A->values.d[vItr+1];
-		if( A->rowind[vItr+2] == row ) return A->values.d[vItr+2];
-		if( A->rowind[vItr+3] == row ) return A->values.d[vItr+3];
-		
-		if( A->rowind[vItr+4] == row ) return A->values.d[vItr+4];
-		if( A->rowind[vItr+5] == row ) return A->values.d[vItr+5];
-		if( A->rowind[vItr+6] == row ) return A->values.d[vItr+6];
-		if( A->rowind[vItr+7] == row ) return A->values.d[vItr+7];
-		
-		if( A->rowind[vItr+8] == row ) return A->values.d[vItr+8];
-		if( A->rowind[vItr+9] == row ) return A->values.d[vItr+9];
-		if( A->rowind[vItr+10] == row ) return A->values.d[vItr+10];
-		if( A->rowind[vItr+11] == row ) return A->values.d[vItr+11];
-	}
-	else
-	{
-		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
-		{
-			if( A->rowind[vItr] == row )
-				return A->values.d[vItr];
-		}
-	}
-	
-//	fprintf(stderr, "Shouldn't happen!\n");
-	
+  int vItr;
+  
+  // the most common case will be a 0, so get that out of the way quick --
+  // movd this check to firstVariation for speed purposes
+  
+  // also note that this exploits the t_snnls enforced ordering of row
+  // entries and doesn't work for generic ccs matrices
+  /*	if( row < A->rowind[A->colptr[col]] || row > A->rowind[A->colptr[col+1]-1] )
 	return 0;
-}
+  */
+  // now we look.
+  if( col < strutCount ) {
 
-static void
-export_pushed_edges( plCurve* L, search_state* inState, double* pushes, char* fname, int colorParam)
-{
-	int i;
-	double  maxPush = 0;
-	
-	for( i=0; i<inState->totalVerts; i++ )
-	{
-		if( maxPush < pushes[i] )
-			maxPush = pushes[i];
-	}		
-	
-	if( maxPush == 0 )  
-		maxPush = 1e-6;
-	
-	int j;              /* Counter for the for loops */ 
-	int nverts = 0;       /* Total number of vertices of all components */
-	int colors = inState->totalVerts;       /* Total number of colors of all components */
+    // we can manually unroll this loop -- data dependencies in here
+    // result in large slowdown according to shark.
+    /*		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
+		{
+		if( A->rowind[vItr] == row )
+		return A->values.d[vItr];
+		}
+    */
+    /* Remember that if this column represents a strut, there at most
+       12 rows in the column (less only if the strut is vertex-vertex,
+       or vertex-edge).  So we need only search through 12 possible
+       rowind values looking for the desired row. 
 
-	  /* Now we begin work. */
-  for(i=0;i<L->nc;i++) {
-    nverts += L->cp[i].nv;
-//    colors += L->cp[i].cc;
-  }
-	
-	FILE* file = fopen(fname, "w");
+       If there are too few rows in this column, the search could in 
+       principle wrap around and return a row from the next column.*/
 
-  /* We are ready to write the link. */
-  fprintf(file,"VECT \n");
-  fprintf(file,"%d %d %d \n",L->nc,nverts,colors);
-  
-  for(i=0;i<L->nc;i++) {
-    if (L->cp[i].acyclic) {
-      fprintf(file,"%d ",L->cp[i].nv); 
-    } else {
-      fprintf(file,"%d ",-L->cp[i].nv);
-    }
-  }
-  fprintf(file,"\n");
+    vItr=A->colptr[col];
 
-  for(i=0;i<L->nc;i++) {
-    fprintf(file,"%d ", L->cp[i].nv);
-  }
-  fprintf(file,"\n");
+    if( A->rowind[vItr+0] == row ) return A->values.d[vItr+0];
+    if( A->rowind[vItr+1] == row ) return A->values.d[vItr+1];
+    if( A->rowind[vItr+2] == row ) return A->values.d[vItr+2];
+    if( A->rowind[vItr+3] == row ) return A->values.d[vItr+3];
+    
+    if( A->rowind[vItr+4] == row ) return A->values.d[vItr+4];
+    if( A->rowind[vItr+5] == row ) return A->values.d[vItr+5];
+    if( A->rowind[vItr+6] == row ) return A->values.d[vItr+6];
+    if( A->rowind[vItr+7] == row ) return A->values.d[vItr+7];
+    
+    if( A->rowind[vItr+8] == row ) return A->values.d[vItr+8];
+    if( A->rowind[vItr+9] == row ) return A->values.d[vItr+9];
+    if( A->rowind[vItr+10] == row ) return A->values.d[vItr+10];
+    if( A->rowind[vItr+11] == row ) return A->values.d[vItr+11];
+ 
+  } else {
 
-  /* Now we write the vertex data . . . */
-  for(i=0;i<L->nc;i++) {
-    for(j=0;j<L->cp[i].nv;j++) {
-      fprintf(file,"%3.16lf %3.16lf %3.16lf \n", L->cp[i].vt[j].c[0], L->cp[i].vt[j].c[1],
-                                  L->cp[i].vt[j].c[2]);
+    /* This is not a strut constraint, so we're not sure how many 
+       columns to search. Check them all just to be sure. */
+    
+    for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ ) {
+
+      if( A->rowind[vItr] == row )
+	return A->values.d[vItr];
     }
   }
 
-  /* . . . and the color data. */
-  int colorItr = 0;
-  for (i=0; i < L->nc; i++) {
-    for (j=0; j < L->cp[i].nv; j++) {
-		if( colorParam == 0 )
-		  fprintf(file,"%3.16lf %3.16lf %3.16lf %3.16lf\n", 0.0, 1.0*(pushes[colorItr]/maxPush), 0.0, 1.0);
-		else
-		  fprintf(file,"%3.16lf %3.16lf %3.16lf %3.16lf\n", 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 1.0*(pushes[colorItr]/maxPush), 0.0);
-		colorItr++;
-	}
-  }
-  
-  fclose(file);
+  /* We should never reach this point in the code. */
+
+  char errmsg[1024];
+
+  sprintf(errmsg,
+	  "ridgerunner: illegal call to rigidityEntry\n"
+	  "             tried for entry (%d,%d) of %d x %d matrix A\n"
+	  "             strutcount %d\n"
+	  "             minradLocs %d\n",
+	  row,col,A->n,A->m,strutCount,minradLocs);
+
+  FatalError(errmsg, __FILE__ , __LINE__ );
+
+  return 0;
 }
-
-
-void
-reloadDump( double* A, int rows, int cols, double* x, double* b )
-{
-	// reload expects things in this form
-	static FILE* fp = NULL;
-	if( fp == NULL )
-	{
-		fp = fopen("examples", "w");
-	}
-	int rItr, cItr;
-	
-	fprintf( fp, "%d %d\n", rows, cols );
-	// A first
-	for( rItr=0; rItr<rows; rItr++ )
-	{
-		for( cItr=0; cItr<cols; cItr++ )
-			fprintf( fp, "%10.16lf ", A[rItr*cols + cItr] );
-		fprintf( fp, "\n" );
-	}
-	
-	// then x
-	for( cItr=0; cItr<cols; cItr++ )
-	{
-		if( x != NULL )
-			fprintf( fp, "%10.16lf\n", x[cItr] );
-		else
-			fprintf( fp, "0\n" );
-	}
-	
-	// finally b
-	for( rItr=0; rItr<rows; rItr++ )
-		fprintf( fp, "%lf\n", b[rItr] );
-		
-	fflush(fp);
-//	fclose(fp);
-}
-
 
 int gOutputFlag = 1;
 int gConditionCheck = 0;
-
 extern int gFastCorrectionSteps;
 
 #define kOutputItrs 1
@@ -277,596 +189,6 @@ extern int gFastCorrectionSteps;
 
 int	gEQevents = 0;
 
-static void
-placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, plCurve* inLink, octrope_mrloc* minradStruts, 
-	int minradLocs, search_state* inState, int contactStruts )
-{
-	int mItr;
-	int totalStruts = contactStruts + minradLocs;
-	
-	for( mItr=0; mItr<minradLocs; mItr++ )
-	{
-		plc_vector B, A, cross, As, Bs, Cs;
-		double	bmag, amag;
-		double value, angle;
-		double kappa, dot, prevLen, thisLen;
-		plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
-		
-		int vItr = minradStruts[mItr].vert;
-		int cItr = minradStruts[mItr].component;
-		
-		prevSide.c[0] = inLink->cp[cItr].vt[vItr].c[0] - inLink->cp[cItr].vt[vItr-1].c[0];
-		prevSide.c[1] = inLink->cp[cItr].vt[vItr].c[1] - inLink->cp[cItr].vt[vItr-1].c[1];
-		prevSide.c[2] = inLink->cp[cItr].vt[vItr].c[2] - inLink->cp[cItr].vt[vItr-1].c[2];
-		
-		thisSide.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		dot = plc_M_dot(prevSide, thisSide);
-		prevLen = plc_M_norm(prevSide);
-		thisLen = plc_M_norm(thisSide);
-
-		// B = b-v
-		B.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		B.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		B.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		// A = a-v
-		A.c[0] = inLink->cp[cItr].vt[vItr-1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		A.c[1] = inLink->cp[cItr].vt[vItr-1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		A.c[2] = inLink->cp[cItr].vt[vItr-1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		bmag = plc_M_norm(B);
-		amag = plc_M_norm(A);
-		
-		value = dot/(prevLen*thisLen);
-		if( value >= 1 )
-		{
-			angle = 0;
-		}
-		else if( value <= -1 )
-		{
-			angle = M_PI;
-		}
-		else
-		{
-			// this is dangerous for the reasons of Ted's talk. Change me!
-			angle = acos(value);
-		}
-		
-		if( thisLen < prevLen )
-		{
-			// says... maple?
-			kappa = -bmag/(2-2*cos(angle));
-			
-			// BxA
-			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
-			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
-			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
-			
-			N.c[0] = cross.c[0]/plc_M_norm(cross);
-			N.c[1] = cross.c[1]/plc_M_norm(cross);
-			N.c[2] = cross.c[2]/plc_M_norm(cross);
-			
-			double Lconst, Mconst, Nconst;
-			
-			Lconst = (1/(2*tan(angle/2) * bmag));
-			fancyL.c[0] = Lconst * B.c[0];
-			fancyL.c[1] = Lconst * B.c[1];
-			fancyL.c[2] = Lconst * B.c[2];
-			
-			Mconst = kappa*(1/(amag*amag));
-			// A x N
-			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
-			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
-			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
-			fancyM.c[0] = Mconst * cross.c[0];
-			fancyM.c[1] = Mconst * cross.c[1];
-			fancyM.c[2] = Mconst * cross.c[2];
-			
-			Nconst = kappa*(1/(bmag*bmag));
-			// N x B
-			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
-			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
-			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
-			fancyN.c[0] = Nconst * cross.c[0];
-			fancyN.c[1] = Nconst * cross.c[1];
-			fancyN.c[2] = Nconst * cross.c[2];
-			
-			As.c[0] = fancyM.c[0];
-			As.c[1] = fancyM.c[1];
-			As.c[2] = fancyM.c[2];
-			
-			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-			
-			Cs.c[0] = fancyN.c[0] + fancyL.c[0];
-			Cs.c[1] = fancyN.c[1] + fancyL.c[1];
-			Cs.c[2] = fancyN.c[2] + fancyL.c[2];
-		}
-		else
-		{
-			// says... maple?
-			kappa = -amag/(2-2*cos(angle));
-			
-			// BxA
-			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
-			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
-			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
-			
-			N.c[0] = cross.c[0]/plc_M_norm(cross);
-			N.c[1] = cross.c[1]/plc_M_norm(cross);
-			N.c[2] = cross.c[2]/plc_M_norm(cross);
-			
-			double Lconst, Mconst, Nconst;
-			
-			Lconst = (1/(2*tan(angle/2) * amag));
-			fancyL.c[0] = Lconst * A.c[0];
-			fancyL.c[1] = Lconst * A.c[1];
-			fancyL.c[2] = Lconst * A.c[2];
-			
-			Mconst = kappa*(1/(amag*amag));
-			// A x N
-			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
-			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
-			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
-			fancyM.c[0] = Mconst * cross.c[0];
-			fancyM.c[1] = Mconst * cross.c[1];
-			fancyM.c[2] = Mconst * cross.c[2];
-			
-			Nconst = kappa*(1/(bmag*bmag));
-			// N x B
-			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
-			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
-			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
-			fancyN.c[0] = Nconst * cross.c[0];
-			fancyN.c[1] = Nconst * cross.c[1];
-			fancyN.c[2] = Nconst * cross.c[2];
-			
-			As.c[0] = fancyM.c[0] + fancyL.c[0];;
-			As.c[1] = fancyM.c[1] + fancyL.c[1];;
-			As.c[2] = fancyM.c[2] + fancyL.c[2];;
-			
-			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-			
-			Cs.c[0] = fancyN.c[0]; //+ fancyL.c[0];
-			Cs.c[1] = fancyN.c[1]; //+ fancyL.c[1];
-			Cs.c[2] = fancyN.c[2]; //+ fancyL.c[2];
-		}
-		
-		double norm;
-		int nItr;
-		norm = 0;
-		for( nItr=0; nItr<3; nItr++ )
-		{
-			norm += As.c[nItr]*As.c[nItr];
-			norm += Bs.c[nItr]*Bs.c[nItr];
-			norm += Cs.c[nItr]*Cs.c[nItr];
-		}
-		norm = sqrt(norm);
-		
-		// if we're doing fast tsnnls based correction steps, the normalization 
-		// doesn't really matter
-		if( inState->curvature_step != 0 || gFastCorrectionSteps != 0 )
-		{
-			As.c[0] /= norm;
-			As.c[1] /= norm;
-			As.c[2] /= norm;
-			Bs.c[0] /= norm;
-			Bs.c[1] /= norm;
-			Bs.c[2] /= norm;
-			Cs.c[0] /= norm;
-			Cs.c[1] /= norm;
-			Cs.c[2] /= norm;
-		}
-					
-		// temporarily increment the strut's verts based on their component interactions
-		// we undo this change at the end of the for loop in case the user
-		// wants to keep the strut set
-		int aVert, bVert, cVert, entry;
-		aVert = minradStruts[mItr].vert-1;
-		bVert = minradStruts[mItr].vert;
-		cVert = minradStruts[mItr].vert+1;
-
-		aVert += inState->compOffsets[minradStruts[mItr].component];
-		bVert += inState->compOffsets[minradStruts[mItr].component];
-		cVert += inState->compOffsets[minradStruts[mItr].component];
-		
-		if( minradStruts[mItr].vert == 0 &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = 3*inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component];
-		}
-		else
-		{
-			entry = 3*aVert;
-		}
-		
-		if( entry > rigidityA->m )
-			printf( "whoa!\n" );
-
-	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-	//		printf( "*** crap!\n" );
-	
-	/*	rigidityA[entry] = As.c[0];
-		rigidityA[entry+totalStruts] = As.c[1];
-		rigidityA[entry+(2*totalStruts)] = As.c[2];
-	*/
-		rigidityA->values.d[12*contactStruts+9*mItr+0] = As.c[0];
-		rigidityA->values.d[12*contactStruts+9*mItr+1] = As.c[1];
-		rigidityA->values.d[12*contactStruts+9*mItr+2] = As.c[2];
-		
-		rigidityA->rowind[12*contactStruts+9*mItr+0] = entry + 0;
-		rigidityA->rowind[12*contactStruts+9*mItr+1] = rigidityA->rowind[12*contactStruts+9*mItr+0] + 1;
-		rigidityA->rowind[12*contactStruts+9*mItr+2] = rigidityA->rowind[12*contactStruts+9*mItr+0] + 2;		
-	
-		entry = (3*bVert);
-	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-	//		printf( "*** crap!\n" );
-	
-	/*	rigidityA[entry] = Bs.c[0];
-		rigidityA[entry+totalStruts] = Bs.c[1];
-		rigidityA[entry+(2*totalStruts)] = Bs.c[2];
-	*/
-		rigidityA->values.d[12*contactStruts+9*mItr+3] = Bs.c[0];
-		rigidityA->values.d[12*contactStruts+9*mItr+4] = Bs.c[1];
-		rigidityA->values.d[12*contactStruts+9*mItr+5] = Bs.c[2];	
-		
-		rigidityA->rowind[12*contactStruts+9*mItr+3] = entry + 0;
-		rigidityA->rowind[12*contactStruts+9*mItr+4] = rigidityA->rowind[12*contactStruts+9*mItr+3] + 1;
-		rigidityA->rowind[12*contactStruts+9*mItr+5] = rigidityA->rowind[12*contactStruts+9*mItr+3] + 2;	
-
-		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = 3*(inState->compOffsets[minradStruts[mItr].component]);
-		}
-		else
-		{
-			entry = 3*cVert;
-		}
-	//	if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-	//		printf( "*** crap!\n" );
-	
-	/*	rigidityA[entry] = Cs.c[0];
-		rigidityA[entry+totalStruts] = Cs.c[1];
-		rigidityA[entry+(2*totalStruts)] = Cs.c[2];	
-	*/
-		if( entry > rigidityA->m || entry+6 > rigidityA->m )
-			printf( "whoa!\n" );
-	
-		rigidityA->values.d[12*contactStruts+9*mItr+6] = Cs.c[0];
-		rigidityA->values.d[12*contactStruts+9*mItr+7] = Cs.c[1];
-		rigidityA->values.d[12*contactStruts+9*mItr+8] = Cs.c[2];		
-		
-		rigidityA->rowind[12*contactStruts+9*mItr+6] = entry + 0;
-		rigidityA->rowind[12*contactStruts+9*mItr+7] = rigidityA->rowind[12*contactStruts+9*mItr+6] + 1;
-		rigidityA->rowind[12*contactStruts+9*mItr+8] = rigidityA->rowind[12*contactStruts+9*mItr+6] + 2;
-
-	} // for over minrad struts
-	
-}
-
-/* I think this next one is legacy code that isn't actually called anymore. */
-
-static void
-placeMinradStruts2( double* rigidityA, plCurve* inLink, octrope_mrloc* minradStruts, 
-	int minradLocs, search_state* inState, int contactStruts )
-{
-	int mItr;
-	int totalStruts = contactStruts + minradLocs;
-	
-	for( mItr=0; mItr<minradLocs; mItr++ )
-	{
-		plc_vector B, A, cross, As, Bs, Cs;
-		double	bmag, amag;
-		double value, angle;
-		double kappa, dot, prevLen, thisLen;
-		plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
-		
-		int vItr = minradStruts[mItr].vert;
-		int cItr = minradStruts[mItr].component;
-		
-		prevSide.c[0] = inLink->cp[cItr].vt[vItr].c[0] - inLink->cp[cItr].vt[vItr-1].c[0];
-		prevSide.c[1] = inLink->cp[cItr].vt[vItr].c[1] - inLink->cp[cItr].vt[vItr-1].c[1];
-		prevSide.c[2] = inLink->cp[cItr].vt[vItr].c[2] - inLink->cp[cItr].vt[vItr-1].c[2];
-		
-		thisSide.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		dot = plc_M_dot(prevSide, thisSide);
-		prevLen = plc_M_norm(prevSide);
-		thisLen = plc_M_norm(thisSide);
-
-		// B = b-v
-		B.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		B.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		B.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		// A = a-v
-		A.c[0] = inLink->cp[cItr].vt[vItr-1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		A.c[1] = inLink->cp[cItr].vt[vItr-1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		A.c[2] = inLink->cp[cItr].vt[vItr-1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		bmag = plc_M_norm(B);
-		amag = plc_M_norm(A);
-		
-		value = dot/(prevLen*thisLen);
-		if( value >= 1 )
-		{
-			angle = 0;
-		}
-		else if( value <= -1 )
-		{
-			angle = M_PI;
-		}
-		else
-		{
-			// this is dangerous for the reasons of Ted's talk. Change me!
-			angle = acos(value);
-		}
-		
-		if( thisLen < prevLen )
-		{
-			// says... maple?
-			kappa = -bmag/(2-2*cos(angle));
-			
-			// BxA
-			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
-			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
-			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
-			
-			N.c[0] = cross.c[0]/plc_M_norm(cross);
-			N.c[1] = cross.c[1]/plc_M_norm(cross);
-			N.c[2] = cross.c[2]/plc_M_norm(cross);
-			
-			double Lconst, Mconst, Nconst;
-			
-			Lconst = (1/(2*tan(angle/2) * bmag));
-			fancyL.c[0] = Lconst * B.c[0];
-			fancyL.c[1] = Lconst * B.c[1];
-			fancyL.c[2] = Lconst * B.c[2];
-			
-			Mconst = kappa*(1/(amag*amag));
-			// A x N
-			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
-			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
-			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
-			fancyM.c[0] = Mconst * cross.c[0];
-			fancyM.c[1] = Mconst * cross.c[1];
-			fancyM.c[2] = Mconst * cross.c[2];
-			
-			Nconst = kappa*(1/(bmag*bmag));
-			// N x B
-			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
-			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
-			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
-			fancyN.c[0] = Nconst * cross.c[0];
-			fancyN.c[1] = Nconst * cross.c[1];
-			fancyN.c[2] = Nconst * cross.c[2];
-			
-			As.c[0] = fancyM.c[0];
-			As.c[1] = fancyM.c[1];
-			As.c[2] = fancyM.c[2];
-			
-			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-			
-			Cs.c[0] = fancyN.c[0] + fancyL.c[0];
-			Cs.c[1] = fancyN.c[1] + fancyL.c[1];
-			Cs.c[2] = fancyN.c[2] + fancyL.c[2];
-		}
-		else
-		{
-			// says... maple?
-			kappa = -amag/(2-2*cos(angle));
-			
-			// BxA
-			cross.c[0] = B.c[1] * A.c[2] - B.c[2] * A.c[1];
-			cross.c[1] = B.c[2] * A.c[0] - B.c[0] * A.c[2];
-			cross.c[2] = B.c[0] * A.c[1] - B.c[1] * A.c[0];
-			
-			N.c[0] = cross.c[0]/plc_M_norm(cross);
-			N.c[1] = cross.c[1]/plc_M_norm(cross);
-			N.c[2] = cross.c[2]/plc_M_norm(cross);
-			
-			double Lconst, Mconst, Nconst;
-			
-			Lconst = (1/(2*tan(angle/2) * amag));
-			fancyL.c[0] = Lconst * A.c[0];
-			fancyL.c[1] = Lconst * A.c[1];
-			fancyL.c[2] = Lconst * A.c[2];
-			
-			Mconst = kappa*(1/(amag*amag));
-			// A x N
-			cross.c[0] = A.c[1] * N.c[2] - A.c[2] * N.c[1];
-			cross.c[1] = A.c[2] * N.c[0] - A.c[0] * N.c[2];
-			cross.c[2] = A.c[0] * N.c[1] - A.c[1] * N.c[0];
-			fancyM.c[0] = Mconst * cross.c[0];
-			fancyM.c[1] = Mconst * cross.c[1];
-			fancyM.c[2] = Mconst * cross.c[2];
-			
-			Nconst = kappa*(1/(bmag*bmag));
-			// N x B
-			cross.c[0] = N.c[1] * B.c[2] - N.c[2] * B.c[1];
-			cross.c[1] = N.c[2] * B.c[0] - N.c[0] * B.c[2];
-			cross.c[2] = N.c[0] * B.c[1] - N.c[1] * B.c[0];
-			fancyN.c[0] = Nconst * cross.c[0];
-			fancyN.c[1] = Nconst * cross.c[1];
-			fancyN.c[2] = Nconst * cross.c[2];
-			
-			As.c[0] = fancyM.c[0] + fancyL.c[0];;
-			As.c[1] = fancyM.c[1] + fancyL.c[1];;
-			As.c[2] = fancyM.c[2] + fancyL.c[2];;
-			
-			Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-			Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-			Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-			
-			Cs.c[0] = fancyN.c[0]; //+ fancyL.c[0];
-			Cs.c[1] = fancyN.c[1]; //+ fancyL.c[1];
-			Cs.c[2] = fancyN.c[2]; //+ fancyL.c[2];
-		}
-		
-		double norm;
-		int nItr;
-		norm = 0;
-		for( nItr=0; nItr<3; nItr++ )
-		{
-			norm += As.c[nItr]*As.c[nItr];
-			norm += Bs.c[nItr]*Bs.c[nItr];
-			norm += Cs.c[nItr]*Cs.c[nItr];
-		}
-		norm = sqrt(norm);
-		
-		// if we're doing fast tsnnls based correction steps, the normalization 
-		// doesn't really matter
-		if( inState->curvature_step != 0 || gFastCorrectionSteps != 0 )
-		{
-			As.c[0] /= norm;
-			As.c[1] /= norm;
-			As.c[2] /= norm;
-			Bs.c[0] /= norm;
-			Bs.c[1] /= norm;
-			Bs.c[2] /= norm;
-			Cs.c[0] /= norm;
-			Cs.c[1] /= norm;
-			Cs.c[2] /= norm;
-		}
-					
-		// temporarily increment the strut's verts based on their component interactions
-		// we undo this change at the end of the for loop in case the user
-		// wants to keep the strut set
-		int aVert, bVert, cVert, entry;
-		aVert = minradStruts[mItr].vert-1;
-		bVert = minradStruts[mItr].vert;
-		cVert = minradStruts[mItr].vert+1;
-
-		aVert += inState->compOffsets[minradStruts[mItr].component];
-		bVert += inState->compOffsets[minradStruts[mItr].component];
-		cVert += inState->compOffsets[minradStruts[mItr].component];
-		
-		if( minradStruts[mItr].vert == 0 &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = (totalStruts*3)*(inState->compOffsets[minradStruts[mItr].component])+contactStruts+mItr;
-		}
-		else
-		{
-			entry = (totalStruts*3*aVert)+contactStruts+mItr;
-		}
-
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		rigidityA[entry] = As.c[0];
-		rigidityA[entry+totalStruts] = As.c[1];
-		rigidityA[entry+(2*totalStruts)] = As.c[2];
-
-		entry = (totalStruts*3*bVert)+contactStruts+mItr;
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		rigidityA[entry] = Bs.c[0];
-		rigidityA[entry+totalStruts] = Bs.c[1];
-		rigidityA[entry+(2*totalStruts)] = Bs.c[2];
-
-
-		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = (totalStruts*3)*(inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component])+contactStruts+mItr;
-		}
-		else
-		{
-			entry = (totalStruts*3*cVert)+contactStruts+mItr;
-		}
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		rigidityA[entry] = Cs.c[0];
-		rigidityA[entry+totalStruts] = Cs.c[1];
-		rigidityA[entry+(2*totalStruts)] = Cs.c[2];	
-		
-	} // for over minrad struts
-	
-}
-
-/* This is probably debugging code for a fixed bug. */
-
-static void
-glom( plCurve* inLink, search_state* inState )
-{
-	octrope_mrloc strut;
-	
-	strut.component = 0;
-	strut.vert = 1;
-	strut.mr = octrope_minradval(inLink);
-
-	int Acols = (3*3)*(1);
-	double* A = (double*)calloc(Acols, sizeof(double)); // calloc zeros A
-	
-	double* blah = (double*)calloc(Acols, sizeof(double));
-	
-	double dpsum = 0, dx;
-	double diff;
-	int i, mItr;
-	
-	for( i=0; i<1000; i++ )
-	{
-		plc_vector motion[3];
-		plc_vector foo;
-		double initialMR;
-		
-		dpsum = 0;
-		
-		for( mItr=0; mItr<3; mItr++ )
-		{
-			motion[mItr].c[0] = (drand48()-0.5)*2;
-			motion[mItr].c[1] = (drand48()-0.5)*2;
-			motion[mItr].c[2] = (drand48()-0.5)*2;
-		}
-		
-		initialMR = octrope_minradval(inLink);
-		
-		placeMinradStruts2(A, inLink, &strut, 1, inState, 0);
-		
-		foo.c[0] = A[0];
-		foo.c[1] = A[1];
-		foo.c[2] = A[2];
-		dpsum += plc_M_dot(foo,motion[0]);
-		foo.c[0] = A[3];
-		foo.c[1] = A[4];
-		foo.c[2] = A[5];
-		dpsum += plc_M_dot(foo,motion[1]);
-		foo.c[0] = A[6];
-		foo.c[1] = A[7];
-		foo.c[2] = A[8];
-		dpsum += plc_M_dot(foo,motion[2]);
-		
-		for( dx=1e-1; dx>1e-10; dx *= 0.1 )
-		{
-			plCurve* workerLink = plc_copy(inLink);
-			plc_fix_wrap(workerLink);
-			step( workerLink, dx, motion, inState );
-			
-			// if everything's right: (minrad of workerLink) - (minrad of inLink) <--- ~= dpsum*dx. we'll see!
-			diff = octrope_minradval(workerLink) - octrope_minradval(inLink);
-			printf( "diff: %e / dpsum*dx: %e / (diff - dpsum*dx): %e / still!!: %e\n", 
-				diff, dpsum*dx, diff-(dpsum*dx), (diff-(dpsum*dx))/dx );
-			
-			plc_free(workerLink);
-		}
-	}
-	
-	free(A);
-}
 
 extern int gSuppressOutput;
 extern int gVerboseFiling;
@@ -883,1492 +205,1003 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   
   double maxmaxmin = 0;
   double minthickness = 500;
-  double  nextMovieOutput = 0.0;
+  double nextMovieOutput = 0.0;
   
   gConditionCheck = 0;
   int firstRun = 1, secondRun = 0;
+  double rop_20_itrs_ago = {DBL_MAX};
   
-  FILE*   gnuplotPipes[kTotalGraphTypes];
-  FILE*   gnuplotDataFiles[kTotalGraphTypes];
+#ifdef HAVE_CLOCK  
   
   clock_t startTime;
   startTime = clock();
+
+#endif
   
   inState->steps = 0;
-  
-  /* inititalize piping if we are to use it */
-  for( i=0; i<kTotalGraphTypes; i++ )
-    {
-      gnuplotPipes[i] = NULL;
-      gnuplotDataFiles[i] = NULL;
-      if( inState->graphing[i] != 0 )
-	{
-	  char	fname[255];
-	  char	cmd[512];
-	  
-	  // we only use gnuplot if we have a display, otherwise
-	  // just create data files
-	  if( getenv("DISPLAY") != NULL )
-	    {
-	      sprintf( fname, "%dpipe", i );
-	      sprintf( cmd, "rm -f %s ; mkfifo %s", fname, fname );
-	      system(cmd);
-	      
-	      // get gnuplot going and reading our commands
-	      sprintf( cmd, "/sw/bin/gnuplot < %s &", fname );
-	      system(cmd);
-	      
-	      // open the pipe for our input
-	      gnuplotPipes[i] = fopen(fname, "w");
-	      
-	      fprintf( gnuplotPipes[i], "set term x11\n" );
-	    }
-	  
-	  sprintf(fname, "%ddat", i);
-	  gnuplotDataFiles[i] = fopen(fname, "w");
-	} 
-    }
-  
   int stepItr;
-  struct rusage startStepTime, stopStepTime;
   
-  for( stepItr=0; 1==1; stepItr++ )  /* Main loop */
-    {
-      int lastSet;
-      
-      /* Writing the final position in cwd if you quit because max iterations reached. */
-      
-      if( stepItr > inState->maxItrs && inState->maxItrs > 0 
-	  && inState->curvature_step == 1 )
-	{
-	  FILE* maxFile = NULL;
-	  char    fname[512];
-	  char adjustedName[512];
-	  
-	  strcpy(adjustedName, inState->fname);
-	  sprintf( fname, "%s_%d.maxItr", adjustedName, inState->totalVerts );
-	  maxFile = fopen(fname, "w");
-	  
-	  plc_write(maxFile, *inLink);
-	  fclose(maxFile);
-	  
-	  break;
-	}
-      
-      lastSet = inState->lastStepStrutCount;
-      
-      //if( (i%50)==0 )
-      
-      //	inState->curvature_step = 1;
-      
-      // we need to eq if we're below threshold or if last step hasn't brough us back 
-      // within an acceptable range
-      /*	if( inState->eqThreshold <= inState->lastMaxMin ||
-		(inState->eq_step == 1 && inState->lastMaxMin >
-		(1+((inState->eqThreshold - 1)/2))) ) {
-		inState->eq_step = 1; inState->curvature_step = 0;
-		
-		FILE* verts = fopen("/tmp/verts.vect", "w");
-		plCurve_draw(verts, *inLink);
-		fclose(verts);
-		
-		printf( "" );
-		}
-		else*/
-      inState->eq_step = 0;
-      
-      if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
-	{
-	  if( gQuiet == 0 )
-	    printf( "last correction step lsqr residual: %e\n", inState->ofvResidual );
-	}
-      
-      /* This gem detects whether we are shrinking or correcting
-	 errors.  The default state is "curvature_step = 1", which
-	 means shrinking.  But the "if" here can trigger a round of
-	 correction steps by changing curvature_step to 0.  Once that
-	 happens, we will again set curvature_step to 0 by running the
-	 "if" if things are still very bad, but we will be in the
-	 "else" if things have improved.
-      */
-      
-      if( (inState->shortest < 
-	   ((2*inState->injrad)-(inState->overstepTol)*(2*inState->injrad))) ||
-	  (inState->minrad < inState->minradOverstepTol && !inState->ignore_minrad) )
-	{
-	  // reset counter, this is our first correction attempt
-	  if( inState->curvature_step != 0 )
-	    {
-	      // before reset, output last number if we're recording this
-	      if( gPaperInfoInTmp != 0 )
-		{
-		  char	fname[512];
-		  preptmpname(fname,"correction_convergence",inState);
-		  FILE* tcc = fopen(fname,"a");
-		  fprintf(tcc, "%d\n", gCorrectionAttempts);
-		  fclose(tcc);
-		}
-	      
-	      gCorrectionAttempts = 1;
-	    }
-	  
-	  inState->curvature_step = 0;
-	}
-      else 
-	
-	/* The current situation is not bad enough to trigger a new
-	   round of correction stepping.  But it might be bad enough
-	   to continue an existing round of correction stepping if we
-	   not yet reached the green zone. */
-	{
-	  
-	  double thickness = 2*inState->injrad;
-	  double greenZone = thickness - (thickness*inState->overstepTol)*0.5;
-	  if( (inState->curvature_step == 0 && inState->shortest < greenZone	) ) //||
-	    //	(inState->curvature_step == 0 && inState->minrad < 0.49999 
-	    //   && inState->ignore_minrad==0) )
-	    {
-	      // we haven't finished yet, record
-	      gCorrectionAttempts++;
-	      
-	      inState->curvature_step = 0;
-	    }
-	  else
-	    inState->curvature_step = 1;
-	  
-	  if( inState->eq_step == 0 )
-	    cSteps++;
-	  else
-	    inState->curvature_step = 0;
-	}
-      
-      
-      /* Don't worry-- gOutputFlag will be set to 0 again later in bsearch_step */
-      /* by the way, "g" stands for global in variable names */
-      
-      if( (stepItr%50)==0 || gVerboseFiling != 0 )
-	gOutputFlag = 1;
-      
-      if( gSuppressOutput == 1 )
-	gOutputFlag = 0;
-      
-      
-      /************************************************************************/
-      
-      *inLink = bsearch_step(*inLink, inState);
-      
-      /************************************************************************/
-      
-      if( gPaperInfoInTmp != 0 )
-	{
-	  char fname[512];
-	  preptmpname(fname,"stepsizes", inState);
-	  FILE* ssFile = fopen(fname,"a");
-	  fprintf(ssFile, "%3.15lf\n", inState->stepSize);
-	  fclose(ssFile);
-	  
-	  preptmpname(fname, "torsion", inState);
-	  FILE* tFile = fopen(fname,"w");
-	  plCurve_torsion(*inLink, tFile);
-	  fclose(tFile);
-	  
-	  preptmpname(fname, "per_vert_residual", inState);
-	  FILE* rFile = fopen(fname,"w");
-	  for( vItr=0; vItr<inState->totalVerts; vItr++ )
-	    {
-	      fprintf(rFile, "%d %3.16lf\n", vItr, 
-		      cblas_dnrm2(3, &inState->perVertexResidual[3*vItr], 1) );
-	    }
-	  fclose(rFile);
-	}
-      
-      /*	getrusage(RUSAGE_SELF, &stopStepTime); user =
-		SECS(stopStepTime.ru_utime) -
-		SECS(startStepTime.ru_utime); printf( "STEP TIME
-		(user): %f strts: %d\n", user,
-		inState->lastStepStrutCount );
-      */
-      
-      inState->steps++;
-      
-      //	gOutputFlag = 1;
-      
-      //	if( lastSet != state.lastStepStrutCount || (i%50)==0 )
-      if( (i%50) == 0 ) // check things out every 50 steps
-	{
-	  //		refresh_display(*inLink);
-	  //		printf( "eqing\n" );
-	}
-      
-      /* This fixes a potential octrope bug (still present?) where the 
-	 thickness would be reported as NaN or DBL_MAX or something when 
-	 the curve had a pair of straight segments. Note that 
-	 
-	 injrad == theoretical thickness of the core curve
-	 shortest == actual current thickness of the core curve (presumably less)
-	 
-      */
-      
-      if( inState->shortest > 2*inState->injrad )
-	inState->shortest = 2*inState->injrad;
-      
-      /* minthickness is a data tracking variable-- the lowest
-	 thickness recorded during this run */
-      
-      if( inState->shortest < minthickness && inState->shortest != 0 )
-	minthickness = inState->shortest;
-      
-      /* by the way, k stands for "constant" variable */
-		
-      if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
-	{
-	  printf("s: %d ms: %d len: %lf r: %lf ssize: %e dcsd: "\
-		 "%lf minrad: %lf rsdl: %e t: %lf\n", 
-		 inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-		 inState->length, 2*inState->ropelength, inState->stepSize, 
-		 inState->shortest, inState->minrad, 
-		 inState->residual, inState->time );
-	}
-      
-      /* we are now going to check for whether we should terminate */
-      
-      if( inState->oldLengthTime == 0 )
-	{
-	  inState->oldLengthTime = inState->cstep_time;
-	  inState->oldLength = inState->length;
-	}
-      
-      /* these are the actual current criteria for completion */
-      /* in particular, this will double verts and keep going if desired. */
-      
-      if( (inState->oldLengthTime + inState->checkDelta < inState->cstep_time) && 
-	  fabs(inState->oldLength-inState->length) < inState->checkThreshold &&
-	  inState->residualThreshold >= inState->residual
-	  /*((double)cSteps)/((double)stepItr+1) > 0.05*/ )
-	{
-	  // if we're going to die, it'll be after this, so save our best
-	  FILE* bestFile = NULL;
-	  char    fname[512];
-	  char adjustedName[512];
-	  
-	  strcpy(adjustedName, inState->fname);
-	  sprintf( fname, "%s_%d.best", adjustedName, inState->totalVerts );
-	  bestFile = fopen(fname, "w");
-	  
-	  plc_write(bestFile, *inLink);
-	  fclose(bestFile);
-	  
-	  if( inState->totalVerts > inState->refineUntil*(2*inState->ropelength) )
-	    {
-	      // we are DONE!
-	      break;
-	    }
-	  
-	  // the strut set can get violent after this change, so let's
-	  // make sure none exist.  it's a lot easier on the condition
-	  // number if it reemerges quickly than if it's changing
-	  // rapidly
-	  
-	  plc_scale(*inLink, /*1.05**/(2.0*inState->injrad)/inState->shortest);
-	  
-	  plCurve* oldLink = *inLink;
-	  *inLink = octrope_double_edges(*inLink);  
-	  /* in octrope_additions-- NOT a std octrope call */
-	  plc_free(oldLink);
-	  
-	  gConditionCheck = 20;  
-	  /*check condition number for next 10 evals -- this is where we'll fail*/
-	  
-	  // we need to update some state information also
-	  inState->totalVerts = 0;
-	  for( cItr=0; cItr<(*inLink)->nc; cItr++ )
-	    {
-	      inState->totalVerts += (*inLink)->cp[cItr].nv;
-	    }
-	  
-	  updateSideLengths(*inLink, inState); 
-	  
-	  /* We maintain a list of current side lengths in state, though it's not clear 
-	     we actually use it for anything. Probably, this doesn't hurt, however. */
-	  
-	  //	inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
-	  //	if( kStepScale*plCurve_short_edge(*inLink) < inState->stepSize )
-	  //		inState->stepSize = kStepScale*plCurve_short_edge(*inLink);
-	  offset = 0;
-	  for( i=0; i<(*inLink)->nc; i++ )
-	    {
-	      inState->compOffsets[i] = offset;
-	      offset += (*inLink)->cp[i].nv;
-	    }
-	  
-	  gOutputFlag = 1;
-	  
-	  inState->residual = 500; // make this big
-	}
-      
-      if( (inState->oldLengthTime + inState->checkDelta) < inState->cstep_time )
-	{
-	  inState->oldLength = inState->length;
-	  inState->oldLengthTime = inState->cstep_time;
-	  if( gQuiet == 0 )
-	    printf( "* Checked delta rope and continuing\n" );
-	}
-      
-      double maxmin;
-      maxmin = maxovermin(*inLink, inState);
-      inState->lastMaxMin = maxmin;
-      if( maxmin > maxmaxmin )
-	maxmaxmin = maxmin;
-      //inState->eqMultiplier = 1;
-      
-      /* if( maxmin > 1.0001 ) inState->eq_step = 1;
-	 else inState->eq_step = 0;
-      */		
+  for( stepItr=0; /* Main loop, incorporates stopping criteria. */
+       (stepItr < inState->maxItrs) && 
+	 (rop_20_itrs_ago - inState->ropelength > inState->stop20) &&
+	 (inState->residual > inState->residualThreshold);
+       stepItr++ ) {
+    
+    int lastSet;      
+    lastSet = inState->lastStepStrutCount;
+    
+    /* Decide whether to initiate thickness correction. */
+    
+    if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
+	(inState->minrad < gLambda*inState->minradOverstepTol) ) {
 
-      if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 )
-	{
-	  printf( "mm: %3.5lf eqM: %3.5lf (max mm: %3.5lf) "\
-		  "(min thick: %3.5lf) lrcond: %e cstep: %d eqAvgDif: %e\n", 
-		  maxmin, inState->eqMultiplier, maxmaxmin, minthickness, 
-		  inState->rcond, inState->curvature_step,
-		  inState->eqAvgDiff );
-	  
-	  printf( "cstep/step ratio: %lf delta length: %lf next check: %lf "\
-		  "check threshold: %lf\n", 
-		  ((double)cSteps)/((double)stepItr+1), 
-		  fabs(inState->oldLength-inState->length),
-		  inState->oldLengthTime+inState->checkDelta, inState->checkThreshold );
-	}
+      correct_thickness(link,inState);
+
+    }        
+  
+    /************************************************************************/
+    
+    *inLink = curvature_step(*inLink, inState);
+    
+    /************************************************************************/
+    
+    inState->steps++;
+    
+    /* Manage data output */
       
-      /* This next block outputs VECTS for moviemaking. */
+    if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 ) { /* Note "k" means constant */
       
-      if( inState->time >= nextMovieOutput )
-	{
-	  char	fname[512];
-	  FILE*   frame = NULL;
-	  
-	  struct rusage stopTime;
-	  double user;
-	  
-	  // grab time for this frame and reset counter
-	  getrusage(RUSAGE_SELF, &stopTime);
-	  user = SECS(stopTime.ru_utime) - SECS(inState->frameStart.ru_utime);
-	  if( gQuiet == 0 )
-	    printf( "FRAME TIME (user): %f strts: %d\n", user, inState->lastStepStrutCount );
-	  else
-	    {
-	      // same stats when quiet, but not just once / viz output
-	      printf( "s: %d ms: %d len: %lf r: %lf ssize: %e "\
-		      "dcsd: %lf minrad: %lf rsdl: %e t: %lf cratio: %lf\n", 
-		      inState->lastStepStrutCount, inState->lastStepMinradStrutCount,
-		      inState->length, 2*inState->ropelength, inState->stepSize, 
-		      inState->shortest, inState->minrad, 
-		      inState->residual, inState->time, 
-		      ((double)cSteps)/((double)stepItr+1) );
-	    }
-	  getrusage(RUSAGE_SELF, &inState->frameStart);
-	  
-	  if( inState->saveConvergence != 0 )
-	    {
-	      preptmpname(fname, "rrconvergence.txt", inState);
-	      FILE* conv = fopen(fname,"a");
-	      fprintf( conv, "%3.14lf %3.14lf\n", 
-		       inState->time, max(2*inState->length,2*inState->ropelength) );
-	      // flushes, most importantly
-	      fclose(conv);
-	    }
-	  
-	  //	nextMovieOutput += 0.05;
-	  // make things 24 fps
-	  nextMovieOutput += 0.041666666667;
-	  
-	  sprintf( fname, "restart_%s", inState->fname );
-	  //	(strstr(fname,".vect"))[0] = '\0';
-	  if( gQuiet == 0 )
-	    printf( "saved restart: %s\n", fname );
-	  frame = fopen( fname, "w" );
-	  plc_write(frame, *inLink);
-	  fclose(frame);
-			
-	  if( inState->movie != 0 )
-	    {
-	      sprintf( fname, "movie%s/rmov.%lf_evals-%d_strts-%d_length-%lf.vect", 
-		       inState->fname,
-		       inState->time, 
-		       inState->tsnnls_evaluations, 
-		       inState->lastStepStrutCount,
-		       inState->length );
-	      frame = fopen( fname, "w" );
-	      plc_write(frame, *inLink);
-	      fclose(frame);
-	      
-	      char cmd[1024];
-	      if( inState->lastStepStrutCount != 0 )
-		{
-		  char	foobear[1024];
-		  preptmpname(foobear,"struts.vect",inState);
-		  sprintf(cmd, "cp %s movie%s/struts.%lf.vect", 
-			  foobear, inState->fname, inState->time);
-		  system(cmd);
-		}
-	      
-	      if( gQuiet == 0 )
-		printf( "movie frame output (tsnnls evals: %d)\n", 
-			inState->tsnnls_evaluations );
-	      
-	    }
-	  
-	  gOutputFlag = 1;
-	  
-	  /* also do graph outputs */
-	  for( i=0; i<kTotalGraphTypes; i++ )
-	    {
-	      if( inState->graphing[i] != 0 )
-		{
-		  char fname[255];
-		  sprintf(fname, "%ddat", i);
-		  if( i != kConvergence )
-		    fprintf( gnuplotDataFiles[i], "%lf\t", inState->time );
-		  else
-		    fprintf( gnuplotDataFiles[i], "%u\t", inState->steps );
-		  switch( i )
-		    {
-		    case kLength: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->length );
-		      break;
-		    case kConvergence: 
-		    case kRopelength: 
-		      fprintf( gnuplotDataFiles[i], "%lf", 
-			       2*inState->ropelength ); 
-		      break;
-		    case kStrutCount: 
-		      fprintf( gnuplotDataFiles[i], "%d", 
-			       inState->lastStepStrutCount ); 
-		      break;
-		    case kStepSize: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->stepSize ); 
-		      break;
-		    case kThickness: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->shortest ); 
-		      break;
-		    case kMinrad: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->minrad ); 
-		      break;
-		    case kResidual: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->residual ); 
-		      break;
-		    case kMaxOverMin: 
-		      fprintf( gnuplotDataFiles[i], "%lf", maxmin ); 
-		      break;
-		    case kRcond: 
-		      fprintf( gnuplotDataFiles[i], "%lf", inState->rcond ); 
-		      break;
-		    case kWallTime: 
-		      fprintf( gnuplotDataFiles[i], "%lf", 
-			       (clock() - startTime)/((double)CLOCKS_PER_SEC) ); 
-		      break;
-		    case kMaxVertexForce: 
-		      fprintf( gnuplotDataFiles[i], "%lf", 
-			       (inState->maxPush)/ 
-			       (inState->length/(double)inState->totalVerts) ); 
-		      break;
-		    case kEQVariance: 
-		      fprintf( gnuplotDataFiles[i], "%3.15lf %3.15lf", 
-			       inState->eqVariance, inState->eqAvgDiff ); break;
-		    }
-		  fprintf( gnuplotDataFiles[i], "\n" );
-		  fflush(gnuplotDataFiles[i]);
-		  // show only last 5 seconds
-		  // fprintf( gnuplotPipes[i], 
-		  //          "set xrange [%lf:%lf]\n", inState->time-5, inState->time );
-		  if( i == kLength )
-		    {
-		      if( getenv("DISPLAY") != NULL )
-			fprintf( gnuplotPipes[i], 
-				 "set xrange [%lf:%lf]\n", 
-				 inState->time-1, inState->time );
-		    }
-		  
-		  if( getenv("DISPLAY") != NULL )
-		    {
-		      if( i != kEQVariance )
-			fprintf( gnuplotPipes[i], 
-				 "plot \"%s\" using 1:2 w lines title \'", fname );
-		      else
-			fprintf( gnuplotPipes[i], 
-				 "plot \"%s\" u 1:3 w lines, \"%s\" using 1:2 w "\
-				 "lines title \'", fname, fname );
-		      
-		      switch( i )
-			{
-			case kLength: 
-			  fprintf( gnuplotPipes[i], "Length" ); 
-			  break;
-			case kRopelength: 
-			  fprintf( gnuplotPipes[i], "Ropelength" ); 
-			  break;
-			case kStrutCount: 
-			  fprintf( gnuplotPipes[i], "Strut count" ); 
-			  break;
-			case kStepSize: 
-			  fprintf( gnuplotPipes[i], "Step size" ); 
-			  break;
-			case kThickness: 
-			  fprintf( gnuplotPipes[i], "Thickness" ); 
-			  break;
-			case kMinrad: 
-			  fprintf( gnuplotPipes[i], "Minrad" ); 
-			  break;
-			case kResidual: 
-			  fprintf( gnuplotPipes[i], "Residual" ); 
-			  break;
-			case kMaxOverMin: 
-			  fprintf( gnuplotPipes[i], "Max/min" ); 
-			  break;
-			case kRcond: 
-			  fprintf( gnuplotPipes[i], 
-				   "reciprocal condition number of A (rigidity matrix)");
-			  break;
-			case kWallTime: 
-			  fprintf( gnuplotPipes[i], "process computation time" ); 
-			  break;
-			case kMaxVertexForce: 
-			  fprintf( gnuplotPipes[i], "maximum compression sum" ); 
-			  break;
-			case kConvergence: 
-			  fprintf( gnuplotPipes[i], "convergence (rope vs steps)" ); 
-			  break;
-			case kEQVariance: 
-			  fprintf( gnuplotPipes[i],"edge length variance from average");
-			  break;
-			}
-		      fprintf( gnuplotPipes[i], "\'\n" ); 
-		      fflush( gnuplotPipes[i] );
-		    } // if $DISPLAY defined
-		}
-	    } // for graph outputs
-	}
+      update_runtime_display(inState);  
       
-      /* Now we're done with movies. */
-      /* The next block draws a nice Geomview picture of everything. */
-      
-      if( gOutputFlag == 1 && gSuppressOutput == 0 )
-	{
-	  char	fname[1024];
-	  preptmpname(fname,"verts.vect",inState);
-	  FILE* verts = fopen(fname, "w");
-	  plCurve_draw(verts, *inLink);
-	  fclose(verts);
-	}
-      
-      
-      // eq ourselves
-      //	maxovermin(*inLink);
-      //lapack_eqedge( *inLink, 4 );
-      
-      //lapack_eqedge(*inLink, 4);		
-      
-      //	maxovermin(*inLink);
     }
-  
-  /* inititalize piping if we are to use it */
-  for( i=0; i<kTotalGraphTypes; i++ )
-    {
-      if( inState->graphing[i] != 0 )
-	{
-	  char	cmd[512];
-	  char	fname[255];
-	  
-	  if( getenv("DISPLAY") != NULL )
-	    {
-	      sprintf( fname, "%dpipe", i );
-	      // this will quit gnuplot
-	      sprintf( cmd, "echo quit >> %s", fname );
-	      system(cmd);
-	      fclose(gnuplotPipes[i]);
-	      sprintf(cmd, "rm -f %s", fname);
-	      system(cmd);
-	    } 
-	  
-	  sprintf( fname, "%ddat", i );
-	  fclose(gnuplotDataFiles[i]);
-	  
-	  // you might want to keep these, actually
-	  //	sprintf( cmd, "rm -f %s", fname );
-	  //	system(cmd);
-	} 
+
+    update_runtime_logs(inState);
+
+    if (inState->time >= nextMovieOutput) {
+
+      update_vect_directory(inState);
+      nextMovieOutput += 0.041666666667;
+
     }
+
+    /* Last, we update "inState" to keep track of running variables. */
+
+    if( inState->shortest < minthickness )
+      minthickness = inState->shortest;
+
+    inState->oldLength = inState->length;
+    inState->oldLengthTime = inState->cstep_time;
+
+    double maxmin;
+    maxmin = maxovermin(*inLink, inState);
+    inState->lastMaxMin = maxmin;
+    if( maxmin > maxmaxmin )
+      maxmaxmin = maxmin;
+    
+  } 
+
+  /* We have now terminated. The final output files will be written 
+     in ridgerunner_main.c */
+
+}
+
+
+void update_vect_directory(const plCurve *link, const search_state *state)
+
+     /* If it is time for the next vect output, go ahead and write 
+	another file to the appropriate directory. */
+{
+  char tmpfilename[1024];
+  char tmpfullname[1024];
+  FILE *outfile;
   
-  // clean up
-  free(inState->compOffsets);  
-
-  /* <- we must have a "flat" representation of all verts in order to
-     define columns in the rigidity matrix. This defines it. We could
-     make this process more natural in the plCurve representation, but
-     it's not clear that it's worth it. */
-	
+  sprintf(tmpfilename,"%s%s.%7d.vect",state->vectprefix,state->fname,state->steps);
+  outfile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
+  plc_write(outfile,link);
+  fclose(outfile);
+  
 }
 
-static void
-dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount)
+void update_runtime_logs(search_state *state)
+
+     /* We now update the various data logs for the run. */
+     /* These logs are flushed every LOG_FLUSH_INTERVAL steps, */
+     /* where this is defined in ridgerunner.h. */
 {
-	int cItr, vItr, totalVerts=0;
-	FILE* fp = fopen("ridgeverts","w");
-	
-	for( cItr=0; cItr<link->nc; cItr++ )
-	{
-		totalVerts += link->cp[cItr].nv;
-	}
-	
-	fprintf( fp, "%d\n", totalVerts );
-	
-	for( cItr=0; cItr<link->nc; cItr++ )
-	{
-		for( vItr=0; vItr<link->cp[cItr].nv; vItr++ )
-		{
-			fprintf(fp, "%lf\n%lf\n%lf\n", link->cp[cItr].vt[vItr].c[0],
-				link->cp[cItr].vt[vItr].c[1], link->cp[cItr].vt[vItr].c[2] );
-		}
-	}
-	
-	fprintf( fp, "%d\n", strutCount );
-	// strut indices and positions. ASSUME ONE COMPONENT
-	for( vItr=0; vItr<strutCount; vItr++ )
-		fprintf( fp, "%d %d\n", strutSet[vItr].lead_vert[0], strutSet[vItr].lead_vert[1] );
-	for( vItr=0; vItr<strutCount; vItr++ )
-		fprintf( fp, "%lf %lf\n", strutSet[vItr].position[0], strutSet[vItr].position[1] );
-	
-	fclose(fp);
+  
+  fprintf(state->logfiles[kLength],"%g \n",state->length);
+  fprintf(state->logfiles[kRopelength],"%g \n",state->ropelength);
+  fprintf(state->logfiles[kStrutCount],"%d %d\n",
+	  state->lastStepStruts,state->lastStepMinradStrutCount);
+  fprintf(state->logfiles[kStepSize],"%g \n",state->stepSize);
+  fprintf(state->logfiles[kThickness],"%g \n",state->thickness);
+  fprintf(state->logfiles[kMinrad],"%g \n",state->minrad);
+  fprintf(state->logfiles[kResidual],"%g \n",state->residual);
+  fprintf(state->logfiles[kMaxOverMin],"%g \n",state->lastMaxMin);
+  fprintf(state->logfiles[kRcond],"%g \n",state->rcond);
+
+#ifdef HAVE_CLOCK
+  fprintf(state->logfiles[kWallTime],"%g \n",clock()/CLK_TCK);
+#endif
+
+  fprintf(state->logfiles[kMaxVertexForce],"%g \n",maxPush);
+  fprintf(state->logfiles[kCorrectionStepsNeeded],"%d \n",state->last_cstep_attempts);
+  fprintf(state->logfiles[kEQVariance],"%d \n",state->eqVariance);
+
+  if (state->steps%LOG_FLUSH_INTERVAL == 0) {
+
+    for(i=0;i<kTotalGraphTypes;i++) fflush(state->logfiles[i]);
+
+  }
+
 }
 
-static void
-dumpAxb( taucs_ccs_matrix* A, double* x, double* b )
-{
-	int i, j;
-	double* vals = taucs_convert_ccs_to_doubles(A);
-	FILE* fp = fopen("/Users/michaelp/examples", "w");
-	
-	// out dims
-	fprintf( fp, "%d %d\n", A->m, A->n );
-	
-	// output A
-	for( i=0; i<A->m; i++ )
-	{
-		for( j=0; j<A->n; j++ )
-			fprintf( fp, "%lf ", vals[i*A->n + j] );
-		fprintf(fp, "\n");
-	}
-	
-	// output x
-	for( i=0; i<A->n; i++ )
-		fprintf( fp, "%lf\n", x[i] );
-	
-	// output b
-	for( i=0; i<A->m; i++ )
-		fprintf( fp, "%lf\n", b[i] );
-	
-	free(vals);
-	fclose(fp);
-}
+/********************************************************************/
 
-static void
-dumpDvdt( plc_vector* dvdt, int size )
-{
-	int vItr;
-	FILE* fp = fopen("/Users/michaelp/dvdt","a");
-	fprintf( fp, "%d\n", size );
-	
-		for( vItr=0; vItr<size; vItr++ )
-		{
-			fprintf(fp, "%lf\n%lf\n%lf\n", dvdt[vItr].c[0],
-					dvdt[vItr].c[1], dvdt[vItr].c[2] );
-		}
-		fclose(fp);
-	
-}
+/*    correction_step and bsearch_stepper components                */
+
+/********************************************************************/
 
 void
 step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState )
 {
-	int cItr, vItr, dVdtItr;
-	for( cItr=0, dVdtItr=0; cItr<inLink->nc; cItr++ )
-	{
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, dVdtItr++ )
-		{
-			/* Since our eq strategy isn't perfect, and we have non-eq theory
-			 * we use it here. Scale force at point by the deviation from the 
-			 * average edge length of the averge of adjacent edges
-			 */
-			double avg, scale=1.0;
-	
-			if( inState->curvature_step != 0 )
-			{
-				avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
-				scale = avg / inState->avgSideLength;
-			}
+  int cItr, vItr, dVdtItr;
+  for( cItr=0, dVdtItr=0; cItr<inLink->nc; cItr++ ) {
+
+    for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, dVdtItr++ ) {
+
+      /* Since our eq strategy isn't perfect, and we have non-eq theory
+       * we use it here. Scale force at point by the deviation from the 
+       * average edge length of the averge of adjacent edges
+       */
+      double avg, scale=1.0;
+      
+      if( inState->curvature_step != 0 ) {
+
+	avg = (inState->sideLengths[inState->compOffsets[cItr] + vItr] + 
+	       inState->sideLengths[inState->compOffsets[cItr] + vItr+1])/2.0;
+	scale = avg / inState->avgSideLength;
 			
-			inLink->cp[cItr].vt[vItr].c[0] += scale*stepSize*dVdt[dVdtItr].c[0];
-			inLink->cp[cItr].vt[vItr].c[1] += scale*stepSize*dVdt[dVdtItr].c[1];
-			inLink->cp[cItr].vt[vItr].c[2] += scale*stepSize*dVdt[dVdtItr].c[2];
-		}
-	}
+      }
+
+      plc_M_vmadd(inLink->cp[cItr].vt[vItr],scale*stepSize,dVdt[dVdtItr]);
+
+    }
+  }
 }
+
+      
+void correct_thickness(plCurve *link,search_state *inState) 
+
+     /* Newton's method correction algorithm for thickness. */
+     
+     /* Attempts to fix things so that the shortest strut and 
+	worst minrad vertex are within "greenZone" of obeying 
+	the constraints. 
+
+	May take most of runtime if the number of verts is large,
+	since we use the (slow) Stanford LSQR code to compute
+	direction for Newton steps. */
+     
+
+     /* INCOMPLETE FOR NOW! */
+
+{
+  double greenZone = 
+    2*inState->tube_radius*(1 - 0.5*inState->overstepTol);
+  double mrgreenZone = 
+    gLambda*inState->tube_radius*(1-0.5*inState->minradOverstepTol);
+  
+  if( (inState->curvature_step == 0 && inState->shortest < greenZone) ||
+      (inState->curvature_step == 0 && inState->minrad < mrgreenZone) ) {
+    
+    // we haven't finished yet, record
+    gCorrectionAttempts++;	    
+    inState->curvature_step = 0;
+    
+      } else {
+	
+	if (inState->curvature_step == 0) { 
+	  /* We are finishing a round of correction steps. 
+	     Record the number of steps in the round in a log file. */
+	  
+	  fprintf(inState->logfiles[kCorrectionStepsNeeded],
+		  "%d\n",gCorrectionAttempts);
+	}
+	
+	inState->curvature_step = 1;
+	
+      }
+
+
+  else {
+      step(workerLink, correctionStepSize, dVdt, inState);
+  }
+  
+}
+
 
 int
 equalStruts( const octrope_strut* s1, const octrope_strut* s2 )
 {
-	if( s1->component[0] == s2->component[0] &&
-		s1->component[1] == s2->component[1] &&
-		s1->lead_vert[0] == s2->lead_vert[0] &&
-		s1->lead_vert[1] == s2->lead_vert[1] &&
-		fabs(s1->position[0]-s2->position[0]) < 0.05 &&
-		fabs(s1->position[1]-s2->position[1]) < 0.05 )
-	{
-		return 1;
-	}
-	return 0;
+  if( s1->component[0] == s2->component[0] &&
+      s1->component[1] == s2->component[1] &&
+      s1->lead_vert[0] == s2->lead_vert[0] &&
+      s1->lead_vert[1] == s2->lead_vert[1] &&
+      fabs(s1->position[0]-s2->position[0]) < 0.05 &&
+      fabs(s1->position[1]-s2->position[1]) < 0.05 )
+    {
+      return 1;
+    }
+  return 0;
 }
 
-static void
-barForce( plc_vector* dVdt, plCurve* inLink, search_state* inState )
-{
-	/* solve the unconstrained least squares problem Ax=b where A is the rigidity
-	 * matrix formed by bars on the vertices of the link, and b is the change in each
-	 * component's x, y, z from its original length
-	 */
-	double*		A = NULL, *b = NULL;
-	int			barVerts=0, cItr, vItr;
-	int			bars=0, aIndexer;
-	
-	plc_fix_wrap(inLink);
-
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-		{
-			barVerts += inLink->cp[cItr].nv;
-			bars += plc_strand_edges(&inLink->cp[cItr]);
-		}
-	}
-	
-	A = (double*)malloc(sizeof(double)*barVerts*3*bars);
-	placeVertexBars(A, inLink, 0, barVerts, bars, inState);
-	b = (double*)calloc(barVerts*3, sizeof(double));
-
-	/* now compute b, the change in each dimension of each vertex required to get to eq */
-	plc_vector* sides;
-	double*			lengths;
-	int				edges;
-		
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-		{
-			double length;
-			edges = plc_strand_edges(&inLink->cp[cItr]);
-				
-			for( vItr=0; vItr<edges; vItr++ )
-			{
-				plc_vector s1, s2, side;
-				s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-				s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-				s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-				s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-				s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-				s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-				side.c[0] = s2.c[0] - s1.c[0];
-				side.c[1] = s2.c[1] - s1.c[1];
-				side.c[2] = s2.c[2] - s1.c[2];
-				
-				length = plc_M_norm(side);
-				
-				// unit-ize sides since we will use these as the tangential motion basis below
-				side.c[0] /= length;
-				side.c[1] /= length;
-				side.c[2] /= length;
-												
-				b[inState->compOffsets[cItr]+vItr + 0] = -((inState->sideLengths[inState->compOffsets[cItr]+vItr] - length) * side.c[0]);
-				b[inState->compOffsets[cItr]+vItr + 1] = -((inState->sideLengths[inState->compOffsets[cItr]+vItr] - length) * side.c[1]);
-				b[inState->compOffsets[cItr]+vItr + 2] = -((inState->sideLengths[inState->compOffsets[cItr]+vItr] - length) * side.c[2]);
-			
-			//	b[inState->compOffsets[cItr]+vItr + 0] = dVdt[inState->compOffsets[cItr]+vItr + 0].c[0];
-			//	b[inState->compOffsets[cItr]+vItr + 1] = dVdt[inState->compOffsets[cItr]+vItr + 0].c[1];
-			//	b[inState->compOffsets[cItr]+vItr + 2] = dVdt[inState->compOffsets[cItr]+vItr + 0].c[2];
-																		
-				printf( "adjusting (%d) %d: %lf\n", cItr, vItr, (inState->sideLengths[inState->compOffsets[cItr]+vItr] - length) );
-			}
-		}
-	}
-	
-	if( barVerts != 0 )
-	{
-		double* compressions;
-		taucs_ccs_matrix* sparseA;
-		
-		sparseA = taucs_construct_sorted_ccs_matrix(A, bars, 3*barVerts);
-		compressions = t_lsqr( sparseA, b );
-	//	taucs_print_ccs_matrix(sparseA);
-		taucs_ccs_free(sparseA);
-		
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			if( inState->conserveLength[cItr] != 0 )
-			{
-				double partialMult = 0;
-				int totalStruts = bars;
-				int dlItr, sItr;
-				
-				for( dlItr=inState->compOffsets[cItr]; dlItr<inState->compOffsets[cItr]+inLink->cp[cItr].nv; dlItr++ )
-				{
-					int cItr2;
-					/* of course, dlItr is not quite right here since we are including ALL vertices in its computation, but all vertices
-					 * are not accounted for in A. We need to adjust A's indexer here to account for this, which amounts to subtracting
-					 * from dlItr all the components which preceed the one we are currently processing that are NOT bar composed
-					 */
-					aIndexer = dlItr;
-					for( cItr2=0; cItr2<cItr; cItr2++ )
-					{
-						if( inState->conserveLength[cItr2] == 0 )
-							aIndexer -= inLink->cp[cItr2].nv;
-					}
-				
-					for( sItr=0; sItr<totalStruts; sItr++ )
-					{
-						if( (totalStruts*3*aIndexer)+sItr+0 >= bars*3*barVerts )
-							printf( "*** crap!\n" );
-						partialMult += compressions[sItr]*A[(totalStruts*3*aIndexer)+sItr+0];
-					}
-					dVdt[dlItr].c[0] = dVdt[dlItr].c[0] + partialMult;
-				
-					partialMult=0;
-					for( sItr=0; sItr<totalStruts; sItr++ )
-					{
-						if( (totalStruts*3*aIndexer)+sItr+0 >= bars*3*barVerts )
-							printf( "*** crap!\n" );
-						partialMult += compressions[sItr]*A[(totalStruts*3*aIndexer)+sItr+totalStruts];
-					}
-					dVdt[dlItr].c[1] = dVdt[dlItr].c[1] + partialMult;
-					
-					partialMult = 0;
-					for( sItr=0; sItr<totalStruts; sItr++ )
-					{
-						if( (totalStruts*3*aIndexer)+sItr+0 >= bars*3*barVerts )
-							printf( "*** crap!\n" );
-						partialMult += compressions[sItr]*A[(totalStruts*3*aIndexer)+sItr+(2*totalStruts)];
-					}
-					dVdt[dlItr].c[2] = dVdt[dlItr].c[2] + partialMult;
-				}
-			}
-		}
-		
-		free(compressions);
-	}
-	
-	// debug code!
-	char	fname[1024];
-	preptmpname(fname,"dVdt.vect",inState);
-	exportVect(dVdt, inLink, fname);
-
-	free(A);
-	free(b);
-}
 
 static void
 normalizeVects( plc_vector* dvdt, int size )
+
+     /* Scale the 3*size vector dvdt to norm 10 in R^{3*size}. */
+
 {
-	double sum = 0;
-	int i;
-	for( i=0; i<size; i++ )
-	{
-		sum += dvdt[i].c[0]*dvdt[i].c[0];
-		sum += dvdt[i].c[1]*dvdt[i].c[1];
-		sum += dvdt[i].c[2]*dvdt[i].c[2];
-	}
-	
-	sum = sqrt(sum);
-	
-	for( i=0; i<size; i++ )
-	{
-		dvdt[i].c[0] = 10*(dvdt[i].c[0]/sum);
-		dvdt[i].c[1] = 10*(dvdt[i].c[1]/sum);
-		dvdt[i].c[2] = 10*(dvdt[i].c[2]/sum);
-	}
+  double sum = 0;
+  int i;
+
+  for( i=0; i<size; i++ ) { sum += plc_M_dot(dvdt[i],dvdt[i]); } 
+  sum = sqrt(sum);
+  for( i=0; i<size; i++ ) { plc_M_scale_vect(10/sum,dvdt[i]) }
+
 }
 
 plCurve*
 bsearch_step( plCurve* inLink, search_state* inState )
 {	
-	int stepAttempts;
-	int dvdtItr;
-	double  lastDCSD, lastMR, eps = inState->stepSize*inState->stepSize;
-	plCurve* workerLink;
+  int stepAttempts = 0;
+  int dvdtItr;
+  double  lastDCSD, lastMR, eps = inState->stepSize*inState->stepSize;
+  plCurve* workerLink;
 	
-//	double ERROR_BOUND = ((inState->overstepTol)*(2*inState->injrad))/50;
-	double ERROR_BOUND = 1e-5;
-//	double MR_ERROR_BOUND = ((inState->overstepTol)*inState->injrad)/20;
-	double MR_ERROR_BOUND = 1e-5;
+  double ERROR_BOUND = 1e-5;
+  double MR_ERROR_BOUND = 1e-5;
+  
+  // create initial vector field for which we want to move along in this step
+  plc_vector* dVdt; 
 
-	// create initial vector field for which we want to move along in this step
-	plc_vector* dVdt;
-	
-	dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
-	
-	struct rusage stopTime;
-	struct rusage startTime;
-	double user;
+  dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
+  dlenForce(dVdt,inLink,inState);
+  eqForce(dVdt,inLink,inState);
 
-	if( gPaperInfoInTmp != 0 )
-	{
-		// keep track of linear algebra runtime
-		getrusage(RUSAGE_SELF, &startTime);
-	}
+  resolveForce(dVdt,inLink,inState); /* Built from the bones of firstVariation. */
 
-	firstVariation(dVdt, inLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
-	
-	if( gPaperInfoInTmp != 0 )
-	{
-		getrusage(RUSAGE_SELF, &stopTime);
-		user = SECS(stopTime.ru_utime) - SECS(startTime.ru_utime);
-		if( inState->curvature_step == 0 )
-			printf( "Correction step firstVartion() time: %lf\n", user );
-		else
-			printf( "Curvature step firstVartion() time: %lf\n", user );
-	}
-	// this actually onlt applies with newton stepping without lsqr, which we don't do anymore.
-	// not that we ever did, but the code will be left here if i ever come back to it
-/*	if( inState->curvature_step == 0 && gFastCorrectionSteps == 0 )
-	{
-		inState->minrad = octrope_minradval(inLink);
-		inState->shortest = octrope_poca(inLink, NULL, 0);
-		inState->length = plc_arclength(inLink);
+  /* Now we loop to find largest stepsize which doesn't violate constraints. */
 
-		free(dVdt);
-
-		return inLink; // we updated the verts from the lsqr call in firstVariation
-	}
-*/	
-	
-	if( inState->shortest > 2*inState->injrad )
-		inState->shortest = 2*inState->injrad;
+  if( inState->shortest > 2*inState->tube_radius )
+    inState->shortest = 2*inState->tube_radius;
 			
-//	lastDCSD = octrope_poca(inLink, NULL, 0);
-	lastDCSD = inState->shortest;
-	lastMR = inState->minrad;
+  lastDCSD = inState->shortest;
+  lastMR = inState->minrad;
+  
+  stepAttempts = 0;
+  workerLink = NULL;
+  double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, 
+    correctionStepSize=inState->correctionStepDefault;
+  short	improvedNorm = 0;
+	
+  normalizeVects(dVdt, inState->totalVerts);
+    
+  double oldLength = inState->length;
 
-	stepAttempts = 0;
-	workerLink = NULL;
-	double curr_error = 0, mr_error=0, newpoca = 0, newmr=0, correctionStepSize=inState->correctionStepDefault;
-	short	improvedNorm = 0;
-	
-//	correctionStepSize = 1e-7;
-	
-	if( inState->curvature_step != 0 )
-	{
-		normalizeVects(dVdt, inState->totalVerts);
-	}
-	
-//	if( lastMR < 0.5 )
-//		correctionStepSize = 0.25;
+  /* We're going to have to call octrope every time we go through this 
+     loop in order to compute the level of error we have so far. In order
+     to speed these calls up (slightly), we allocate memory once, in advance. */
 
-	if( gSurfaceBuilding )
-		correctionStepSize = 0.25;
-	
-	double oldLength = inState->length;
-	double workingLength = 0;
-	
-	do
-	{			
-		stepAttempts++;
-		
-	/*	if( inState->stepSize == 0 )
-		{
-			inState->stepSize = kMinStepSize;
-			break;
-		}
-	*/	
-		// move along dVdt
-		if( workerLink != NULL )
-			plc_free(workerLink);
-		workerLink = plc_copy(inLink); /* This must not be standard plc_copy. */
-		plc_fix_wrap(workerLink);      /* Requires fixwrap after. */
-								
-		if( inState->curvature_step != 0 )
-		{
-			step(workerLink, inState->stepSize, dVdt, inState);
-			workingLength = plc_arclength(workerLink);
-		}
-		else
-		{
-			step(workerLink, correctionStepSize, dVdt, inState);
-		}
+  void *octmem;
+  int  octmem_size;
 
-		if( gOutputFlag == 1 )
-		{
-			char fname[1024];
-			preptmpname(fname,"dVdt.vect", inState);
-			exportVect(dVdt, inLink, fname);
-			
-			if( inState->fancyVisualization != 0 )
-			{
-				//fprintf(inState->fancyPipe, "(load %s)\n",fname);
-				preptmpname(fname,"struts.vect",inState);
-				fprintf(inState->fancyPipe, "(load %s)\n", fname);
-				fflush(inState->fancyPipe);
-			}
-			if( gQuiet == 0 )
-				printf( "visualization output\n" );
-			gOutputFlag = 0;
-		}
+  octmem_size = octrope_est_mem(plc_num_edges(inLink));
+  octmem = malloc(sizeof(char)*octmem_size);
+  fatalifnull_(octmem);
+    
+  double newthi,newrop,newlen;
 
-		newmr = octrope_minradval(workerLink);
-		newpoca = octrope_poca(workerLink, NULL, 0);
+  do {			
+    
+    stepAttempts++;
 		
-		if( isnan(newmr) || isinf(newmr) ) /* Again, a workaround for an octrope bug that hopefully 
-											  no longer exists. */
-		{
-			fprintf(stderr, "error write due to Jason and/or Ted, but not Michael nan minrad!\n");
-			error_write(workerLink);
-			
-			newmr = octrope_minradval(workerLink);
-			printf( "%lf\n", newmr );
-			
-			exit(-1);
-		}
-		
-		inState->minrad = newmr;
-		inState->shortest = newpoca;
-		
-		if( inState->curvature_step != 0 )
-		{
-			// check our new thickness
-			curr_error = max( lastDCSD-newpoca, 0 );
-			if( newmr < inState->injrad )
-				mr_error = max(lastMR - newmr, 0);
-			else
-				mr_error = 0;
-			
-	/*		if( workingLength > oldLength )
-				curr_error = 1;
-	*/			
-			/**********************************************************************************/
+    // move along dVdt
 	
-							/* This is where step size is being adjusted! */
-							
-			/* This algorithm may or may not be a good idea. It's an "optimistic" stepper, which 
-			   concludes after each successful step that it should attempt to double step size.
-			   If step size is basically constant, this results in one failure per step. 
-			   
-			   Further, it doesn't really try to converge on a nice stepsize, but rather just
-			   maintains a strict "powers of 2" hierarchy. It might be interesting to look this
-			   up and see about other possible designs here. */
-			
-			if( curr_error < ERROR_BOUND && (mr_error < MR_ERROR_BOUND || inState->ignore_minrad) )
-				inState->stepSize *= 2;
-			else
-				inState->stepSize /= 2;		
-				
-			/**********************************************************************************/	
-		}
-		
-		if( mr_error > MR_ERROR_BOUND && !inState->ignore_minrad )
-			curr_error = 1;
-					
-	} while( (curr_error > ERROR_BOUND ) && 
-	           inState->stepSize < inState->maxStepSize 
-			   && inState->stepSize > kMinStepSize );
-	
-	if( gPaperInfoInTmp != 0 )
-	{
-		char fname[512];
-		preptmpname(fname,"bsearch_count",inState);
-		FILE* tb = fopen(fname,"a");
-		fprintf(tb, "%d\n", stepAttempts);
-		fclose(tb);
-	}
-	
-	inState->minrad = newmr;
-	
-	if( inState->stepSize < kMinStepSize )
-		inState->stepSize = kMinStepSize;
-				
-	if( inState->curvature_step != 0 && inState->eq_step == 0 )
-	{
-		inState->cstep_time += inState->stepSize;
-		inState->time += inState->stepSize;
-	}
-	
-	plc_free(inLink);
-	inLink = workerLink;
-		
-	// we're good, double step size and continue jamming
-/*	if( stepAttempts == 1 && inState->curvature_step != 0  )
-	{
-		inState->stepSize *= 2;
-	}
-*/	
-	if( inState->stepSize > inState->maxStepSize )
-	{
-		inState->stepSize = inState->maxStepSize;
-	}
-	
-	// grab average dvdt now that we have finished mungering it
-	inState->avgDvdtMag=0;
-	for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ )
-	{
-		inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
-	}
-	inState->avgDvdtMag /= inState->totalVerts;
+    if( workerLink != NULL ) plc_free(workerLink);
+    workerLink = plc_copy(inLink); 
 
-	// we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
-	if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && inState->curvature_step != 0 &&
-		inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) // this keeps us from zeroing on corrector steps
-	{
-		inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
-	}
+    step(workerLink, inState->stepSize, dVdt, inState);
+
+    /* We now compute the error in minRad and poca.  Since we need to
+       update inState later if we're accepting this configuration, we
+       just go ahead and make a full-on octrope call.
+    
+       This is pretty much a wash, speed-wise. I don't know whether
+       octrope computes length in order to do an octrope_poca call, so
+       there might be some speed savings in calling octrope_poca and
+       octrope_minrad separately.
+
+       On the other hand, having done so you need to either assemble
+       these into thickness yourself after the loop (likely to be
+       buggy) or call octrope again in order to do the assembly and
+       length calculation (slow). 
+
+       I'm probably overthinking this. */
+  
+    octrope(inLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	    octmem,octmem_size);
+    
+    curr_error = (newpoca < 2*inState->tube_radius) ? max(lastDCSD-newpoca,0) : 0;
+    mr_error = (newmr < gLambda*tube->radius) ? max(lastMR-newmr,0) : 0;
+
+    /**********************************************************************************/
 	
-	// also shouldn't be > 10% of edgelength
-	if( inState->stepSize > inState->length/inState->totalVerts*.1 )
-		inState->stepSize = inState->length/inState->totalVerts*.1;
+    /* This is where step size is being adjusted! */
+    
+    /* This algorithm may or may not be a good idea. It's an
+       "optimistic" stepper, which concludes after each successful
+       step that it should attempt to double step size.  If step size
+       is basically constant, this results in one failure per step.
+	   
+       Further, it doesn't really try to converge on a nice stepsize,
+       but rather just maintains a strict "powers of 2" hierarchy. It
+       might be interesting to look this up and see about other
+       possible designs here. */
 	
-	free(dVdt);
-	
-	inState->length = plc_arclength(inLink);
-	
-	return inLink;
+    if( curr_error < ERROR_BOUND && mr_error < MR_ERROR_BOUND )
+      inState->stepSize *= 2;
+    else
+      inState->stepSize /= 2; 
+
+    /***************************************************/	
+  
+  } while( ((curr_error > ERROR_BOUND ) || (mr_error > MR_ERROR_BOUND)) &&
+	   inState->stepSize < inState->maxStepSize 
+	   && inState->stepSize > kMinStepSize );
+
+  /* Notice that this loop condition restricts the maximum stepsize,
+     even if the error is small, and causes us to accept a step which
+     may cause a lot of error if the stepsize gets too small (we're
+     hoping to fix things on the next correction step). */
+
+  plc_free(inLink);		/* Commit to the step by changing inLink */
+  inLink = workerLink;
+
+  /* Now we update "inState" to reflect the changes in inLink. */
+  
+  inState->last_step_attempts = stepAttempts++;  
+  
+  inState->minrad = newmr;
+  inState->shortest = newpoca;
+  inState->length = newlen;
+  inState->ropelength = newrop;
+  inState->thickness = newthi;
+  
+  if( inState->stepSize < kMinStepSize )
+    inState->stepSize = kMinStepSize;
+  
+  inState->cstep_time += inState->stepSize;
+  inState->time += inState->stepSize;
+   
+  if( inState->stepSize > inState->maxStepSize ) inState->stepSize = inState->maxStepSize;
+  
+  // grab average dvdt now that we have finished mungering it
+  inState->avgDvdtMag=0;
+  for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ ) {
+
+    inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
+  
+  }
+  inState->avgDvdtMag /= inState->totalVerts;
+  
+  // we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
+  if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && 
+      inState->curvature_step != 0 &&
+      inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) 
+    /* last this keeps us from zeroing in dVdt is really small */
+    {
+      
+    inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+    
+    }
+
+  // also shouldn't be > 10% of edgelength
+  if( inState->stepSize > inState->length/inState->totalVerts*.1 )
+    inState->stepSize = inState->length/inState->totalVerts*.1;
+  
+  free(dVdt);
+  free(octmem);
+  
+  return inLink;
 }
 
-static plCurve*
-old_bsearch_step( plCurve* inLink, search_state* inState )
-{	
-	int stepAttempts;
-	int dvdtItr;
-	double  lastDCSD, eps = inState->stepSize*inState->stepSize;
-	plCurve* workerLink;
+/******************************************************************/
+/*                 Building the rigidity matrix                   */
+/******************************************************************/
 
-	// create initial vector field for which we want to move along in this step
-	plc_vector* dVdt;
-	
-	dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
-	
-	/* 
-	 * we need to get the initial strut set to compare our steps to.
-	 * this must occur at the start of every step -- we cannot use
-	 * the old value since we have changed the curve (and possibly
-	 * the strut set) during equilateralization
-	 */
-	
-	// the ordering of these forces is important -- first we introduce the movement force 
-	// which we must resolve self contacts over -- but since we don't want to cancel the 
-	// force of redistributing the curve (bar force) we place that after strut resolution
-	
-//	specialForce(dVdt, inLink, inState);
-	firstVariation(dVdt, inLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
-	if( inState->shortest > 2*inState->injrad )
-		inState->shortest = 2*inState->injrad;
-	
-	lastDCSD = inState->shortest;
+static void
+placeMinradStruts2Sparse( taucs_ccs_matrix* rigidityA, plCurve* inLink, 
+			  octrope_mrloc* minradStruts, 
+			  int minradLocs, search_state* inState, 
+			  int contactStruts )
 
-	stepAttempts = 0;
-	workerLink = NULL;
-	do
-	{			
-		stepAttempts++;
-				
-		// move along dVdt
-		if( workerLink != NULL )
-			plc_free(workerLink);
-		workerLink = plc_copy(inLink);
-		plc_fix_wrap(workerLink);
-		step(workerLink, inState->stepSize, dVdt, inState);
-		if( gOutputFlag == 1 )
-		{
-			char	fname[1024];
-			preptmpname(fname,"dVdt.vect",inState);
-			exportVect(dVdt, inLink, fname);
-			printf( "visualization output\n" );
-			gOutputFlag = 0;
-		}
+     /* Using the information provided by octrope in the octrope_mrloc array,
+	and assuming that rigidityA already contains "contactstruts" 12 entry
+	columns, loop through the mrloc locations, computing the gradient of 
+	minrad at each vertex and adding the appropriate 9-entry column to the 
+        matrix rigidityA at each step. 
 
-		free(dVdt);
+	We assert that rigidityA contains at least contactstruts + minradlocs
+	columns to begin with, and that rigidityA->colptr is set correctly for
+        contactStruts 12-row columns and minradLocs 9-row columns. This _does_
+        happen in firstVariation. */
+
+{
+  int mItr;
+  int totalStruts = contactStruts + minradLocs;
+  char errmsg[1024];
+  bool ok,sortFlag = {FALSE};
+  
+  for( mItr=0; mItr<minradLocs; mItr++ ) {
+
+    /* For each vertex at minimum minrad radius... compute the gradient of mr */
+
+    plc_vector B, A, cross, As, Bs, Cs;
+    double	bmag, amag;
+    double value, angle;
+    double kappa, dot, prevLen, thisLen;
+    plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
+    
+    int vItr = minradStruts[mItr].vert;
+    int cItr = minradStruts[mItr].component;
 		
-		// get new dvdt and basically see if we've overrun our error bound for
-		// strut length
-		dVdt = calloc(inState->totalVerts, sizeof(plc_vector));
-		firstVariation(dVdt, workerLink, inState, NULL, &inState->lastStepStrutCount, inState->curvature_step);
-				
-		if( inState->shortest < lastDCSD-eps )
-		{
-			//inState->stepSize = fmax(inState->stepSize*0.5, 0.0039);
-			inState->stepSize *= 0.5;
-			
-			/* If our step size is getting too small, we can surmise that we are at a point of discontinuity and 
-			 * we just need to step over it. This will happen whenever a strut is created, since error proportional 
-			 * to ssize^2 will always win out with half stepping BEFORE the strut is created (since that's 0 error!)
-			 * So it's easy to see that step size spirals down (because tolerated error goes down) and the strut is just 
-			 * never created, but this fixes that, which is handy, and the corrector steps will smooth things out for us later
-			 * by making sure we're in the 'good zone' of strutness (which is to say struts that are arbitrarily close to thickness)
-			 */
-			if( inState->stepSize < kMinStepSize ) // notice that this means eps is ss^2, which is close to max double precision!
-			{
-				inState->stepSize *= 2;
-				break;
-			}
-			
-			continue;
-		}
-		else
-		{
-			break;
-		}
+    prevSide = plc_vect_diff(inLink->cp[cItr].vt[vItr],inLink->cp[cItr].vt[vItr-1]);
+    thisSide = plc_vect_diff(inLink->cp[cItr].vt[vItr+1],inLink->cp[cItr].vt[vItr]);
 		
-	} while( 1==1 );
-	
-	inState->time += inState->stepSize;
-	if( inState->curvature_step != 0 && inState->eq_step == 0 )
-		inState->cstep_time += inState->stepSize;
-	
-	plc_free(inLink);
-	inLink = workerLink;
-		
-	// we're good, double step size and continue jamming
-	if( stepAttempts == 1 && inState->curvature_step != 0  )
-	{
-		inState->stepSize *= 2;
-	}
-	
-	if( inState->stepSize > inState->maxStepSize )
-	{
-		inState->stepSize = inState->maxStepSize;
-	}
-	
-	// grab average dvdt now that we have finished mungering it
-	inState->avgDvdtMag=0;
-	for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ )
-	{
-		inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
-	}
-	inState->avgDvdtMag /= inState->totalVerts;
+    /* dot = plc_M_dot(prevSide, thisSide); */
 
-	// we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
-	if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && inState->curvature_step != 0 &&
-		inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) // this keeps us from zeroing on corrector steps
-	{
-		inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
-	}
+    prevLen = plc_M_norm(prevSide);
+    thisLen = plc_M_norm(thisSide);
+
+    // B = b-v = thisSide. 
+
+    B = thisSide;
+    A = plc_scale_vect(-1,prevSide);
+
+    bmag = plc_M_norm(B);
+    amag = plc_M_norm(A);
+		
+    /* value = dot/(prevLen*thisLen); */
+    angle = plc_angle(prevSide,thisSide);
+
+    /* We now check that angle is high enough for the following 
+       stuff to work. */
+
+    if (angle < 1e-12 || angle > PI - 1e-12) {
+      
+      sprintf(errmsg,
+	      "ridgerunner: Can't compute minrad gradient when edges are\n"
+	      "             almost colinear. Angle between edges is %g.\n",
+	      angle);
+
+      FatalError(errmsg, __FILE__ , __LINE__ );
+
+    }
+    		
+    if( thisLen < prevLen )
+      {
+	// says... maple?
+	kappa = -bmag/(2-2*cos(angle));
 	
-	// also shouldn't be > 10% of edgelength
-	if( inState->stepSize > inState->length/inState->totalVerts*.1 )
-		inState->stepSize = inState->length/inState->totalVerts*.1;
+	// BxA
+
+	plc_M_cross(N,B,A);
+	N = plc_normalize_vect(N,&ok);
+	assert(ok);
 	
-	free(dVdt);
+	double Lconst, Mconst, Nconst;
 	
-	return inLink;
+	Lconst = (1/(2*tan(angle/2) * bmag));	
+        fancyL = plc_scale_vect(Lconst,B);
+
+	Mconst = kappa*(1/(amag*amag));
+	// A x N
+
+	plc_M_cross(cross,A,N);
+	fancyM = plc_scale_vect(Mconst,cross);
+	
+	Nconst = kappa*(1/(bmag*bmag));
+	// N x B
+
+	plc_M_cross(cross,N,B);
+	fancyN = plc_scale_vect(Nconst,cross);
+	
+	As = fancyM;
+		
+	Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+	Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+	Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+
+	/* This is really the fastest way to accomplish this operation. The plCurve */
+	/* option would be the code: */
+
+	/* Bs = plc_scale_vect(-1,plc_vect_sum(plc_vect_sum(fancyM,fancyN),fancyL)); */
+
+	/* which is really pretty awful. */
+	
+	Cs = plc_vect_sum(fancyN,fancyL);
+	
+      }
+    else
+      {
+	// says... maple?
+	kappa = -amag/(2-2*cos(angle));
+	
+	// BxA
+
+	plc_M_cross(N,B,A);
+	N = plc_normalize_vect(N,&ok);
+	assert(ok);
+	
+	double Lconst, Mconst, Nconst;
+	
+	Lconst = (1/(2*tan(angle/2) * amag));
+
+	fancyL = plc_scale_vect(Lconst,A);
+	Mconst = kappa*(1/(amag*amag));
+
+	// A x N
+
+	plc_M_cross(cross,A,N);
+	fancyM = plc_scale_vect(Mconst,cross);
+	
+	Nconst = kappa*(1/(bmag*bmag));
+	// N x B
+	plc_M_cross(cross,N,B);
+	fancyN = plc_scale_vect(Nconst,cross);
+
+	As = plc_vect_sum(fancyM,fancyL);
+	
+	Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+	Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+	Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+
+	/* See above. This is better than using plCurve. */
+	
+	Cs = fancyN;
+
+      }
+    
+    norm = sqrt(plc_M_dot(As,As) + plc_M_dot(Bs,Bs) + plc_M_dot(Cs,Cs));
+    
+    // if we're doing fast tsnnls based correction steps, the normalization 
+    // doesn't really matter
+    if( inState->curvature_step != 0 || gFastCorrectionSteps != 0 ) {
+
+      plc_M_scale_vect(1/norm,As);
+      plc_M_scale_vect(1/norm,Bs);
+      plc_M_scale_vect(1/norm,Cs);
+    
+    }
+
+    /* We have now computed the mr gradient, and it's time to fill in the 
+       appropriate locations in rigidityA. */
+    
+    // temporarily increment the strut's verts based on their component interactions
+    // we undo this change at the end of the for loop in case the user
+    // wants to keep the strut set
+    
+    int aVert, bVert, cVert, entry;
+    aVert = minradStruts[mItr].vert-1;
+    bVert = minradStruts[mItr].vert;
+    cVert = minradStruts[mItr].vert+1;
+    
+    aVert += inState->compOffsets[minradStruts[mItr].component];
+    bVert += inState->compOffsets[minradStruts[mItr].component];
+    cVert += inState->compOffsets[minradStruts[mItr].component];
+
+    /* We start by placing vector As. "entry" will record the */
+    /* row location of As.c[0] in rigidity matrix. Since there */
+    /* is no wraparound addressing in the rigidity matrix, we */
+    /* must deal with the situation if aVert = -1. */
+
+    if ( aVert == -1 ) {
+
+      if (!inLink->cp[minradStruts[mItr].component].open) {
+
+	aVert = inLink->cp[minradStruts[mItr].component].nv-1;
+	sortFlag = TRUE; 
+
+	/* This screws up assumption that rowind values are increasing, and 
+	   we'll have to fix that later on in the construction process. */
+
+      } else { 
+
+	/* We should not have an mrloc at vert 0 or nv-1 of an open component. */
+
+	sprintf(errmsg,
+		"ridgerunner: Should not have mrloc at vert 0 of an open\n"
+		"             polyline.\n");
+	FatalError(errmsg, __FILE__ , __LINE__ );
+
+      }
+
+    }
+
+    /* This is the code that this fragment replaced: */
+
+    /*if( minradStruts[mItr].vert == 0 &&
+	(inLink->cp[minradStruts[mItr].component].acyclic == 0) ) {
+      
+	entry = 3*inLink->cp[minradStruts[mItr].component].nv-1 + 
+	inState->compOffsets[minradStruts[mItr].component];
+	
+	  (I think this is a bug-- entry is used below as a row number,
+	   so we shouldn't involve compOffsets.)
+    
+	   } else {
+	   
+	   entry = 3*aVert;
+	   
+	   }
+    */
+
+    assert(0 <= entry < rigidityA->m-2);
+    assert(contactStruts+mItr < rigidityA->n);
+
+    int col;
+
+    colptr = rigidityA->colptr[contactsStruts+mItr];  
+    /* Find rowind and values offset for column contactStruts + mItr]; */
+		
+    rigidityA->values.d[colptr+0] = As.c[0];
+    rigidityA->values.d[colptr+1] = As.c[1];
+    rigidityA->values.d[colptr+2] = As.c[2];
+    
+    rigidityA->rowind[colptr+0] = entry + 0;
+    rigidityA->rowind[colptr+1] = entry + 1;
+    rigidityA->rowind[colptr+2] = entry + 2;
+
+    /* We now fill in the appropriate entries for b. We know that
+       bVert should be a "normal" vertex, so there's no need to worry
+       about open/closed plCurves. */
+    
+    entry = (3*bVert);
+    assert(0 <= entry < rigidityA->m-2);
+
+    rigidityA->values.d[colptr+3] = Bs.c[0];
+    rigidityA->values.d[colptr+4] = Bs.c[1];
+    rigidityA->values.d[colptr+5] = Bs.c[2];	
+    
+    rigidityA->rowind[colptr+3] = entry + 0;
+    rigidityA->rowind[colptr+4] = entry + 1;
+    rigidityA->rowind[colptr+5] = entry + 2;
+
+    /* We now fill in the cVert values. Again, cVert might be too large
+       if we have a minradloc on the n-1 vertex of a closed plCurve. So
+       we fix cVert if needed. */
+
+    if ( cVert == inLink->cp[minradStruts[mItr].component].nv ) {
+
+      if (!inLink->cp[minradStruts[mItr].component].open) {
+
+	cVert = 0;
+	sortFlag = TRUE; 
+
+	/* Again, this screws up the assumption that the rowind values 
+	   will be increasing. We'll sort later to fix that. */
+
+      } else { 
+
+	/* We should not have an mrloc at vert 0 or nv-1 of an open component. */
+
+	sprintf(errmsg,
+		"ridgerunner: Should not have mrloc at vert nv-1 of an open\n"
+		"             polyline.\n");
+	FatalError(errmsg, __FILE__ , __LINE__ );
+
+      }
+
+    }
+
+    entry = 3*cVert;
+    assert(0 <= entry < rigidityA->m-2);
+        
+    rigidityA->values.d[colptr+6] = Cs.c[0];
+    rigidityA->values.d[colptr+7] = Cs.c[1];
+    rigidityA->values.d[colptr+8] = Cs.c[2];		
+    
+    rigidityA->rowind[colptr+6] = entry + 0;
+    rigidityA->rowind[colptr+7] = entry + 1;
+    rigidityA->rowind[colptr+8] = entry + 2;
+
+  } // for over minrad struts
+
+  /* We may have a few bad columns where we filled in rowind in the wrong order. */
+  /* If so, sort to fix it. */
+
+  if (sortFlag) { 
+
+    taucs_enforce_ccs_sort(rigidityA, contactStruts);
+
+  }
+  
 }
 
 static void
-placeContactStrutsSparse( taucs_ccs_matrix* A, plCurve* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
-{
-	int sItr, totalStruts;
-	
-	if( strutCount == 0 )
-		return;
-	
-	// in constructing the ridigity matrix, we will need the struts as viewed 
-	// as force vectors on the edges, so we create normalized vectors for each strut
-	// here
-	plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
-	normalizeStruts( strutDirections, strutSet, inLink, strutCount );
+placeContactStrutsSparse( taucs_ccs_matrix* A, plCurve* inLink, 
+			  octrope_strut* strutSet, int strutCount, 
+			  search_state* inState, int minradStruts )
 
-	totalStruts = minradStruts + strutCount;
+     /* Part of the buildrigiditymatrix call. We assume when we're
+        building the matrix that the strut columns are placed FIRST,
+        and the minrad columns are placed after this. */
+     
+{
+  int sItr, totalStruts;
+  
+  if( strutCount == 0 )
+    return;
+  
+  // in constructing the ridigity matrix, we will need the struts as viewed 
+  // as force vectors on the edges, so we create normalized vectors for each strut
+  // here
+  plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
+  fatalifnull_(strutDirections);
+
+  normalizeStruts( strutDirections, strutSet, inLink, strutCount );
+  
+  totalStruts = minradStruts + strutCount;
+  
+  for( sItr=0; sItr<strutCount; sItr++ ) {
+
+    int		entry;
+		
+    // temporarily increment the strut's verts based on their component interactions
+    // we undo this change at the end of the for loop in case the user
+    // wants to keep the strut set
+    strutSet[sItr].lead_vert[0] += inState->compOffsets[strutSet[sItr].component[0]];
+    strutSet[sItr].lead_vert[1] += inState->compOffsets[strutSet[sItr].component[1]];
+		
+    // entry is the offset in A which begin this strut's influce
+    // it corresponds to the x influence on the lead_vert[0]th vertex
+    // after this line, entry+1 is y, +2: z.
+    entry = 3*strutSet[sItr].lead_vert[0];
 	
-	for( sItr=0; sItr<strutCount; sItr++ )
-	{
-		int		entry;
-		
-		// temporarily increment the strut's verts based on their component interactions
-		// we undo this change at the end of the for loop in case the user
-		// wants to keep the strut set
-		strutSet[sItr].lead_vert[0] += inState->compOffsets[strutSet[sItr].component[0]];
-		strutSet[sItr].lead_vert[1] += inState->compOffsets[strutSet[sItr].component[1]];
-		
-		// entry is the offset in A which begin this strut's influce
-		// it corresponds to the x influence on the lead_vert[0]th vertex
-		// after this line, entry+1 is y, +2: z.
-		entry = 3*strutSet[sItr].lead_vert[0];
-	
-		// the strut information includes the position from the strut.lead_vert
-		// so we assign "1-position[0]" of the force to the lead vert and "position[0]"
-		// of the force to lead_vert+1
-	/*	A[entry] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
-	*/
-		// our column is 12*sItr from the start, and we need to set our rowInds
-		A->values.d[12*sItr+0] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A->values.d[12*sItr+1] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A->values.d[12*sItr+2] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+    // the strut information includes the position from the strut.lead_vert
+    // so we assign "1-position[0]" of the force to the lead vert and "position[0]"
+    // of the force to lead_vert+1
+  
+    // our column is 12*sItr from the start, and we need to set our rowInds
+    A->values.d[12*sItr+0] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+    A->values.d[12*sItr+1] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+    A->values.d[12*sItr+2] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
 			
-		A->rowind[12*sItr+0] = entry + 0;
-		A->rowind[12*sItr+1] = A->rowind[12*sItr+0] + 1;
-		A->rowind[12*sItr+2] = A->rowind[12*sItr+0] + 2;
+    A->rowind[12*sItr+0] = entry + 0;
+    A->rowind[12*sItr+1] = A->rowind[12*sItr+0] + 1;
+    A->rowind[12*sItr+2] = A->rowind[12*sItr+0] + 2;
 			
-		// now for the next vertex, receiving "position[0]" of the force, this is 
-		// potential wrapping case
-		if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
-			(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
-		{
-			entry = 3*inState->compOffsets[strutSet[sItr].component[0]];
-		}
-		else
-		{
-			entry = 3*(strutSet[sItr].lead_vert[0]+1);
-		}
-	/*	A[entry] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
-	*/	
-		A->values.d[12*sItr+3] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A->values.d[12*sItr+4] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A->values.d[12*sItr+5] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+    // now for the next vertex, receiving "position[0]" of the force, this is 
+    // potential wrapping case
+    if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) 
+	== (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
+	(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
+      {
+	entry = 3*inState->compOffsets[strutSet[sItr].component[0]];
+      }
+    else
+      {
+	entry = 3*(strutSet[sItr].lead_vert[0]+1);
+      }
+  
+    A->values.d[12*sItr+3] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
+    A->values.d[12*sItr+4] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
+    A->values.d[12*sItr+5] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+    
+    A->rowind[12*sItr+3] = entry + 0;
+    A->rowind[12*sItr+4] = A->rowind[12*sItr+3] + 1;
+    A->rowind[12*sItr+5] = A->rowind[12*sItr+3] + 2;
 		
-		A->rowind[12*sItr+3] = entry + 0;
-		A->rowind[12*sItr+4] = A->rowind[12*sItr+3] + 1;
-		A->rowind[12*sItr+5] = A->rowind[12*sItr+3] + 2;
-		
-		// we do the same thing at the opposite end of the strut, except now the 
-		// force is negated
-		entry = 3*strutSet[sItr].lead_vert[1];
+    // we do the same thing at the opposite end of the strut, except now the 
+    // force is negated
+    entry = 3*strutSet[sItr].lead_vert[1];
 					
-		/*A[entry] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-		*/
-		A->values.d[12*sItr+6] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A->values.d[12*sItr+7] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A->values.d[12*sItr+8] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-		A->rowind[12*sItr+6] = entry + 0;
-		A->rowind[12*sItr+7] = A->rowind[12*sItr+6] + 1;
-		A->rowind[12*sItr+8] = A->rowind[12*sItr+6] + 2;
-		
-		if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
-			(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
-		{
-			entry = 3*inState->compOffsets[strutSet[sItr].component[1]];
-		}
-		else
-		{
-			entry = 3*(strutSet[sItr].lead_vert[1]+1);
-		}
-		/*
-		A[entry] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-		*/
-		A->values.d[12*sItr+9] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A->values.d[12*sItr+10] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A->values.d[12*sItr+11] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-		A->rowind[12*sItr+9] = entry + 0;
-		A->rowind[12*sItr+10] = A->rowind[12*sItr+9] + 1;
-		A->rowind[12*sItr+11] = A->rowind[12*sItr+9] + 2;
-		
-		strutSet[sItr].lead_vert[0] -= inState->compOffsets[strutSet[sItr].component[0]];
-		strutSet[sItr].lead_vert[1] -= inState->compOffsets[strutSet[sItr].component[1]];
-	}
+    A->values.d[12*sItr+6] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+    A->values.d[12*sItr+7] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+    A->values.d[12*sItr+8] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+    
+    A->rowind[12*sItr+6] = entry + 0;
+    A->rowind[12*sItr+7] = A->rowind[12*sItr+6] + 1;
+    A->rowind[12*sItr+8] = A->rowind[12*sItr+6] + 2;
+    
+    if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) 
+	== (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
+	(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) ) {
+
+      entry = 3*inState->compOffsets[strutSet[sItr].component[1]];
+    
+    } else {
+
+      entry = 3*(strutSet[sItr].lead_vert[1]+1);
+      
+    }
+    /*
+      A[entry] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+      A[entry+totalStruts] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+      A[entry+(2*totalStruts)] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+    */
+    A->values.d[12*sItr+9] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
+    A->values.d[12*sItr+10] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
+    A->values.d[12*sItr+11] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+    A->rowind[12*sItr+9] = entry + 0;
+    A->rowind[12*sItr+10] = A->rowind[12*sItr+9] + 1;
+    A->rowind[12*sItr+11] = A->rowind[12*sItr+9] + 2;
+    
+    strutSet[sItr].lead_vert[0] -= inState->compOffsets[strutSet[sItr].component[0]];
+    strutSet[sItr].lead_vert[1] -= inState->compOffsets[strutSet[sItr].component[1]];
+  }
 	
-	free(strutDirections);
+  free(strutDirections);
 }
 
-static void
-placeContactStruts( double* A, plCurve* inLink, octrope_strut* strutSet, int strutCount, search_state* inState, int minradStruts )
+
+void taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
+
+     /* Procedure calls octrope and uses the results to allocate and
+	build a rigidity matrix for the curve, calling
+	placeMinradStruts, placeContactStruts, and
+	placeConstraintStruts. */
+
 {
-	int sItr, totalStruts;
-	
-	if( strutCount == 0 )
-		return;
-	
-	// in constructing the ridigity matrix, we will need the struts as viewed 
-	// as force vectors on the edges, so we create normalized vectors for each strut
-	// here
-	plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
-	normalizeStruts( strutDirections, strutSet, inLink, strutCount );
+  int strutStorageSize = 0;
+  int minradStorageSize = 0;
 
-	totalStruts = minradStruts + strutCount;
-	
-	for( sItr=0; sItr<strutCount; sItr++ )
-	{
-		int		entry;
-	
-				
-		// temporarily increment the strut's verts based on their component interactions
-		// we undo this change at the end of the for loop in case the user
-		// wants to keep the strut set
-		strutSet[sItr].lead_vert[0] += inState->compOffsets[strutSet[sItr].component[0]];
-		strutSet[sItr].lead_vert[1] += inState->compOffsets[strutSet[sItr].component[1]];
-		
-		// entry is the offset in A which begin this strut's influce
-		// it corresponds to the x influence on the lead_vert[0]th vertex
-		// after this line, entry+1 is y, +2: z.
-		entry = (totalStruts*3*strutSet[sItr].lead_vert[0])+sItr;
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		// the strut information includes the position from the strut.lead_vert
-		// so we assign "1-position[0]" of the force to the lead vert and "position[0]"
-		// of the force to lead_vert+1
-		A[entry] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
-		
-		// now for the next vertex, receiving "position[0]" of the force, this is 
-		// potential wrapping case
-		if( (strutSet[sItr].lead_vert[0]-inState->compOffsets[strutSet[sItr].component[0]]) == (inLink->cp[strutSet[sItr].component[0]].nv-1) &&
-			(inLink->cp[strutSet[sItr].component[0]].acyclic == 0) )
-		{
-			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[0]])+sItr;
-		}
-		else
-		{
-			entry = (totalStruts*3*(strutSet[sItr].lead_vert[0]+1))+sItr;
-		}
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-		
-		A[entry] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
-		
-		
-		// we do the same thing at the opposite end of the strut, except now the 
-		// force is negated
-		entry = (totalStruts*3*strutSet[sItr].lead_vert[1])+sItr;
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-					
-		A[entry] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-		if( (strutSet[sItr].lead_vert[1]-inState->compOffsets[strutSet[sItr].component[1]]) == (inLink->cp[strutSet[sItr].component[1]].nv-1) &&
-			(inLink->cp[strutSet[sItr].component[1]].acyclic == 0) )
-		{
-			entry = (totalStruts*3*inState->compOffsets[strutSet[sItr].component[1]])+sItr;
-		}
-		else
-		{
-			entry = (totalStruts*3*(strutSet[sItr].lead_vert[1]+1))+sItr;
-		}
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
+  int strutCount = 0;
+  int minradLocs = 0;
+  int constraintCount = 0;
 
-		A[entry] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-		A[entry+totalStruts] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-		A[entry+(2*totalStruts)] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
-	
-		strutSet[sItr].lead_vert[0] -= inState->compOffsets[strutSet[sItr].component[0]];
-		strutSet[sItr].lead_vert[1] -= inState->compOffsets[strutSet[sItr].component[1]];
-	}
-	
-	free(strutDirections);
+  octrope_strut *strutSet = NULL;
+  octrope_mrloc *minradSet = NULL;
+
+  char dumpname[1024],errmsg[1024];
+
+  /* We need to start by allocating some memory for the strutSet. It
+     is clear that we can kill the problem of finding too many minrad
+     struts by setting minradStorageSize to the number of verts. We
+     believe (with no proof) that choosing strutStorageSize = 6*the
+     number of edges in the link we will similarly overestimate the #
+     of struts. We will double-check the results anyway. */
+
+  /* We note that this process could be marginally more efficient if
+     we did this malloc "once and for all" at the start of
+     computation. */
+
+  strutStorageSize = 6*plc_verts(inLink);
+  minradStorageSize = plc_verts(inLink);
+
+  strutSet = malloc(sizeof(octrope_strut)*strutStorageSize);
+  minradSet = malloc(sizeof(octrope_mrloc)*minradStorageSize);
+
+  fatalifnull_(strutSet);
+  fatalifnull_(minradSet); 
+
+  octrope(inLink, 
+		
+	  &inState->ropelength,
+	  &inState->thickness,		
+		
+	  &inState->length,		
+	  &inState->minrad,
+	  &inState->shortest,
+		
+	  // minrad struts
+	  gLambda*inState->tube_radius,  /* Cutoff reports all mrlocs less than this */
+	  0,                             /* This value will be ignored. */
+	  minradSet, 
+	  minradStorageSize,
+	  &minradLocs,
+		
+	  // strut info
+	  2*inState->tube_radius, /* Cutoff reports struts shorter than this. */
+	  0,                      /* This epsilon value also ignored. */
+	  strutSet,
+	  strutStorageSize,
+	  &strutCount,
+		
+	  NULL, 0,
+
+	  gLambda);               /* The global "stiffness" parameter. */  
+
+  /* We now need to make sure that we didn't exceed the size of the strut
+     and/or minrad buffers. */
+
+  if (strutCount >= strutStorageSize || minradLocs >= minradStorageSize ||
+      strutCount < 0 || minradLocs < 0) {
+
+    dumpLink(inLink,inState,dumpname);
+    sprintf(errmsg,
+	    "ridgerunner: octrope found %d struts and %d mrlocs on\n"
+	    "             the %d vertex link (dumped to %s), too close to\n"
+	    "             minradStorageSize of %d or strutStorageSize %d.\n",
+	    strutCount,minradLocs,plc_verts(inLink),dumpname,
+	    minradStorageSize,strutStorageSize);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+
+  }
+
+  inState->lastStepStrutCount = strutCount;
+  inState->lastStepMinradStrutCount = minradLocs;
+
+  constraintCount = plCurve_score_constraints(inLink);
+
+  /* We now build the rigidity matrix. */
+  
+  /* A maps from the strut space to the space of variations of
+   * vertices, and gives the force at each vertex resulting from a
+   * compressive force pushing _out_ from each strut.
+   *
+   * If the strut strikes in the middle of an edge, we apply its force
+   * to both endpoints of the edge, divided according to the position
+   * of the end of the strut along the edge.
+   *
+   * Each row of A corresponds to a single component of a single
+   * _vertex_ of the overall picture.  The entries in the row
+   * corresponding to each strut that pushes on the vertex are that
+   * component of the unit vector pointing _out_ from that strut's
+   * endpoint at the edge incident to the given vertex.
+   */
+				 	
+  int nnz = 12*strutCount + 9*minradLocs + 3*constraintCount; // we KNOW this
+  taucs_ccs_matrix *cleanA;
+  
+  cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix));
+  fatalifnull_(cleanA);
+
+  cleanA->n = strutCount+minradLocs+constraintCount;
+  cleanA->m = 3*inState->totalVerts;
+  cleanA->flags = TAUCS_DOUBLE;
+  
+  cleanA->colptr = (int*)malloc(sizeof(int)*(cleanA->n+1));
+  cleanA->rowind = (int*)malloc(sizeof(int)*nnz);
+  cleanA->values.d = (double*)malloc(sizeof(taucs_double)*nnz);
+
+  fatalifnull_(cleanA->colptr);
+  fatalifnull_(cleanA->rowind);
+  fatalifnull_(cleanA->values.d);
+  
+  // just as we know nnz, we know the column positions. 
+  // struts involve 4 vertices, 
+  // minrad struts involve 3 vertices,
+  // constraint struts involve 1 vertex.
+
+  cleanA->colptr[0] = 0;
+
+  for( sItr=1; sItr<=strutCount; sItr++ ) /* The end condition isn't clear here-- */
+    cleanA->colptr[sItr] = sItr*12;       /* do we ignore column 0? does tsnnls? */
+  
+  for(sItr=strutCount+1; sItr<=strutCount+minradLocs; sItr++ )
+    cleanA->colptr[sItr] = cleanA->colptr[sItr-1]+9;
+
+  for(sItr=strutCount+minradLocs+1; 
+      sItr<=strutCount+minradLocs+constraintCount;sItr++) {
+
+    cleanA->colptr[sItr] = cleanA->colptr[sItr-1]+3;
+
+  }
+  
+
+  
+  
 }
+
+/************************************************************************/
+
+
+
+
 
 void
 updateSideLengths( plCurve* inLink, search_state* inState )
@@ -2376,1054 +1209,325 @@ updateSideLengths( plCurve* inLink, search_state* inState )
   int cItr, vItr;
   
   inState->totalSides = 0;
-  for( cItr=0; cItr<inLink->nc; cItr++ )
-    {
-      inState->totalSides += inLink->cp[cItr].nv;
-    }
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    inState->totalSides += inLink->cp[cItr].nv;
+  }
   
   if( inState->sideLengths != NULL )
     free(inState->sideLengths);
   
   inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
+  fatalifnull_(inSide->sideLengths);
   
   int tot = 0;
-  for( cItr=0; cItr<inLink->nc; cItr++ )
-    {
-      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-	{
-	  plc_vector s1, s2, side;
-	  s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-	  s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-	  s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-	  s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-	  s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-	  s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-	  side.c[0] = s2.c[0] - s1.c[0];
-	  side.c[1] = s2.c[1] - s1.c[1];
-	  side.c[2] = s2.c[2] - s1.c[2];
-	  
-	  inState->sideLengths[inState->compOffsets[cItr] + vItr] = plc_M_norm(side);
-	  inState->avgSideLength += plc_M_norm(side);
-	  tot++;
-	}
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
+         
+      inState->sideLengths[inState->compOffsets[cItr] + vItr] = 
+	plc_M_distance(inLink->cp[cItr].vt[vItr],
+		       inLink->cp[cItr].vt[vItr+1]) /*;*/
+	
+      inState->avgSideLength += plc_M_norm(side);
+      tot++;
     }
+  }
   inState->avgSideLength /= (double)tot;
-}
-
-void
-placeVertexBars( double* A, plCurve* inLink, int contactStruts, int totalBarVerts, int totalBars, search_state* inState )
-{
-	int totalStruts = contactStruts + totalBars;
-	int cItr, vItr, sItr, next;
-	
-	plc_vector  strutDirection;
-	plc_vector  points[2];
-	double norm = 0;
-
-	int thresh = ((totalBarVerts+contactStruts)*3)*(totalBars+contactStruts);
-	
-	octrope_strut*  vertStruts;
-	
-	vertStruts = (octrope_strut*)malloc(sizeof(octrope_strut)*totalBars);
-	
-	sItr=0;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-		{
-			for( vItr=0; vItr<plc_strand_edges(&inLink->cp[cItr]); vItr++ )
-			{
-				next = ((vItr+1)%inLink->cp[cItr].nv);
-			
-				vertStruts[sItr].component[0] = cItr;
-				vertStruts[sItr].component[1] = cItr;
-				vertStruts[sItr].position[0] = 0;
-				vertStruts[sItr].position[1] = 0;
-				vertStruts[sItr].lead_vert[0] = vItr;
-				vertStruts[sItr].lead_vert[1] = next;
-				
-				sItr++;
-			}
-		}
-	}
-	
-	// and now we can place these just like minrad struts
-	for( sItr=0; sItr<totalBars; sItr++ )
-	{
-		int entry;
-		
-	//	printf( "(%d) (%d) %d %d\n", vertStruts[sItr].component[0], vertStruts[sItr].component[1], vertStruts[sItr].lead_vert[0], vertStruts[sItr].lead_vert[1] );
-		
-		// calc the norm of the converted strut
-		octrope_strut_ends( inLink, &vertStruts[sItr], points );
-		
-		// the normalized difference of pointOne, pointTwo is the strut force vector
-		strutDirection.c[0] = points[0].c[0] - points[1].c[0];
-		strutDirection.c[1] = points[0].c[1] - points[1].c[1];
-		strutDirection.c[2] = points[0].c[2] - points[1].c[2];
-		
-		norm = plc_M_norm(strutDirection);
-		strutDirection.c[0] /= norm;
-		strutDirection.c[1] /= norm;
-		strutDirection.c[2] /= norm;
-		
-		/* temporarily increment the strut's verts based on their component interactions, 
-		 * but in the vertex bar rigidity matrix, only some component's vertices are counted --
-		 * namely the ones that are composed of bars. We need to increase our offset, but only by those
-		 * guys we have skipped who are bar composed.
-		 */
-		for( cItr=0; cItr<vertStruts[sItr].component[0]; cItr++ )
-		{
-			if( inState->conserveLength[cItr] != 0 )
-			{
-				/* we update both here even though we only check first strut end because vertex bars are always
-				 * on the same component */
-				vertStruts[sItr].lead_vert[0] += inLink->cp[cItr].nv;
-				vertStruts[sItr].lead_vert[1] += inLink->cp[cItr].nv;
-			}
-		}
-		
-		// entry is the offset in A which begin this strut's influce
-		// it corresponds to the x influence on the lead_vert[0]th vertex
-		// after this line, entry+1 is y, +2: z.
-		entry = (totalStruts*3*vertStruts[sItr].lead_vert[0])+contactStruts+sItr;
-	
-		if( entry+(2*totalStruts) >= thresh )
-			printf( "****crap!\n" );	
-	
-		// the strut information includes the position from the strut.lead_vert
-		// so we assign "1-position[0]" of the force to the lead vert and "position[0]"
-		// of the force to lead_vert+1
-		A[entry] = (1-vertStruts[sItr].position[0]) * strutDirection.c[0];
-		A[entry+totalStruts] = (1-vertStruts[sItr].position[0]) * strutDirection.c[1];
-		A[entry+(2*totalStruts)] = (1-vertStruts[sItr].position[0]) * strutDirection.c[2];
-		
-		/***************** we don't need to do this since there are no midpoint vertex bars *****************/
-		
-		// now for the next vertex, receiving "position[0]" of the force, this is 
-		// potential wrapping case
-	/*	if( (vertStruts[sItr].lead_vert[0]-inState->compOffsets[vertStruts[sItr].component[0]]) == (inLink->cp[vertStruts[sItr].component[0]].nv-1) &&
-			(inLink->cp[vertStruts[sItr].component[0]].acyclic == 0) )
-		{
-			entry = 0;
-		}
-		else
-		{
-			entry = (totalStruts*3*(vertStruts[sItr].lead_vert[0]+1))+contactStruts+sItr;
-		}
-		
-		if( entry+(2*totalStruts) >= thresh )
-			printf( "****crap!\n" );
-		
-		A[entry] = (vertStruts[sItr].position[0]) * strutDirection.c[0];
-		A[entry+totalStruts] = (vertStruts[sItr].position[0]) * strutDirection.c[1];
-		A[entry+(2*totalStruts)] = (vertStruts[sItr].position[0]) * strutDirection.c[2];
-		*/
-		
-		// we do the same thing at the opposite end of the strut, except now the 
-		// force is negated
-		entry = (totalStruts*3*vertStruts[sItr].lead_vert[1])+contactStruts+sItr;
-		
-		if( entry+(2*totalStruts) >= thresh )
-			printf( "****crap!\n" );			
-		
-		A[entry] = (1-vertStruts[sItr].position[1]) * -strutDirection.c[0];
-		A[entry+totalStruts] = (1-vertStruts[sItr].position[1]) * -strutDirection.c[1];
-		A[entry+(2*totalStruts)] = (1-vertStruts[sItr].position[1]) * -strutDirection.c[2];
-		
-		/*if( (vertStruts[sItr].lead_vert[1]-inState->compOffsets[vertStruts[sItr].component[1]]) == (inLink->cp[vertStruts[sItr].component[1]].nv-1) &&
-			(inLink->cp[vertStruts[sItr].component[1]].acyclic == 0) )
-		{
-			entry = 0;
-		}
-		else
-		{
-			entry = (totalStruts*3*(vertStruts[sItr].lead_vert[1]+1))+contactStruts+sItr;
-		}
-		
-		if( entry+(2*totalStruts) >= thresh )
-			printf( "****crap!\n" );	
-		
-		A[entry] = (vertStruts[sItr].position[1]) * -strutDirection.c[0];
-		A[entry+totalStruts] = (vertStruts[sItr].position[1]) * -strutDirection.c[1];
-		A[entry+(2*totalStruts)] = (vertStruts[sItr].position[1]) * -strutDirection.c[2];
-*/
-		/* readjusting is problematic for the same reason that adjusting is (see above) and it's not necessary in this 
-		 * strut placement, so we just don't do it
-		 */
-		 
-		//vertStruts[sItr].lead_vert[0] -= inState->compOffsets[vertStruts[sItr].component[0]];
-		//vertStruts[sItr].lead_vert[1] -= inState->compOffsets[vertStruts[sItr].component[1]];
-	}
-	
-	free(vertStruts);
-}
-
-static void
-placeMinradStruts( double* A, plCurve* inLink, octrope_mrloc* minradStruts, 
-	int minradLocs, search_state* inState, int contactStruts )
-{
-	int mItr, i;
-	double norm = 0;
-		
-	plc_vector dlda, dldv, dldb;
-	plc_vector dxda, dxdv, dxdb;
-	double x, dtanconst;
-
-	int totalStruts = contactStruts + minradLocs;
-		
-	for( mItr=0; mItr<minradLocs; mItr++ )
-	{
-		plc_vector  a, v, b, As, Bs, Cs;
-		plc_vector  prevSide, thisSide;
-		double dot, prevLen, thisLen;
-		int vItr = minradStruts[mItr].vert;
-		int cItr = minradStruts[mItr].component;
-		
-		a.c[0] = inLink->cp[cItr].vt[vItr-1].c[0];
-		a.c[1] = inLink->cp[cItr].vt[vItr-1].c[1];
-		a.c[2] = inLink->cp[cItr].vt[vItr-1].c[2];
-		
-		v.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-		v.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-		v.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-		
-		b.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-		b.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-		b.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-
-		prevSide.c[0] = inLink->cp[cItr].vt[vItr].c[0] - inLink->cp[cItr].vt[vItr-1].c[0];
-		prevSide.c[1] = inLink->cp[cItr].vt[vItr].c[1] - inLink->cp[cItr].vt[vItr-1].c[1];
-		prevSide.c[2] = inLink->cp[cItr].vt[vItr].c[2] - inLink->cp[cItr].vt[vItr-1].c[2];
-		
-		thisSide.c[0] = inLink->cp[cItr].vt[vItr+1].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-		thisSide.c[1] = inLink->cp[cItr].vt[vItr+1].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-		thisSide.c[2] = inLink->cp[cItr].vt[vItr+1].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-		
-		dot = plc_M_dot(prevSide, thisSide);
-		prevLen = plc_M_norm(prevSide);
-		thisLen = plc_M_norm(thisSide);
-		
-		double value, angle;
-		value = dot/(prevLen*thisLen);
-		if( value >= 1 )
-		{
-			angle = 0;
-		}
-		else if( value <= -1 )
-		{
-			angle = M_PI;
-		}
-		else
-		{
-			// this is dangerous for the reasons of Ted's talk. Change me!
-			angle = acos(value);
-		}
-				
-		if( plc_M_norm(prevSide) < plc_M_norm(thisSide) )
-		{
-			printf( "prevSide shorter\n" );
-		
-			dlda.c[0] = (a.c[0] - v.c[0])/prevLen;
-			dlda.c[1] = (a.c[1] - v.c[1])/prevLen;
-			dlda.c[2] = (a.c[2] - v.c[2])/prevLen;
-
-			dldv.c[0] = -dlda.c[0];
-			dldv.c[1] = -dlda.c[1];
-			dldv.c[2] = -dlda.c[2];
-
-			dldb.c[0] = dldb.c[1] = dldb.c[2] = 0;
-
-			x = dot/(prevLen*thisLen);
-			
-			dxda.c[0] = ( (v.c[0]-b.c[0])*prevLen - (dot)*((a.c[0]-v.c[0])/prevLen) )/(prevLen*prevLen*thisLen);
-			dxda.c[1] = ( (v.c[1]-b.c[1])*prevLen - (dot)*((a.c[1]-v.c[1])/prevLen) )/(prevLen*prevLen*thisLen);
-			dxda.c[2] = ( (v.c[2]-b.c[2])*prevLen - (dot)*((a.c[2]-v.c[2])/prevLen) )/(prevLen*prevLen*thisLen);
-			
-			dxdv.c[0] = ( (b.c[0] - 2*v.c[0])*prevLen*thisLen - dot*( (prevLen*(v.c[0]-b.c[0])/thisLen) + (thisLen*(v.c[0]-a.c[0])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-			dxdv.c[1] = ( (b.c[1] - 2*v.c[1])*prevLen*thisLen - dot*( (prevLen*(v.c[1]-b.c[1])/thisLen) + (thisLen*(v.c[1]-a.c[1])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-			dxdv.c[2] = ( (b.c[2] - 2*v.c[2])*prevLen*thisLen - dot*( (prevLen*(v.c[2]-b.c[2])/thisLen) + (thisLen*(v.c[2]-a.c[2])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-	
-			dxdb.c[0] = ( (v.c[0]-a.c[0])*thisLen - (dot)*((b.c[0]-v.c[0])/thisLen) )/(prevLen*thisLen*thisLen);
-			dxdb.c[1] = ( (v.c[1]-a.c[1])*thisLen - (dot)*((b.c[1]-v.c[1])/thisLen) )/(prevLen*thisLen*thisLen);
-			dxdb.c[2] = ( (v.c[2]-a.c[2])*thisLen - (dot)*((b.c[2]-v.c[2])/thisLen) )/(prevLen*thisLen*thisLen);			
-			
-			dtanconst = (x-1)/pow(1-x*x, 3.0/2.0);
-			
-			//	                   This is the tan(theta/2)' part
-			As.c[0] = ( -2*prevLen *   (dxda.c[0] * dtanconst)     + 2*dlda.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			As.c[1] = ( -2*prevLen *   (dxda.c[1] * dtanconst)     + 2*dlda.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			As.c[2] = ( -2*prevLen *   (dxda.c[2] * dtanconst)     + 2*dlda.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			
-			Bs.c[0] = ( -2*prevLen *   (dxdv.c[0] * dtanconst)     + 2*dldv.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			Bs.c[1] = ( -2*prevLen *   (dxdv.c[1] * dtanconst)     + 2*dldv.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			Bs.c[2] = ( -2*prevLen *   (dxdv.c[2] * dtanconst)     + 2*dldv.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			
-			Cs.c[0] = ( -2*prevLen *   (dxdb.c[0] * dtanconst)     + 2*dldb.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			Cs.c[1] = ( -2*prevLen *   (dxdb.c[1] * dtanconst)     + 2*dldb.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			Cs.c[2] = ( -2*prevLen *   (dxdb.c[2] * dtanconst)     + 2*dldb.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-		
-		}
-		else // bc < ab
-		{
-			printf( "forward shorter\n" );
-			
-			dlda.c[0] = dlda.c[1] = dlda.c[2] = 0;
-
-			dldv.c[0] = -thisSide.c[0]/thisLen;
-			dldv.c[1] = -thisSide.c[1]/thisLen;
-			dldv.c[2] = -thisSide.c[2]/thisLen;
-
-			dldb.c[0] = -dldv.c[0];
-			dldb.c[1] = -dldv.c[1];
-			dldb.c[2] = -dldv.c[2];
-			
-			x = dot/(prevLen*thisLen);
-			
-			dxda.c[0] = ( (v.c[0]-b.c[0])*prevLen - (dot)*((a.c[0]-v.c[0])/prevLen) )/(prevLen*prevLen*thisLen);
-			dxda.c[1] = ( (v.c[1]-b.c[1])*prevLen - (dot)*((a.c[1]-v.c[1])/prevLen) )/(prevLen*prevLen*thisLen);
-			dxda.c[2] = ( (v.c[2]-b.c[2])*prevLen - (dot)*((a.c[2]-v.c[2])/prevLen) )/(prevLen*prevLen*thisLen);
-			
-			dxdv.c[0] = ( (b.c[0] - 2*v.c[0])*prevLen*thisLen - dot*( (prevLen*(v.c[0]-b.c[0])/thisLen) + (thisLen*(v.c[0]-a.c[0])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-			dxdv.c[1] = ( (b.c[1] - 2*v.c[1])*prevLen*thisLen - dot*( (prevLen*(v.c[1]-b.c[1])/thisLen) + (thisLen*(v.c[1]-a.c[1])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-			dxdv.c[2] = ( (b.c[2] - 2*v.c[2])*prevLen*thisLen - dot*( (prevLen*(v.c[2]-b.c[2])/thisLen) + (thisLen*(v.c[2]-a.c[2])/prevLen) ) )/(prevLen*prevLen*thisLen*thisLen);
-	
-			dxdb.c[0] = ( (v.c[0]-a.c[0])*thisLen - (dot)*((b.c[0]-v.c[0])/thisLen) )/(prevLen*thisLen*thisLen);
-			dxdb.c[1] = ( (v.c[1]-a.c[1])*thisLen - (dot)*((b.c[1]-v.c[1])/thisLen) )/(prevLen*thisLen*thisLen);
-			dxdb.c[2] = ( (v.c[2]-a.c[2])*thisLen - (dot)*((b.c[2]-v.c[2])/thisLen) )/(prevLen*thisLen*thisLen);
-
-			dtanconst = (x-1)/pow(1-x*x, 3.0/2.0);
-			
-			//	                   This is the tan(theta/2)' part
-			As.c[0] = ( -2*thisLen *   (dxda.c[0] * dtanconst)     + 2*dlda.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			As.c[1] = ( -2*thisLen *   (dxda.c[1] * dtanconst)     + 2*dlda.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			As.c[2] = ( -2*thisLen *   (dxda.c[2] * dtanconst)     + 2*dlda.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			
-			Bs.c[0] = ( -2*thisLen *   (dxdv.c[0] * dtanconst)     + 2*dldv.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			Bs.c[1] = ( -2*thisLen *   (dxdv.c[1] * dtanconst)     + 2*dldv.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);
-			Bs.c[2] = ( -2*thisLen *   (dxdv.c[2] * dtanconst)     + 2*dldv.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			
-			Cs.c[0] = ( -2*thisLen *   (dxdb.c[0] * dtanconst)     + 2*dldb.c[0]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			Cs.c[1] = ( -2*thisLen *   (dxdb.c[1] * dtanconst)     + 2*dldb.c[1]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-			Cs.c[2] = ( -2*thisLen *   (dxdb.c[2] * dtanconst)     + 2*dldb.c[2]*tan(angle/2) ) / pow(2*tan(angle/2), 2);	
-
-		}
-		
-	/*	As.c[0] /= plc_M_norm(As);
-		As.c[1] /= plc_M_norm(As);
-		As.c[2] /= plc_M_norm(As);
-		
-		Bs.c[0] /= plc_M_norm(Bs);
-		Bs.c[1] /= plc_M_norm(Bs);
-		Bs.c[2] /= plc_M_norm(Bs);
-		
-		Cs.c[0] /= plc_M_norm(Cs);
-		Cs.c[1] /= plc_M_norm(Cs);
-		Cs.c[2] /= plc_M_norm(Cs);
-	*/	
-		
-		// temporarily increment the strut's verts based on their component interactions
-		// we undo this change at the end of the for loop in case the user
-		// wants to keep the strut set
-		int aVert, bVert, cVert, entry;
-		aVert = minradStruts[mItr].vert-1;
-		bVert = minradStruts[mItr].vert;
-		cVert = minradStruts[mItr].vert+1;
-
-		aVert += inState->compOffsets[minradStruts[mItr].component];
-		bVert += inState->compOffsets[minradStruts[mItr].component];
-		cVert += inState->compOffsets[minradStruts[mItr].component];
-		
-		if( minradStruts[mItr].vert == 0 &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = (totalStruts*3)*(inState->compOffsets[minradStruts[mItr].component]);
-		}
-		else
-		{
-			entry = (totalStruts*3*aVert)+contactStruts+mItr;
-		}
-
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		A[entry] = As.c[0];
-		A[entry+totalStruts] = As.c[1];
-		A[entry+(2*totalStruts)] = As.c[2];
-
-		entry = (totalStruts*3*bVert)+contactStruts+mItr;
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		A[entry] = Bs.c[0];
-		A[entry+totalStruts] = Bs.c[1];
-		A[entry+(2*totalStruts)] = Bs.c[2];
-
-
-		if( minradStruts[mItr].vert+1 == (inLink->cp[minradStruts[mItr].component].nv) &&
-			(inLink->cp[minradStruts[mItr].component].acyclic == 0) )
-		{
-			entry = (totalStruts*3)*(inLink->cp[minradStruts[mItr].component].nv-1 + inState->compOffsets[minradStruts[mItr].component]);
-		}
-		else
-		{
-			entry = (totalStruts*3*cVert)+contactStruts+mItr;
-		}
-		if( entry+(2*totalStruts) > (3*inState->totalVerts)*totalStruts )
-			printf( "*** crap!\n" );
-	
-		A[entry] = Cs.c[0];
-		A[entry+totalStruts] = Cs.c[1];
-		A[entry+(2*totalStruts)] = Cs.c[2];		
-	}
-}
-
-static void
-checkDuplicates( octrope_strut* struts, int num )
-{
-	int i, j;
-	for( i=0; i<num; i++ )
-	{
-		// look for the variety of cases that signal a duplicate of strut struts[i] in the
-		// rest of the list
-		for( j=0; j<num; j++ )
-		{
-			if( j==i )
-				continue;
-		
-			if( struts[i].component[0] == struts[j].component[0] &&
-				struts[i].component[1] == struts[j].component[1] &&
-				
-				struts[i].lead_vert[0] == struts[j].lead_vert[0] &&
-				struts[i].lead_vert[1] == struts[j].lead_vert[1] )
-				
-			//	fabs(struts[i].position[0] - struts[j].position[0]) < 0.1 &&
-			//	fabs(struts[i].position[1] - struts[j].position[1]) < 0.1 )
-			{
-				printf( "test1: matching strut!\n" );
-				exit(-1);
-			}
-			
-			// different sense
-			if( struts[i].component[0] == struts[j].component[0] &&
-				struts[i].component[1] == struts[j].component[1] &&
-				
-				struts[i].lead_vert[0] == struts[j].lead_vert[1] &&
-				struts[i].lead_vert[1] == struts[j].lead_vert[0] )
-				
-			//	fabs(struts[i].position[0] - struts[j].position[0]) < 0.1 &&
-			//	fabs(struts[i].position[1] - struts[j].position[1]) < 0.1 )
-			{
-				printf( "test2: matching strut!\n" );
-				exit(-1);
-			}
-			
-		}
-	}
-}
-
-static void
-collapseStruts( octrope_strut** struts, int* count )
-{
-	// dumb method written to test whether almost-useless struts
-	// are causing our ill-conditioned matrix problems
-	int initialCount = *count;
-	int newCount = 0;
-	int sItr, compItr, good;
-	octrope_strut* newSet = (octrope_strut*)malloc(sizeof(octrope_strut)*initialCount);
-	
-	for( sItr=0; sItr<initialCount; sItr++ )
-	{
-		good = 1;
-		for( compItr=0; compItr<newCount; compItr++ )
-		{
-			if( (*struts)[sItr].component[0] == (newSet)[compItr].component[0] &&
-				(*struts)[sItr].component[1] == (newSet)[compItr].component[1] &&
-				
-				(*struts)[sItr].lead_vert[0] == (newSet)[compItr].lead_vert[0] &&
-				(*struts)[sItr].lead_vert[1] == (newSet)[compItr].lead_vert[1] )
-			{
-				good = 0;
-				break;
-			}
-		}
-		
-		// not a dup, add to list with edge position rounded
-		if( good == 1 )
-		{
-			newSet[newCount].component[0] = (*struts)[sItr].component[0];
-			newSet[newCount].component[1] = (*struts)[sItr].component[1];
-			
-			newSet[newCount].lead_vert[0] = (*struts)[sItr].lead_vert[0];
-			newSet[newCount].lead_vert[1] = (*struts)[sItr].lead_vert[1];
-			
-			newSet[newCount].position[0] = (int)(*struts)[sItr].position[0];
-			newSet[newCount].position[1] = (int)(*struts)[sItr].position[1];
-			
-			newCount++;
-		}
-	}
-	
-	free(*struts);
-	*struts = newSet;
-	*count = newCount;
-}
-
-#define kMinradForceScale 0.1
-static void
-minradForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
-{
-	int cItr, vItr;
-	
-	if( gOutputFlag == 0 )
-		return;
-	
-	// note to self - this can be made much faster by not being dumb
-	
-	plc_fix_wrap(inLink);
-	
-	// grab unit edges
-    double* norms;
-    //vector* units;
-    int nextVert, totalVerts=0, dlItr;
-    plc_vector* diffVectors;
-    plc_vector* unitsCopy;
-    
-    totalVerts = 0;
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-		totalVerts += inLink->cp[cItr].nv;
-    
-    norms = (double*)malloc(sizeof(double)*totalVerts);
-    //units = (vector*)malloc(sizeof(struct vector_type)*totalVerts);
-    diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
-    unitsCopy = (plc_vector*)malloc(sizeof(struct plc_vector_type)*totalVerts);
-    
-    fatalifnull_(norms);
-    fatalifnull_(diffVectors);
-    fatalifnull_(unitsCopy);
-	
-//	if( (rand() % 2) == 1 )
-	{
-		int i=0;
-		inState->curvature_step = 0;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{		
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-			{
-				nextVert = (vItr+1)%inLink->cp[cItr].nv;
-				diffVectors[i].c[0] = inLink->cp[cItr].vt[nextVert].c[0] - inLink->cp[cItr].vt[vItr].c[0];
-				diffVectors[i].c[1] = inLink->cp[cItr].vt[nextVert].c[1] - inLink->cp[cItr].vt[vItr].c[1];
-				diffVectors[i].c[2] = inLink->cp[cItr].vt[nextVert].c[2] - inLink->cp[cItr].vt[vItr].c[2];
-				
-				// ddot is dot product
-				norms[i] = sqrt(cblas_ddot(3, &diffVectors[i].c[0], 1, &diffVectors[i].c[0], 1));
-				i++;
-			}
-		}
-		
-		// dscal is scale
-		i=0;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			// effectively divide by norm
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++, i++ )
-				cblas_dscal( 3, (1/norms[i]), &diffVectors[i].c[0], 1 );
-		}
-		
-		// now diffVectors are forward units, sum with opposite of previous to get dLen field
-		// duplicate the units since daxpy will operate in place
-		memcpy( unitsCopy, diffVectors, sizeof(struct plc_vector_type)*totalVerts );
-		i=0;
-		int prev;
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++)
-			{
-				// cblas_daxpy - adds a constant times a vector to another vector
-				prev = (vItr == 0) ? (inLink->cp[cItr].nv - 1) : (vItr-1);
-				prev += i;
-				cblas_daxpy( 3, -1, &unitsCopy[prev].c[0], 1, &diffVectors[i+vItr].c[0], 1 );
-			}
-			i += inLink->cp[cItr].nv;
-		
-			// if this component is open, zero the end guys so things aren't screwy
-			if( inLink->cp[cItr].acyclic != 0  )
-			{
-				diffVectors[i-inLink->cp[cItr].nv].c[0] = 0;
-				diffVectors[i-inLink->cp[cItr].nv].c[1] = 0;
-				diffVectors[i-inLink->cp[cItr].nv].c[2] = 0;
-				diffVectors[i-1].c[0] = 0;
-				diffVectors[i-1].c[1] = 0;
-				diffVectors[i-1].c[2] = 0;
-			}
-		}
-    }
-//	else
-//	{
-//		printf( "*" );
-//		inState->nocurvature_step = 1;
-//	}
-	
-    free(norms);
-    free(unitsCopy);
-	
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-		{
-			for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-			{
-				diffVectors[vItr+inState->compOffsets[cItr]].c[0] = 0;
-				diffVectors[vItr+inState->compOffsets[cItr]].c[1] = 0;
-				diffVectors[vItr+inState->compOffsets[cItr]].c[2] = 0;
-			}
-		}
-	}
-	
-	double scaleFactor = 0.5;
-	
-	double* pushes = (double*)calloc(inState->totalVerts, sizeof(double));
-	int pItr=0;			
-	
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		// the first thing to do is grab edge lengths
-		int edges;
-		plCurve* L = inLink;
-		
-		int i,j;
-		double mr = {DBL_MAX}, alpha, rad;
-		plc_vector in,out;
-		double normin, normout;
-		double rplus, rminus, this_mr;
-		int start,end;
-		double target = inState->injrad;
-		
-		edges = plc_strand_edges(&inLink->cp[cItr]);
-								
-		i = cItr;
-		if (L->cp[i].acyclic) {
-			start = 1;
-			end = L->cp[i].nv - 1;
-			out = plc_vect_diff(L->cp[i].vt[1],L->cp[i].vt[0]);      
-			normout = plc_M_norm(out); 
-		} else {
-			start = 0;
-			end = L->cp[i].nv;
-			out = plc_vect_diff(L->cp[i].vt[0],L->cp[i].vt[-1]);      
-			normout = plc_M_norm(out); 
-		}
-
-		/* Now we handle the main loop. */
-		for (j = start; j < end; j++) 
-		{
-			in     = out;                
-			normin = normout;               
-
-			out = plc_vect_diff(L->cp[i].vt[j+1],L->cp[i].vt[j]);
-			normout = plc_M_norm(out);
-
-			alpha = acos(plc_M_dot(in,out)/(normin*normout));
-			rad   = 1/(2*tan(alpha/2));
-
-			rminus = normin*rad;
-			rplus  = normout*rad;
-
-			this_mr = (rminus < rplus) ? rminus : rplus;
-			mr = (mr < this_mr) ? mr : this_mr;
-			
-			pushes[inState->compOffsets[cItr]+j] = this_mr;
-
-			if (this_mr < target) 
-			{
-				int prev, next;
-				
-				prev = j==0 ? end-1 : j-1;
-				next = j==end ? 0 : j+1;
-				
-				// diffVectors is curvature force, so we want to add a little negative curvature force at prev and next
-				// and a little positive curvature force at j
-			/*	dlen[prev].c[0] += scaleFactor*-1*diffVectors[prev].c[0];
-				dlen[prev].c[1] += scaleFactor*-1*diffVectors[prev].c[1];
-				dlen[prev].c[2] += scaleFactor*-1*diffVectors[prev].c[2];
-				
-				dlen[next].c[0] += scaleFactor*-1*diffVectors[next].c[0];
-				dlen[next].c[1] += scaleFactor*-1*diffVectors[next].c[1];
-				dlen[next].c[2] += scaleFactor*-1*diffVectors[next].c[2];
-				
-				dlen[j].c[0] += scaleFactor*diffVectors[j].c[0];
-				dlen[j].c[1] += scaleFactor*diffVectors[j].c[1];
-				dlen[j].c[2] += scaleFactor*diffVectors[j].c[2];
-			*/}
-		}
-
-	}	
-	
-	if( gOutputFlag )
-	{
-		// since this function exportes higher values as 'brighter', we make the minrad values 1/minrad
-		for( pItr=0; pItr<inState->totalVerts; pItr++ )
-		{
-			if( fabs(pushes[pItr]) < 1e-5 )
-				pushes[pItr] = 0;
-			else
-				pushes[pItr] = 1.0/pushes[pItr];
-		}	
-		char fname[1024];
-		preptmpname(fname,"curvature.vect",inState);
-		export_pushed_edges( inLink, inState, pushes, fname, 1 );
-	}
-	free(pushes);
-	
-	free(diffVectors);
 }
 
 static void
 spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+
+     /* This adds to dlen a tangential force causing the tube to spin
+	as it is tightening. This doesn't seem to have any useful
+	numerical effect. */
+
 {
-	int cItr, vItr;
+  int cItr, vItr;
+  int *edges = malloc(sizeof(int)*inLink->nc);
+
+  // note to self - this can be made much faster by not being dumb
+  
+  plc_fix_wrap(inLink);
+  plc_edges(inLink,edges);
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    if (!inLink->cp[cItr].acyclic) {  
+      
+      /* We can only spin _closed_ components. */
+
+      // the first thing to do is grab edge lengths
+      plc_vector* sides;
+      plc_vector* adjustments;
+      
+      sides = (plc_vector*)malloc(sizeof(plc_vector)*edges[cItr]);
+      adjustments = (plc_vector*)calloc(edges[cItr], sizeof(plc_vector));
+      
+      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
 	
-	// note to self - this can be made much faster by not being dumb
-	
-	plc_fix_wrap(inLink);
-		
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		// the first thing to do is grab edge lengths
-		int edges;
-		double* lengths;
-		plc_vector* sides;
-		plc_vector* adjustments;
-		double  averageLength;
-		
-		edges = plc_strand_edges(&inLink->cp[cItr]);
-		
-		lengths = (double*)malloc(sizeof(double)*edges);
-		sides = (plc_vector*)malloc(sizeof(plc_vector)*edges);
-		adjustments = (plc_vector*)calloc(edges, sizeof(plc_vector));
-		
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-		{
-			plc_vector s1, s2;
-			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-			s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-			s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-			s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-			sides[vItr].c[0] = s2.c[0] - s1.c[0];
-			sides[vItr].c[1] = s2.c[1] - s1.c[1];
-			sides[vItr].c[2] = s2.c[2] - s1.c[2];
-			
-			lengths[vItr] = plc_M_norm(sides[vItr]);
-			
-			// unit-ize sides since we will use these as the tangential motion basis below
-			sides[vItr].c[0] /= lengths[vItr];
-			sides[vItr].c[1] /= lengths[vItr];
-			sides[vItr].c[2] /= lengths[vItr];
-											
-			averageLength += lengths[vItr];
-		}
-		averageLength /= edges;
-					
-		double spinFactor = 0;
-		// fix zero and compute the tangential change necessary for the rest of the vertices
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-		{
-			spinFactor = 0.5;
-						
-			adjustments[(vItr)].c[0] = (spinFactor)*sides[vItr].c[0];
-			adjustments[(vItr)].c[1] = (spinFactor)*sides[vItr].c[1];
-			adjustments[(vItr)].c[2] = (spinFactor)*sides[vItr].c[2];			
-		
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[0] += adjustments[(vItr)].c[0];
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[1] += adjustments[(vItr)].c[1];
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[2] += adjustments[(vItr)].c[2];
-		}
-		
-		free(lengths);
-		free(sides);
-		free(adjustments);
+	plc_vector s1, s2;
+	bool ok;
+	char errmsg[1024],dumpname[1024];
+
+	sides[vItr] = plc_normalize_vect(
+					 plc_vect_diff(inLink->cp[cItr].vt[vItr+1],
+						       inLink->cp[cItr].vt[vItr]),
+					 &ok);
+
+	if (!ok) { 
+
+	  dumpLink(inLink,inState,dumpname);
+	  sprintf("ridgerunner: spinforce can't normalize side %d of component %d\n"
+		  "             of link %s.\n",vItr,cItr,dumpname);
+	  FatalError(errmsg, __FILE__ , __LINE__ );
+
 	}
-	char fname[1024];
-	preptmpname(fname,"adjustedDL.vect",inState);
-	exportVect( dlen, inLink, fname );
+	
+      }
+
+      double spinFactor = 0.5;
+      // fix zero and compute the tangential change necessary for the rest of the vertices
+      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
+	
+	adjustments[vItr] = plc_scale_vect(spinFactor,sides[vItr]);
+
+	dlen[((vItr)) + inState->compOffsets[cItr]].c[0] += adjustments[(vItr)].c[0];
+	dlen[((vItr)) + inState->compOffsets[cItr]].c[1] += adjustments[(vItr)].c[1];
+	dlen[((vItr)) + inState->compOffsets[cItr]].c[2] += adjustments[(vItr)].c[2];
+      }
+      
+      free(sides);
+      free(adjustments);
+    
+    }
+
+  }
+  
+  free(edges);
+
+  char fname[1024];
+  sprintf("adjustedDL.vect");
+  exportVect( dlen, inLink, fname );
+
 }
 
 void
 specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
-{
-	int cItr, vItr;
-	
-	// note to self - this can be made much faster by not being dumb
-	
-	plc_fix_wrap(inLink);
-		
-/*	for( cItr=0; cItr<1; cItr++ )
-	{
-		// the first thing to do is grab edge lengths
-		// fix zero and compute the tangential change necessary for the rest of the vertices
-		for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ )
-		{
-						
-		//	adjustments[(vItr)].c[0] = (spinFactor)*sides[vItr].c[0];
-		//	adjustments[(vItr)].c[1] = (spinFactor)*sides[vItr].c[1];
-		//	adjustments[(vItr)].c[2] = (spinFactor)*sides[vItr].c[2];			
-					
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[0] += 0;
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[1] += -0.1;
-			dlen[((vItr)) + inState->compOffsets[cItr]].c[2] += 0;
-		}
-	}
-*/
 
-	dlen[7].c[1] += -1;
-	dlen[8].c[1] += -1;
+     /* This stub is left here in case we want to experiment with knot
+	tightening with respect to some external body force (like
+	gravity or something). */
 
-	if( gOutputFlag )
-	{
-		char fname[1024];
-		preptmpname(fname,"adjustedDL.vect",inState);
-		exportVect( dlen, inLink, fname );
-	}
+{ 
+
 }
 
 static void
 eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 {
-	int cItr, vItr;
+  int cItr, vItr;
+  int *edges = malloc(sizeof(int)*inLink->nc);
+  fatalifnull_(edges);
 	
-	// note to self - this can be made much faster by not being dumb
+  // note to self - this can be made much faster by not being dumb
 	
-	plc_fix_wrap(inLink);
-	
-	if( gOutputFlag )
-	{
-		char fname[1024];
-		preptmpname(fname,"originalDL.vect",inState);
-		exportVect( dlen, inLink, fname );
-	}
-	
-	// if we're graphing kEqVariance
-	double* diffFromAvg;
-	double* averages;
-	if( inState->graphing[kEQVariance] != 0 )
-	{
-		diffFromAvg = (double*)malloc(sizeof(double)*inState->totalSides);
-		averages = (double*)malloc(sizeof(double)*inLink->nc);
-	}
-	
-	for( cItr=0; cItr<inLink->nc; cItr++ )
-	{
-		if( inState->conserveLength[cItr] != 0 )
-			continue;
-	
-		// the first thing to do is grab edge lengths
-		int edges;
-		double* lengths;
-		plc_vector* sides;
-		plc_vector* adjustments;
-		double  averageLength;
-		double  usedLength;
-		double  scaleFactor;
+  plc_fix_wrap(inLink);
 		
-		edges = plc_strand_edges(&inLink->cp[cItr]);
-		
-	//	printf( "edges: %d\n", edges );
-		
-		lengths = (double*)malloc(sizeof(double)*edges);
-		sides = (plc_vector*)malloc(sizeof(plc_vector)*edges);
-		adjustments = (plc_vector*)calloc(edges, sizeof(plc_vector));
-		
-		averageLength = 0;
-		
-		for( vItr=0; vItr<edges; vItr++ )
-		{
-			plc_vector s1, s2;
-			s1.c[0] = inLink->cp[cItr].vt[vItr].c[0];
-			s1.c[1] = inLink->cp[cItr].vt[vItr].c[1];
-			s1.c[2] = inLink->cp[cItr].vt[vItr].c[2];
-			s2.c[0] = inLink->cp[cItr].vt[vItr+1].c[0];
-			s2.c[1] = inLink->cp[cItr].vt[vItr+1].c[1];
-			s2.c[2] = inLink->cp[cItr].vt[vItr+1].c[2];
-			sides[vItr].c[0] = s2.c[0] - s1.c[0];
-			sides[vItr].c[1] = s2.c[1] - s1.c[1];
-			sides[vItr].c[2] = s2.c[2] - s1.c[2];
-			
-			lengths[vItr] = plc_M_norm(sides[vItr]);
-			
-			// unit-ize sides since we will use these as the tangential motion basis below
-			sides[vItr].c[0] /= lengths[vItr];
-			sides[vItr].c[1] /= lengths[vItr];
-			sides[vItr].c[2] /= lengths[vItr];
-								
-	//		printf( "length(%d): %lf\n", vItr, lengths[vItr] );
-			
-			averageLength += lengths[vItr];
-		}
-	//	printf( "total length: %lf\n", averageLength );
-		averageLength /= edges;
-	//	printf( "target: %lf\n", averageLength );
-		
-		if( inState->graphing[kEQVariance] != 0 )
-		{
-			for( vItr=0; vItr<edges; vItr++ )
-				diffFromAvg[vItr+inState->compOffsets[cItr]] = fabs(lengths[vItr] - averageLength)/averageLength;
-			
-			averages[cItr] = averageLength;
-		}
-		
-		usedLength = 0;
-			
-		int procVert;
-		// fix zero and compute the tangential change necessary for the rest of the vertices
-		for( vItr=0; vItr<edges-1; vItr++ )
-		{
-			procVert = (vItr+1)%edges;
-			usedLength += lengths[vItr];
-			scaleFactor = ((vItr+1))*averageLength - usedLength;
-			
-			// scale the side by the amount we need to move
-		//	printf( "need to change %d by: %lf / position: %3.5lf v*avg: %3.5lf\n", procVert, scaleFactor, usedLength, ((vItr+1))*averageLength );
-			
-			scaleFactor *= inState->eqMultiplier;
-			
-	//		scaleFactor = 1;
+  double* diffFromAvg;
+  double* averages;
 
+  diffFromAvg = (double*)malloc(sizeof(double)*inState->totalSides);
+  fatalifnull_(diffFromAvg);
+  averages = (double*)malloc(sizeof(double)*inLink->nc);
+  fatalifnull_(averages);
 
-//			** OLD WAY **
-/*			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*sides[vItr].c[0];
-			adjustments[(vItr+1)%edges].c[1] = (scaleFactor)*sides[vItr].c[1];
-			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*sides[vItr].c[2];
-*/
-			/* "we change the eq code so that it moves in the direction perpendicular to 
-			* the gradient of length (that is, the average of the two tangent vectors) rather 
-			* than in the direction of the tangent vector to the "left" edge at each vertex.
-			* This might make a small difference in eq performance (it certainly shouldn't hurt)
-			* and it makes the theory nicer." 
-			*/
-			adjustments[(vItr+1)%edges].c[0] = (scaleFactor)*(sides[vItr].c[0]+sides[vItr+1].c[0])/2.0;
-			adjustments[(vItr+1)%edges].c[1] = (scaleFactor)*(sides[vItr].c[1]+sides[vItr+1].c[1])/2.0;
-			adjustments[(vItr+1)%edges].c[2] = (scaleFactor)*(sides[vItr].c[2]+sides[vItr+1].c[2])/2.0;
-			
-			// adjustment should have same magnitude as unadjusted dlen vector at this vertex
-		/*	adjustments[(vItr+1)%edges].c[0] /= plc_M_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] /= plc_M_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] /= plc_M_norm(dlen[(vItr+1)%edges]);
-		*/
-		
-		/*	adjustments[(vItr+1)%edges].c[0] /= plc_M_norm(adjustments[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] /= plc_M_norm(adjustments[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] /= plc_M_norm(adjustments[(vItr+1)%edges]);
-		*/	
-		/*	adjustments[(vItr+1)%edges].c[0] *= plc_M_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[1] *= plc_M_norm(dlen[(vItr+1)%edges]);
-			adjustments[(vItr+1)%edges].c[2] *= plc_M_norm(dlen[(vItr+1)%edges]);
-		*/		
-		//	printf( "adjustment %d: %lf %lf %lf\n", (vItr+1)%edges, adjustments[(vItr+1)%edges].c[0],
-		//						adjustments[(vItr+1)%edges].c[1], adjustments[(vItr+1)%edges].c[2] );
-		
-			dlen[((vItr+1)%edges) + inState->compOffsets[cItr]].c[0] += adjustments[(vItr+1)%edges].c[0];
-			dlen[((vItr+1)%edges) + inState->compOffsets[cItr]].c[1] += adjustments[(vItr+1)%edges].c[1];
-			dlen[((vItr+1)%edges) + inState->compOffsets[cItr]].c[2] += adjustments[(vItr+1)%edges].c[2];
-		}
-		
-		free(lengths);
-		free(sides);
-		free(adjustments);
-	}
+  plc_edges(inLink,edges);
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    // the first thing to do is grab edge lengths
+ 
+    double* lengths;
+    plc_vector* adjustments;
+    
+    double  averageLength;
+    double  usedLength;
+    double  scaleFactor;
+    
+    lengths = (double*)malloc(sizeof(double)*edges[cItr]);
+    fatalifnull_(lengths);
+    adjustments = (plc_vector*)calloc(edges[cItr], sizeof(plc_vector));
+    fatalifnull_(adjustments);
+
+    averageLength = 0;
+    
+    for( vItr=0; vItr<edges[cItr]; vItr++ ) {
+
+      lengths[vItr] = plc_M_distance(inLink->cp[cItr].vt[vItr+1],
+				     inLink->cp[cItr].vt[vItr]) /*;*/
+            	
+      averageLength += lengths[vItr];
+    
+    }
+    
+    averageLength /= edges[cItr];
+    averages[cItr] = averageLength;
+     
+    for( vItr=0; vItr<edges[cItr]; vItr++ ) {
+     
+      diffFromAvg[vItr+inState->compOffsets[cItr]] = 
+	fabs(lengths[vItr] - averageLength)/averageLength;	
+      
+    }
+    
+    usedLength = 0;
+    
+    // fix zero and compute the tangential change necessary for the rest of the vertices
+    for( vItr=1; vItr<edges[cItr]-1; vItr++ ) {
+
+      usedLength += lengths[vItr];
+      scaleFactor = (vItr)*averageLength - usedLength;
+      // scale the side by the amount we need to move
+      scaleFactor *= inState->eqMultiplier;
+      
+      /* "we change the eq code so that it moves in the direction
+	 perpendicular to the gradient of length (that is, the
+	 average of the two tangent vectors) rather than in the
+	 direction of the tangent vector to the "left" edge at each
+	 vertex.  This might make a small difference in eq
+	 performance (it certainly shouldn't hurt) and it makes the
+	 theory nicer."
+      */
+
+      bool ok;
+      
+      adjustments[vItr] = plc_scale_vect(scaleFactor,
+					 plc_mean_tangent(inLink,cItr,vItr,&ok));
+
+      if (!ok) {
+
+	char dumpname[1024], errmsg[1024];
 	
-	if( inState->graphing[kEQVariance] != 0 )
-	{
-		double sum = 0, isum, sampleAvg=0;
-		int N = 0;
-
-		// remember you made these all percent diffs 
-		
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			for( vItr=0; vItr<inState->totalSides; vItr++ )
-			{
-				sampleAvg += diffFromAvg[vItr+inState->compOffsets[cItr]];
-				N++;
-			}
-		}
-		sampleAvg /= (double)N;
-
-		for( cItr=0; cItr<inLink->nc; cItr++ )
-		{
-			for( vItr=0; vItr<inState->totalSides; vItr++ )
-			{
-				isum = diffFromAvg[vItr+inState->compOffsets[cItr]] - sampleAvg;
-				sum += isum*isum;
-			}
-		}
-		
-		inState->eqAvgDiff = sampleAvg;
-		inState->eqVariance = (1.0/(double)N)*sum;
-		
-		free(diffFromAvg);
-		free(averages);
-	}
+	dumpLink(inLink,inState,dumpname);
+	sprintf(errmsg,
+		"ridgerunner: eqForce can't compute tangent at vertex %d of comp %d \n"
+		"             of link %s.\n",vItr,cItr,dumpname);
+	FatalError(errmsg, __FILE__ , __LINE__ );
 	
-	if( gOutputFlag )
-	{
-		char	fname[1024];
-		preptmpname(fname,"adjustedDL.vect",inState);
-		exportVect( dlen, inLink, fname );
-	}
+      }
+
+      plc_M_add_vect(dlen[vItr + inState->compOffsets[cItr]],
+		     adjustments[vItr]) /*;*/
+
+    }
+    
+    free(lengths);
+    free(adjustments);
+
+  }
+
+  free(edges);
+
+  /* Now we compute some statistics about how well we're EQing. */
+  
+  double sum = 0, isum, sampleAvg=0;
+  int N = 0;
+  
+  // remember you made these all percent diffs 
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+      for( vItr=0; vItr<inState->totalSides; vItr++ ) {
+
+	sampleAvg += diffFromAvg[vItr+inState->compOffsets[cItr]];
+	N++;
+      }
+  }
+  sampleAvg /= (double)N;
+  
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+    for( vItr=0; vItr<inState->totalSides; vItr++ ) {
+      
+      isum = diffFromAvg[vItr+inState->compOffsets[cItr]] - sampleAvg;
+      sum += isum*isum;
+
+    }
+  }
+  
+  inState->eqAvgDiff = sampleAvg;
+  inState->eqVariance = (1.0/(double)N)*sum;
+  
+  free(diffFromAvg);
+  free(averages);
 }
 
 static double*
 stanford_lsqr( taucs_ccs_matrix* sparseA, double* minusDL, double* residual )
-{
-	/* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR */
-	lsqr_input   *lsqr_in;
-	lsqr_output  *lsqr_out;
-	lsqr_work    *lsqr_work;
-	lsqr_func    *lsqr_func;
-	int bItr;
-	double*		result;
-						
-	alloc_lsqr_mem( &lsqr_in, &lsqr_out, &lsqr_work, &lsqr_func, sparseA->m, sparseA->n );
-	
-	/* we let lsqr() itself handle the 0 values in this structure */
-	lsqr_in->num_rows = sparseA->m;
-	lsqr_in->num_cols = sparseA->n;
-	lsqr_in->damp_val = 0;
-	lsqr_in->rel_mat_err = kZeroThreshold;
-	lsqr_in->rel_rhs_err = 0;
-	lsqr_in->cond_lim = 0;
-	lsqr_in->max_iter = lsqr_in->num_rows + lsqr_in->num_cols + 5000;
-	lsqr_in->lsqr_fp_out = NULL;	
-	for( bItr=0; bItr<sparseA->m; bItr++ )
-	{
-		lsqr_in->rhs_vec->elements[bItr] = minusDL[bItr];
-	}
-	/* Here we set the initial solution vector guess, which is 
-	 * a simple 1-vector. You might want to adjust this value for fine-tuning
-	 * t_snnls() for your application
-	 */
-	for( bItr=0; bItr<sparseA->n; bItr++ )
-	{
-		lsqr_in->sol_vec->elements[bItr] = 0; 
-	}
-	
-	/* This is a function pointer to the matrix-vector multiplier */
-	lsqr_func->mat_vec_prod = fast_lsqr_mult;
-	
-	lsqr( lsqr_in, lsqr_out, lsqr_work, lsqr_func, sparseA );
-	
-	result = (double*)malloc(sizeof(double)*sparseA->n);
-	for( bItr=0; bItr<sparseA->n; bItr++ ) // not really bItr here, but hey
-		result[bItr] = lsqr_out->sol_vec->elements[bItr];
-		
-	if( residual != NULL )
-		*residual = lsqr_out->resid_norm;
-	
-	free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );
 
-	return result;
+     /* This presents a problem. By default, we don't link a copy of
+	lsqr directly into the RR build, preferring to get our linear
+	algebra through the tsnnls package. On the other hand, this
+	functionality is not directly exposed in the tsnnls build either. */
+
+     /* The difference is just that we return the norm of the residual
+	of the lsqr solution, wheras the t_lsqr function doesn't. It's
+	probably going to be best to replace this with a t_lsqr call
+	anyway and work around any problems introduced that way. */
+
+     /* We will make a decision on this later, once we understand 
+	the code below. */
+
+{ /* if there are no constrained struts, t_snnls won't actually work,
+     so use SOL LSQR */
+
+  lsqr_input   *lsqr_in;
+  lsqr_output  *lsqr_out;
+  lsqr_work    *lsqr_work;
+  lsqr_func    *lsqr_func;
+  int bItr;
+  double*      result;
+  
+  alloc_lsqr_mem( &lsqr_in, &lsqr_out, &lsqr_work, &lsqr_func, sparseA->m, sparseA->n );
+  
+  /* we let lsqr() itself handle the 0 values in this structure */
+  lsqr_in->num_rows = sparseA->m;
+  lsqr_in->num_cols = sparseA->n;
+  lsqr_in->damp_val = 0;
+  lsqr_in->rel_mat_err = kZeroThreshold;
+  lsqr_in->rel_rhs_err = 0;
+  lsqr_in->cond_lim = 0;
+  lsqr_in->max_iter = lsqr_in->num_rows + lsqr_in->num_cols + 5000;
+  lsqr_in->lsqr_fp_out = NULL;	
+ 
+  for( bItr=0; bItr<sparseA->m; bItr++ )
+    {
+      lsqr_in->rhs_vec->elements[bItr] = minusDL[bItr];
+    }
+  /* Here we set the initial solution vector guess, which is 
+   * a simple 1-vector. You might want to adjust this value for fine-tuning
+   * t_snnls() for your application
+   */
+  for( bItr=0; bItr<sparseA->n; bItr++ )
+    {
+      lsqr_in->sol_vec->elements[bItr] = 0; 
+    }
+  
+  /* This is a function pointer to the matrix-vector multiplier */
+  lsqr_func->mat_vec_prod = fast_lsqr_mult;
+  
+  lsqr( lsqr_in, lsqr_out, lsqr_work, lsqr_func, sparseA );
+  
+  result = (double*)malloc(sizeof(double)*sparseA->n);
+  for( bItr=0; bItr<sparseA->n; bItr++ ) // not really bItr here, but hey
+    result[bItr] = lsqr_out->sol_vec->elements[bItr];
+  
+  if( residual != NULL )
+    *residual = lsqr_out->resid_norm;
+  
+  free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );
+  
+  return result;
 }
 
 int gFeasibleThreshold = 0;
@@ -3431,27 +1535,32 @@ int gDeferredStrutExport = 0;
 int gFoo = 0;
 
 void
-firstVariation( plc_vector* dl, plCurve* inLink, search_state* inState,
-		octrope_strut** outStruts, int* outStrutsCount, int dlenStep )
+resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState)
+
+     /* This function resolves the given force dl over the struts of
+	inLink, building a rigidity matrix along the way and calling
+	octrope and tsnnls to do their jobs. 
+     */
+
 {
-	/*
-	 * this function creates dVdt, the vector field under which we should actually be 
-	 * moving at this point. We resolve dlen curvature force over the strut field as 
-	 * returned by liboctrope.
-	 */
-	 	
-	plc_vector*		dVdt = NULL;
-	int					strutStorageSize = 0;
-	int					strutCount = 0;
-	octrope_strut*		strutSet = NULL;
-	octrope_mrloc*		minradSet = NULL;
-	double				thickness = 2*inState->injrad;
-	int					cItr, sItr; // loop iterators over components, verticies, and struts
-	int					minradLocs;
-	int					dlItr;
-	double				dummyThick;
-			
-	double*				A = NULL; // the rigidity matrix
+  /*
+   * this function creates dVdt, the vector field under which we should actually be 
+   * moving at this point. We resolve dlen curvature force over the strut field as 
+   * returned by liboctrope.
+   */
+  
+  plc_vector*	  dVdt = NULL;
+  int		  strutStorageSize = 0;
+  int					strutCount = 0;
+  octrope_strut*		strutSet = NULL;
+  octrope_mrloc*		minradSet = NULL;
+  double				thickness = 2*inState->tube_radius;
+  int					cItr, sItr; // loop iterators over components, verticies, and struts
+  int					minradLocs;
+  int					dlItr;
+  double				dummyThick;
+  
+  double*				A = NULL; // the rigidity matrix
 	taucs_ccs_matrix*	cleanA = NULL;
 	
 	strutStorageSize = (inState->lastStepStrutCount != 0) ? (2*inState->lastStepStrutCount) : 10;
@@ -3599,7 +1708,7 @@ firstVariation( plc_vector* dl, plCurve* inLink, search_state* inState,
 		free(minradSet);
 	
 		// if there are no struts...
-		//inState->shortest = 2*inState->injrad;
+		//inState->shortest = 2*inState->tube_radius;
 
 		//dVdt = dl;
 		

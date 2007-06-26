@@ -352,7 +352,83 @@ plc_vector plCurve_edge_dir(plCurve *L, int comp, int edge)
 
   return V;
 }
+
+int plc_constraint_score(plc_cst_kind cst)
+
+{
+  char errmsg[1024];
+
+  if (cst == unconstrained) {
+
+    return 0;
+
+  } else if (cst == plane) {
+
+    return 1;
+
+  } else if (cst == line) {
+
+    return 2;
+
+  } else if (cst == fixed) {
+
+    return 3;
+
+  } 
+
+  sprintf(errmsg,"ridgerunner: Asked to score unknown constraint type (%d).\n",
+	  cst);
+  FatalError(errmsg);
+
+  /* We should never reach this point. */
+
+  return 0;
+
+}
+
   
+
+int plCurve_score_constraints(plCurve *inLink)
+
+     /* Count the number of constraints on inLink. This is a weighted
+	sum over constrained vertices, with plane constraints counting
+	once, line constraints counting twice, and point constraints
+	counting three times. */
+
+{
+  plc_constraint *thisCst;
+  int nconstraints = 0;
+
+  for(thisCst = inLink->cst;thisCst != NULL;thisCst = thisCst->next) {
+    
+    nconstraints += plc_constraint_score(thisCst->kind)*thisCst->num_verts;
+
+  }
+
+  return nconstraints;
+
+}
+
+int plCurve_count_constraints(plCurve *inLink)
+
+     /* Count the number of constraints on inLink. This is a weighted
+	sum over constrained vertices, with plane constraints counting
+	once, line constraints counting twice, and point constraints
+	counting three times. */
+
+{
+  plc_constraint *thisCst;
+  int nconstraints = 0;
+
+  for(thisCst = inLink->cst;thisCst != NULL;thisCst = thisCst->next) {
+    
+    nconstraints += thisCst->num_verts;
+
+  }
+
+  return nconstraints;
+
+}
 
     
 

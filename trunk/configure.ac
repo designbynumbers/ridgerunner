@@ -188,7 +188,7 @@ echo "$fname"
 AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h])
 
 # Checks for system functions.
-AC_CHECK_FUNCS([asctime localtime time]) 
+AC_CHECK_FUNCS([asctime localtime time clock]) 
 
 # Checks for libraries.
 AC_CHECK_LIB(m,sqrt)
