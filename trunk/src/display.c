@@ -90,9 +90,65 @@ extern int gSurfaceBuilding;
 short gSurfaceIndex = 0; // the next filename for the surface building
 short gSurfaceItr = 0; // how long till next surface output
 
-void 
-export_struts(plCurve* inLink, octrope_strut* strutSet, int inSize, double* compressions, search_state* inState)
+void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist, 
+			  int strutCount, FILE *fp)
+
+     /* Write struts to a VECT file for later display. */
+
 {
+  int i;
+  
+  fprintf(fp, "VECT\n");
+  fprintf(fp, "%d %d %d\n", strutCount, 2*strutCount, strutCount);
+  fprintf(fp, "2");
+  for( i=1; i<strutCount; i++ )
+    fprintf(fp, " 2");
+  fprintf(fp, "\n");
+  
+  fprintf(fp, "1");
+  for( i=1; i<strutCount; i++ )
+    fprintf(fp, " 1");
+  fprintf(fp, "\n");
+  
+  maxCompression = 0;
+  
+  for( i=0; i<strutCount; i++ ) {
+
+    maxCompression = (strutlist[i].compressions > maxCompression) ? 
+      strutlist[i].compressions : maxCompression;
+
+  }
+  
+  if( maxCompression == 0 )
+    maxCompression = 1e-6;
+  
+  for( i=0; i<strutCount; i++ )
+    {
+      plc_vector  points[2];
+      
+      octrope_strut_ends( inLink, &strutSet[i], points );
+            
+      fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[0]));
+      fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[1]));
+      
+    }
+  
+  for( i=0; i<strutCount; i++ )
+    {
+      fprintf(fp, "%f,%f,%f,0\n", compressions[i]/maxCompression, 0.0, 0.0);
+    }
+  
+}
+
+void 
+export_struts(plCurve* inLink, octrope_strut* strutSet, int inSize, 
+	      double* compressions, search_state* inState)
+
+     /* Old code that probably doesn't work. */
+
+{
+  
+  
 	if( inSize == 0 || compressions == NULL )
 		return;
 	
@@ -120,58 +176,7 @@ export_struts(plCurve* inLink, octrope_strut* strutSet, int inSize, double* comp
 		return;
 	}
 	
-	fprintf(fp, "VECT\n");
-	fprintf(fp, "%d %d %d\n", inSize, 2*inSize, inSize);
-	fprintf(fp, "2");
-	for( i=1; i<inSize; i++ )
-		fprintf(fp, " 2");
-	fprintf(fp, "\n");
 	
-	fprintf(fp, "1");
-	for( i=1; i<inSize; i++ )
-		fprintf(fp, " 1");
-	fprintf(fp, "\n");
-	
-	maxCompression = 0;
-	for( i=0; i<inSize; i++ )
-	{
-		if( compressions[i] > maxCompression )
-			maxCompression = compressions[i];
-	}
-	
-	if( maxCompression == 0 )
-		maxCompression = 1e-6;
-	
-	for( i=0; i<inSize; i++ )
-	{
-		plc_vector  points[2];
-		
-		octrope_strut_ends( inLink, &strutSet[i], points );
-		
-		fprintf( meta, "%d %d %d %d %f\n", strutSet[i].component[0], 
-										strutSet[i].lead_vert[0],
-										strutSet[i].component[1],
-										strutSet[i].lead_vert[1],
-										compressions[i]/maxCompression );
-					
-		fprintf(fp, "%lf %lf %lf\n",
-			points[0].c[0], 
-			points[0].c[1], 
-			points[0].c[2] );
-				
-		fprintf(fp, "%lf %lf %lf\n",
-			points[1].c[0], 
-			points[1].c[1], 
-			points[1].c[2] );
-			
-	}
-		
-	for( i=0; i<inSize; i++ )
-	{
-		fprintf(fp, "%f,%f,%f,0\n", compressions[i]/maxCompression, 0.0, 0.0);
-	}
-	
-	fclose(fp);
 	fclose(meta);
 	fclose(ted);
 	

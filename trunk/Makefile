@@ -64,7 +64,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_alias = 
-host_triplet = powerpc-apple-darwin8.9.0
+host_triplet = powerpc-apple-darwin8.10.0
 
 EXEEXT = 
 OBJEXT = o
@@ -92,16 +92,16 @@ AM_CPPFLAGS = -I$(srcdir)/src/
 bin_PROGRAMS = src/ridgerunner
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
-	src/display.c \
 	src/linklib_additions.c \
-	./src/settings.c \
-	./src/ridgerunner_main.c \
-        ./src/stepper.c \
-	./src/dlen.h \
-	./src/eqedge.h \
-	./src/errors.h \
-        ./src/settings.h \
-	./src/stepper.h 
+	src/settings.c \
+	src/ridgerunner_main.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/eqedge.h \
+	src/errors.h \
+        src/settings.h \
+	src/stepper.h \
+	src/display.c 
 
 
 src_ridgerunner_LDADD = -lplCurve -ltsnnls -largtable2 -loctrope
@@ -194,8 +194,8 @@ bin_PROGRAMS = src/ridgerunner$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 
 am_src_ridgerunner_OBJECTS = errors.$(OBJEXT) dlen.$(OBJEXT) \
-	display.$(OBJEXT) linklib_additions.$(OBJEXT) \
-	settings.$(OBJEXT) ridgerunner_main.$(OBJEXT) stepper.$(OBJEXT)
+	linklib_additions.$(OBJEXT) settings.$(OBJEXT) \
+	ridgerunner_main.$(OBJEXT) stepper.$(OBJEXT) display.$(OBJEXT)
 src_ridgerunner_OBJECTS = $(am_src_ridgerunner_OBJECTS)
 src_ridgerunner_DEPENDENCIES =
 src_ridgerunner_LDFLAGS =
@@ -219,7 +219,7 @@ LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 CFLAGS = -g -O2
 DIST_SOURCES = $(src_ridgerunner_SOURCES)
 DIST_COMMON = README AUTHORS COPYING ChangeLog INSTALL Makefile.am \
-	Makefile.in NEWS acinclude.m4 aclocal.m4 config.guess \
+	Makefile.in NEWS TODO acinclude.m4 aclocal.m4 config.guess \
 	config.h.in config.sub configure configure.ac depcomp \
 	install-sh missing mkinstalldirs
 SOURCES = $(src_ridgerunner_SOURCES)
@@ -288,11 +288,11 @@ clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
 errors.$(OBJEXT): src/errors.c
 dlen.$(OBJEXT): src/dlen.c
-display.$(OBJEXT): src/display.c
 linklib_additions.$(OBJEXT): src/linklib_additions.c
-settings.$(OBJEXT): ./src/settings.c
-ridgerunner_main.$(OBJEXT): ./src/ridgerunner_main.c
-stepper.$(OBJEXT): ./src/stepper.c
+settings.$(OBJEXT): src/settings.c
+ridgerunner_main.$(OBJEXT): src/ridgerunner_main.c
+stepper.$(OBJEXT): src/stepper.c
+display.$(OBJEXT): src/display.c
 src/.dirstamp:
 	@$(mkinstalldirs) src
 	@: > src/.dirstamp
@@ -354,18 +354,6 @@ dlen.obj: src/dlen.c
 	$(CCDEPMODE) $(depcomp) \
 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dlen.obj `cygpath -w src/dlen.c`
 
-display.o: src/display.c
-	source='src/display.c' object='display.o' libtool=no \
-	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.o `test -f 'src/display.c' || echo '$(srcdir)/'`src/display.c
-
-display.obj: src/display.c
-	source='src/display.c' object='display.obj' libtool=no \
-	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
-	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.obj `cygpath -w src/display.c`
-
 linklib_additions.o: src/linklib_additions.c
 	source='src/linklib_additions.c' object='linklib_additions.o' libtool=no \
 	depfile='$(DEPDIR)/linklib_additions.Po' tmpdepfile='$(DEPDIR)/linklib_additions.TPo' \
@@ -378,41 +366,53 @@ linklib_additions.obj: src/linklib_additions.c
 	$(CCDEPMODE) $(depcomp) \
 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linklib_additions.obj `cygpath -w src/linklib_additions.c`
 
-settings.o: ./src/settings.c
-	source='./src/settings.c' object='settings.o' libtool=no \
+settings.o: src/settings.c
+	source='src/settings.c' object='settings.o' libtool=no \
 	depfile='$(DEPDIR)/settings.Po' tmpdepfile='$(DEPDIR)/settings.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.o `test -f './src/settings.c' || echo '$(srcdir)/'`./src/settings.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.o `test -f 'src/settings.c' || echo '$(srcdir)/'`src/settings.c
 
-settings.obj: ./src/settings.c
-	source='./src/settings.c' object='settings.obj' libtool=no \
+settings.obj: src/settings.c
+	source='src/settings.c' object='settings.obj' libtool=no \
 	depfile='$(DEPDIR)/settings.Po' tmpdepfile='$(DEPDIR)/settings.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.obj `cygpath -w ./src/settings.c`
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o settings.obj `cygpath -w src/settings.c`
 
-ridgerunner_main.o: ./src/ridgerunner_main.c
-	source='./src/ridgerunner_main.c' object='ridgerunner_main.o' libtool=no \
+ridgerunner_main.o: src/ridgerunner_main.c
+	source='src/ridgerunner_main.c' object='ridgerunner_main.o' libtool=no \
 	depfile='$(DEPDIR)/ridgerunner_main.Po' tmpdepfile='$(DEPDIR)/ridgerunner_main.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.o `test -f './src/ridgerunner_main.c' || echo '$(srcdir)/'`./src/ridgerunner_main.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.o `test -f 'src/ridgerunner_main.c' || echo '$(srcdir)/'`src/ridgerunner_main.c
 
-ridgerunner_main.obj: ./src/ridgerunner_main.c
-	source='./src/ridgerunner_main.c' object='ridgerunner_main.obj' libtool=no \
+ridgerunner_main.obj: src/ridgerunner_main.c
+	source='src/ridgerunner_main.c' object='ridgerunner_main.obj' libtool=no \
 	depfile='$(DEPDIR)/ridgerunner_main.Po' tmpdepfile='$(DEPDIR)/ridgerunner_main.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.obj `cygpath -w ./src/ridgerunner_main.c`
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ridgerunner_main.obj `cygpath -w src/ridgerunner_main.c`
 
-stepper.o: ./src/stepper.c
-	source='./src/stepper.c' object='stepper.o' libtool=no \
+stepper.o: src/stepper.c
+	source='src/stepper.c' object='stepper.o' libtool=no \
 	depfile='$(DEPDIR)/stepper.Po' tmpdepfile='$(DEPDIR)/stepper.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.o `test -f './src/stepper.c' || echo '$(srcdir)/'`./src/stepper.c
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.o `test -f 'src/stepper.c' || echo '$(srcdir)/'`src/stepper.c
 
-stepper.obj: ./src/stepper.c
-	source='./src/stepper.c' object='stepper.obj' libtool=no \
+stepper.obj: src/stepper.c
+	source='src/stepper.c' object='stepper.obj' libtool=no \
 	depfile='$(DEPDIR)/stepper.Po' tmpdepfile='$(DEPDIR)/stepper.TPo' \
 	$(CCDEPMODE) $(depcomp) \
-	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.obj `cygpath -w ./src/stepper.c`
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stepper.obj `cygpath -w src/stepper.c`
+
+display.o: src/display.c
+	source='src/display.c' object='display.o' libtool=no \
+	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
+	$(CCDEPMODE) $(depcomp) \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.o `test -f 'src/display.c' || echo '$(srcdir)/'`src/display.c
+
+display.obj: src/display.c
+	source='src/display.c' object='display.obj' libtool=no \
+	depfile='$(DEPDIR)/display.Po' tmpdepfile='$(DEPDIR)/display.TPo' \
+	$(CCDEPMODE) $(depcomp) \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o display.obj `cygpath -w src/display.c`
 CCDEPMODE = depmode=gcc3
 uninstall-info-am:
 

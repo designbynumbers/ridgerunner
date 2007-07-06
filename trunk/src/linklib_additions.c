@@ -368,7 +368,8 @@ int plc_constraint_score(plc_cst_kind cst)
 
   } else if (cst == line) {
 
-    return 2;
+    sprintf(errmsg,"ridgerunner: This version does not implement 'line' constraints.\n");
+    FatalError(errmsg, __FILE__ , __LINE__ );
 
   } else if (cst == fixed) {
 
@@ -378,7 +379,7 @@ int plc_constraint_score(plc_cst_kind cst)
 
   sprintf(errmsg,"ridgerunner: Asked to score unknown constraint type (%d).\n",
 	  cst);
-  FatalError(errmsg);
+  FatalError(errmsg, __FILE__ , __LINE__ );
 
   /* We should never reach this point. */
 

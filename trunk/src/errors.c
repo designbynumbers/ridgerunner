@@ -7,11 +7,9 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "errors.h"
-#include "octrope.h"
+#include "ridgerunner.h"
+
 
 void 
 DebugThrow( int inErr, const char* inFile, long inLine )
@@ -105,69 +103,77 @@ dumpAxb_full( search_state *inState,
   static FILE* fp;
   int rItr, cItr;
   char filename[1024],basename[1024];
-  char errmsg[1024];
   
   /* Construct filename for A */
 
-  sprintf(filename,"%sA.dat",inState->fprefix);
-  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-  
-  /* Now construct the file. */
-  
-  for( rItr=0; rItr<rows; rItr++ ) {
+  if (A != NULL) {
 
-    for( cItr=0; cItr<cols; cItr++ )
-      fprintf( fp, "%10.16lf ", A[rItr*cols + cItr] );
+    sprintf(filename,"%sA.dat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    
+    /* Now construct the file. */
+    
+    for( rItr=0; rItr<rows; rItr++ ) {
       
-    fprintf( fp, "\n" );
+      for( cItr=0; cItr<cols; cItr++ )
+	fprintf( fp, "%10.16lf ", A[rItr*cols + cItr] );
+      
+      fprintf( fp, "\n" );
+    }
+    
+    fclose(fp);
+
   }
-  
-  fclose(fp);
 
   /* Construct filename for x. */
 
-  sprintf(basename,"x.dat");
-  strcpy(filename,inState->fprefix);
-  strcat(filename,basename);
-  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-  
-  for( cItr=0; cItr<cols; cItr++ ) {
-
-    if( x != NULL )
-      fprintf( fp, "%10.16lf\n", x[cItr] );
-    else
-      fprintf( fp, "0\n" );
+  if (x != NULL) {
     
-  }
+    sprintf(basename,"x.dat");
+    strcpy(filename,inState->fprefix);
+    strcat(filename,basename);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    
+    for( cItr=0; cItr<cols; cItr++ ) {
+      
+      if( x != NULL )
+	fprintf( fp, "%10.16lf\n", x[cItr] );
+      else
+	fprintf( fp, "0\n" );
+      
+    }
   
-  fclose(fp);
+    fclose(fp);
+
+  }
 
   /* Construct filename for b. */
 
-  sprintf(basename,"b.dat");
-  strcpy(filename,inState->fprefix);
-  strcat(filename,basename);
-  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+  if (b != NULL) {
 
-  for( rItr=0; rItr<rows; rItr++ )
-    fprintf( fp, "%lf\n", b[rItr] );
-  
-  fclose(fp);
+    sprintf(basename,"b.dat");
+    strcpy(filename,inState->fprefix);
+    strcat(filename,basename);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    
+    for( rItr=0; rItr<rows; rItr++ )
+      fprintf( fp, "%lf\n", b[rItr] );
+    
+    fclose(fp);
+  }
+
 }
 
-static void
+void
 dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b )
 {
-  int i, j;
   double* vals = taucs_convert_ccs_to_doubles(A);
-
   dumpAxb_full(inState,vals,A->m,A->n,x,b);
-
   free(vals);
 
 }  
  
-static void
+void
 dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount)
 
      /* This is debugging code which shouldn't be called in a normal
@@ -205,8 +211,33 @@ dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount)
   fclose(fp);
 }
 
+void 
+dumpStruts( plCurve *inLink, search_state *inState, char *dumpname)
 
-static void
+     /* Writes the current strut set to a file in the run directory. */
+     /* Assumes that the strut set is given inside inState. */
+{
+  FILE *strutsVect, *strutsTed;
+  char tedname[1024],filename[1024];
+
+  sprintf(dumpname,"%s%s.struts.vect",inState->fprefix,inState->fname);
+  strutsVect = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
+  strut_vectfile_write(inLink,
+		       inState->lastStepStruts,inState->lastStepStrutCount,
+		       strutsVect);
+  fclose(strutsVect);
+
+  sprintf(tedname,"%s%s.struts",inState->fprefix,inState->fname);
+  strutsTed = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
+  octrope_strutfile_write(inState->lastStepStrutCount,
+			  inState->lastStepStruts,
+			  inState->lastStepMinradStrutCount,
+			  inState->lastStepMRlist,
+			  strutsTed);
+  fclose(strutsTed);
+}
+
+void
 dumpDvdt( search_state *inState, plc_vector* dvdt, int size )
 
      /* Again, this is debugging code which shouldn't usually be called. */
@@ -247,7 +278,7 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
 
 }
 
-static void
+void
 checkDuplicates( octrope_strut* struts, int num )
 
      /* This is debugging code that isn't called in a standard build. */
@@ -295,7 +326,7 @@ checkDuplicates( octrope_strut* struts, int num )
   }
 }
 
-static void
+void
 collapseStruts( octrope_strut** struts, int* count )
 
      /* Not called in a standard build of the software, this converts

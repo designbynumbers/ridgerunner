@@ -8,16 +8,17 @@ AM_CPPFLAGS = -I$(srcdir)/src/
 bin_PROGRAMS = src/ridgerunner
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
-	src/display.c \
 	src/linklib_additions.c \
-	./src/settings.c \
-	./src/ridgerunner_main.c \
-        ./src/stepper.c \
-	./src/dlen.h \
-	./src/eqedge.h \
-	./src/errors.h \
-        ./src/settings.h \
-	./src/stepper.h 
+	src/settings.c \
+	src/ridgerunner_main.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/eqedge.h \
+	src/errors.h \
+        src/settings.h \
+	src/stepper.h \
+	src/display.c 
+
 
 src_ridgerunner_LDADD = -lplCurve -ltsnnls -largtable2 -loctrope
 
