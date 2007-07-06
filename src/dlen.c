@@ -60,8 +60,6 @@ dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
   int i=0,istart,iend,nv;
   bool normok;
 
-  inState->curvature_step = 1;
-
   for( cItr=0; cItr<inLink->nc; cItr++ ) {		   
     for( vItr=0, istart=i; vItr<inLink->cp[cItr].nv; vItr++ ) {
 

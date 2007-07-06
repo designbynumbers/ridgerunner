@@ -56,6 +56,10 @@ which need to be provided if system libraries are lacking.
   #include <float.h>
 #endif
 
+#ifdef HAVE_ASSERT_H
+  #include <assert.h>
+#endif
+
 #ifdef HAVE_CLAPACK_H
   #include <clapack.h>
 #else 

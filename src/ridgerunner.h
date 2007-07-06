@@ -40,6 +40,7 @@ int gAvoidTmpConflicts = 0;
 int gPaperInfoInTmp = 0;
 int gFastCorrectionSteps = 0;
 double gLambda = 1.0;   /* lambda-stiffness of rope */
+int gMaxCorrectionAttempts = 25;
 
 /************* Defined Data Types ***********************/
 
@@ -64,7 +65,7 @@ enum GraphTypes
   kCorrectionStepsNeeded, // the number of correction steps required to converge,
   kEQVariance,	// the variance of the set of (edge lengths - the average)
   
-  kTotalGraphTypes
+  kTotalLogTypes
 };
 
 /* "State" a long data structure for holding everything related to the 
@@ -133,9 +134,17 @@ typedef struct
   double  cstep_time;
   double  lastMaxMin;	  // max/min of last step
   
-  int*	compOffsets;	  // we need to know the component offsets 
-  // to index struts when there are multiple components
+  int*	compOffsets;	  
   
+  /* At many points in the program we'll convert back and forth from a
+     "flat" representation of a link, where a single array of
+     plc_vectors will represent all vertices of all components of the
+     link in order, or a single array of doubles will represent all of
+     the components of all these vectors. The "compOffsets" array
+     contains pointers into such an array _of plc_vectors_, where 
+
+     compOffset[i] is the 0th vertex of component i. */
+
   int*	conserveLength;	  // array of size link->nc that specifies 
                           // whether or not to treat
                           // the given component's edges as bars 
@@ -166,7 +175,7 @@ typedef struct
   double  ofvNorm;	// ofvB L2
   double  ofvResidual;	// residual of the ofv lsqr call
   
-  int	  graphing[kTotalGraphTypes];
+  int	  graphing[kTotalLogTypes];
   
   double  maxPush;	// the maximum of all the strut force compression sums
   double  avgDvdtMag;   // avg of all dvdt norms
@@ -190,7 +199,11 @@ typedef struct
   double  eqAvgDiff;
 
   FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
-  char    *logfilenames[32]; 
+  char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
+
+#ifdef HAVE_TIME
+  time_t  start_time;
+#endif
 
 } search_state;
 
@@ -201,18 +214,32 @@ typedef struct
 
 extern RSettings gRidgeSettings;
 
+/****************************************************************/
+/* Function Prototypes                                          */
+/****************************************************************/
+
+/* stepper.c */
+
+void bsearch_stepper( plCurve** inLink, search_state* inState );
 /*
- * Performs inMaxSteps SUCCESSFUL gradient steps on *inLink and stores the result in 
- * **inLink. Keep in mind that the initial *inLink will be freed in this 
- * process. Successful gradient steps are those that either move the curve by 
- * dLen with no changes to the strut set or that create only a single strut.
- *
- * An equilateralization flow is also performed after each successful step to keep
- * the link approximately equilateral.
+ * The main loop of the program. Calls bsearch_step until one of
+ 
+ 1) inState->maxItrs steps are performed
+ 2) the change in ropelength over the last 20 steps is less than inState->stop20
+ 3) inState->residual < inState->residualThreshold
+ 
  *
  */
 
-void bsearch_stepper( plCurve** inLink, search_state* inState );
+void correct_thickness(plCurve *inLink,search_state *inState);
+/* Newton's method thickness correction algorithm */
+
+void update_runtime_logs(search_state *state);
+/* Writes data on current run to various log files. */
+
+void update_vect_directory(plCurve * const link, const search_state *state);
+
+void free_search_state(search_state *inState);
 
 double maxovermin( plCurve* inLink, search_state* inState );
 void updateSideLengths( plCurve* inLink, search_state* inState );
@@ -239,6 +266,10 @@ void   plCurve_draw(FILE *outfile, plCurve *L);
 void	init_display();
 void	shutdown_display();
 void    refresh_display(plCurve *L);
+
+void    strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist, 
+			     int strutCount, FILE *fp);
+
 void	export_ted(plCurve* inLink, octrope_strut* strutSet, 
 		   int inSize, octrope_mrloc* minradSet, int minradLocs, 
 		   double* compressions, search_state* inState);
@@ -251,10 +282,15 @@ void    preptmpname( char* outName, const char* inName, search_state* inState );
 
 /* Error Handling Routines. */
 
-void FatalError(char *debugmsg,const char *file,int *line);
+void FatalError(char *debugmsg,const char *file,int line);
 void dumpAxb_full( search_state *inState, 
 		   double* A, int rows, int cols, 
 		   double* x, double* b );
+void dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b );
+void dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount);
+void checkDuplicates( octrope_strut* struts, int num );
+void collapseStruts( octrope_strut** struts, int* count );
+
 FILE *fopen_or_die(const char *filename,const char *mode,
 		   const char *file,const int line); 
 
