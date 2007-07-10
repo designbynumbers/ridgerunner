@@ -28,24 +28,8 @@ which need to be provided if system libraries are lacking.
   #include <time.h>
 #endif
 
-#ifdef HAVE_UNISTD_H
-  #include <unistd.h>
-#endif
- 
-#ifdef HAVE_SIGNAL_H
-  #include <signal.h>
-#endif
-
 #ifdef HAVE_SYS_TYPES_H
   #include <sys/types.h>
-#endif
-
-#ifdef HAVE_SYS_STAT_H
-  #include <sys/stat.h>
-#endif
-
-#ifdef HAVE_SYS_DIR_H
-  #include <sys/dir.h>
 #endif
 
 #ifdef HAVE_MATH_H

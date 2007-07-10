@@ -9,6 +9,16 @@
  
 #include"ridgerunner.h"
 
+/* This "main" file is where all of the global variables live. */
+
+int VERBOSITY;
+FILE *gLogfile;
+
+int gSuppressOutput = 0;
+int gQuiet = 0;
+double gLambda = 1.0;   /* lambda-stiffness of rope */
+int gMaxCorrectionAttempts = 25;
+
 void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state, plCurve** inLink, const char* fname );
@@ -18,31 +28,6 @@ void initializeState( search_state* state, plCurve** inLink, const char* fname )
 #ifndef min
   #define min(a,b) ((a)<(b)) ? (a) : (b)
 #endif
-
-/*	
-	struct options longopts[] = { {"avoidTmpConflicts",
-		no_argument, &gAvoidTmpConflicts, 1},
-		{"saveConvergenceData", no_argument, &saveConvergence,
-		1}, {"quiet", no_argument, &gQuiet, 1},
-		{"buildSurface", no_argument, &gSurfaceBuilding, 1},
-		{"verbose", no_argument, &gVerboseFiling, 1},
-		{"suppressFiles", no_argument, &gSuppressOutput, 1},
-		{"movie", no_argument, &movie, 1}, {"ignoreCurvature",
-		no_argument, &ignorecurvature, 1}, {"autoscale",
-		no_argument, &autoscale, 1}, {"fancyViz", no_argument,
-		&fancyViz, 1}, {"infile", required_argument, NULL,
-		'a'}, {"scale", required_argument, NULL, 'b'},
-		{"checkDelta", required_argument, NULL, 'c'},
-		{"tube_radius", required_argument, NULL, 'd'},
-		{"eqMultiplier", required_argument, NULL, 'e'},
-		{"residualThreshold", required_argument, NULL, 'f'},
-		{"refineUntil", required_argument, NULL, 'g'},
-		{"checkThreshold", required_argument, NULL, 'h'},
-		{"maxSteps", required_argument, NULL, 'i'},
-		{"overstepTolerance", required_argument, NULL, 'j'},
-		{"maxStepSize", required_argument, NULL, 'k'},
-		{"double", no_argument, NULL, 'l'}, {0, 0, 0, 0} };
-*/
 	
 int
 main( int argc, char* argv[] )
@@ -526,6 +511,8 @@ main( int argc, char* argv[] )
 
   }
 
+  init_runtime_display(&state);
+
   /* Now we actually run the stepper. */
   
   bsearch_stepper(&link, &state);
@@ -574,28 +561,12 @@ main( int argc, char* argv[] )
   fclose(savefile);
 
   /* Now clean up allocated memory and close files. */
-  
+
+  close_runtime_display();
   free_search_state(&state);
   plc_free(link);
 
   return kNoErr;
-}
-
-static short
-rgetline( char* outLine, int inSize, FILE* fp )
-{
-  outLine[0] ='\0';
-  int pos = 0;
-  
-  do
-    {
-      outLine[pos] = fgetc(fp);
-    } while( outLine[pos++] != '\n' && !feof(fp) );
-  outLine[pos] = '\0';
-  
-  if( strlen(outLine) == 0 )
-    return 0;
-  return 1;
 }
 
 void
@@ -649,6 +620,9 @@ initializeState( search_state* state, plCurve** inLink, const char* fname )
     {
       state->conserveLength[i] = 0;
     }
+
+  state->tsnnls_evaluations = 0;
+  state->octrope_calls = 0;
 	
   state->residual = 0;
 
@@ -675,14 +649,3 @@ void free_search_state(search_state *inState)
 
 
 
-void
-reload_handler( int sig )
-{
-  if( sig == SIGUSR1 )
-    {
-      // immediately reload config
-      
-      // reinstall handler
-      signal(SIGUSR1, reload_handler);
-    }
-}

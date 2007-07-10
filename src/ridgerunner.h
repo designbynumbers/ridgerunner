@@ -17,6 +17,7 @@
 #include "octrope.h"
 #include "libtsnnls/tsnnls.h"
 #include "argtable2.h"
+#include "ncurses.h"
 
 #define kStepScale 0.01
 //#define kMinStepSize 1e-5
@@ -28,19 +29,14 @@
 
 /************************* Global Variables ***********************/
 
-int VERBOSITY;
-int GRAPHICS;
-FILE *gclpipe,*gLogfile;
+extern int VERBOSITY;
+extern FILE *gLogfile;
+extern FILE *gclpipe;
 
-int gVerboseFiling = 0;
-int gSuppressOutput = 0;
-int gQuiet = 0;
-int gSurfaceBuilding = 0;
-int gAvoidTmpConflicts = 0;
-int gPaperInfoInTmp = 0;
-int gFastCorrectionSteps = 0;
-double gLambda = 1.0;   /* lambda-stiffness of rope */
-int gMaxCorrectionAttempts = 25;
+extern int gSuppressOutput;
+extern int gQuiet;
+extern double gLambda;                  /* lambda-stiffness of rope */
+extern int gMaxCorrectionAttempts;
 
 /************* Defined Data Types ***********************/
 
@@ -161,6 +157,7 @@ typedef struct
   int		totalSides;
   
   int		tsnnls_evaluations;
+  int           octrope_calls;
   
   double*       sideLengths;
   double	avgSideLength;
@@ -234,6 +231,24 @@ void bsearch_stepper( plCurve** inLink, search_state* inState );
 void correct_thickness(plCurve *inLink,search_state *inState);
 /* Newton's method thickness correction algorithm */
 
+taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState);
+/* Creates rigidity matrix corresponding to current set of struts, kinks, constraints. */
+
+void dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState );
+/* Adds gradient of length to the buffer ioDL. */
+
+void eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
+/* Adds an "equilateralization force" to the buffer dlen. */
+
+void spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
+/* Adds a "spin force" to the buffer dLen. */
+
+void specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
+/* A stub, used in future versions to add other forces to dlen. */
+
+plc_vector *resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState);
+/* Uses rigidity matrix to resolve the force dl over struts, kinks, and constraints. */
+
 void update_runtime_logs(search_state *state);
 /* Writes data on current run to various log files. */
 
@@ -241,12 +256,13 @@ void update_vect_directory(plCurve * const link, const search_state *state);
 
 void free_search_state(search_state *inState);
 
-double maxovermin( plCurve* inLink, search_state* inState );
 void updateSideLengths( plCurve* inLink, search_state* inState );
 void reloadDump( double* A, int rows, int cols, double* x, double* b );
 
 void our_matrix_write(double val, double *A, int LDA, int i, int j);
 double maxError(plCurve *L, int comp, search_state* inState);
+
+/* linklib_additions.c */
 
 plCurve*  octrope_fixlength( plCurve* inLink );
 plCurve*  plCurve_fixresolution( plCurve* inLink, double newres );
@@ -259,35 +275,41 @@ double plCurve_long_edge(plCurve *L);
 plc_vector plCurve_tangent_vector(plCurve *L,int comp,int vert);
 plc_vector plCurve_edge_dir(plCurve *L,int comp,int edge);
 
+int plCurve_score_constraints(plCurve *inLink);
+
 void   plCurve_draw(FILE *outfile, plCurve *L);
 
 /* Display Routines */
 
-void	init_display();
-void	shutdown_display();
-void    refresh_display(plCurve *L);
+void init_runtime_display(search_state *inState);
+void update_runtime_display(plCurve *inLink,search_state *inState);
+void close_runtime_display();
 
-void    strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist, 
-			     int strutCount, FILE *fp);
+void init_gv_display();
+void shutdown_gv_display();
+void refresh_display(plCurve *L);
 
-void	export_ted(plCurve* inLink, octrope_strut* strutSet, 
-		   int inSize, octrope_mrloc* minradSet, int minradLocs, 
-		   double* compressions, search_state* inState);
+void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist, 
+			  int strutCount, FILE *fp);
 
-void	export_struts(plCurve* inLink, octrope_strut* inStruts, 
-		      int inSize, double* compressions, search_state* inState);
-void	exportVect( const plc_vector* dl, plCurve* link, const char* fname );
-
-void    preptmpname( char* outName, const char* inName, search_state* inState );
+void export_struts(plCurve* inLink, octrope_strut* inStruts, 
+		   int inSize, double* compressions, search_state* inState);
 
 /* Error Handling Routines. */
 
 void FatalError(char *debugmsg,const char *file,int line);
+
 void dumpAxb_full( search_state *inState, 
 		   double* A, int rows, int cols, 
 		   double* x, double* b );
 void dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b );
 void dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount);
+void dumpLink( plCurve *inLink, search_state *inState, char *dumpname);
+void dumpStruts( plCurve *inLink, search_state *inState, char *dumpname);
+
+
+double rigidityEntry( taucs_ccs_matrix* A, int strutCount, 
+		      int minradLocs, int row, int col );
 void checkDuplicates( octrope_strut* struts, int num );
 void collapseStruts( octrope_strut** struts, int* count );
 

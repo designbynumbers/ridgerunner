@@ -99,91 +99,6 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
     
   esac
 
-# We'll need to call F77 functions from C, find out how to mangle their names
-AC_F77_FUNC([daxpy],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="daxpy_"
-fi
-AC_DEFINE_UNQUOTED([DAXPY_F77],[$fname],[Name of daxpy after mangling])
-AC_MSG_CHECKING([name of daxpy after mangling])
-echo "$fname"
-
-AC_F77_FUNC([dsyrk],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dsyrk_"
-fi
-AC_DEFINE_UNQUOTED([DSYRK_F77],[$fname],[Name of dsyrk after mangling])
-AC_MSG_CHECKING([name of dsyrk after mangling])
-echo "$fname"
-
-AC_F77_FUNC([dsymv],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dsymv_"
-fi
-AC_DEFINE_UNQUOTED([DSYMV_F77],[$fname],[Name of dsymv after mangling])
-AC_MSG_CHECKING([name of dsymv after mangling])
-echo "$fname"
-
-# dgemm
-
-AC_F77_FUNC([dgemm],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dgemm_"
-fi
-AC_DEFINE_UNQUOTED([DGEMM_F77],[$fname],[Name of dgemm after mangling])
-AC_MSG_CHECKING([name of dgemm after mangling])
-echo "$fname"
-
-# dtrsm
- 
-AC_F77_FUNC([dtrsm],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dtrsm_"
-fi
-AC_DEFINE_UNQUOTED([DTRSM_F77],[$fname],[Name of dtrsm after mangling])
-AC_MSG_CHECKING([name of dtrsm after mangling])
-echo "$fname"
-
-# dpotrf
-
-AC_F77_FUNC([dpotrf],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dpotrf_"
-fi
-AC_DEFINE_UNQUOTED([DPOTRF_F77],[$fname],[Name of dpotrf after mangling])
-AC_MSG_CHECKING([name of dpotrf after mangling])
-echo "$fname"
-
-# dnrm2
-
-AC_F77_FUNC([dnrm2],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dnrm2_"
-fi
-AC_DEFINE_UNQUOTED([DNRM2_F77],[$fname],[Name of dnrm2 after mangling])
-AC_MSG_CHECKING([name of dnrm2 after mangling])
-echo "$fname"
-
-# ddot
-
-AC_F77_FUNC([ddot],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="ddot_"
-fi
-AC_DEFINE_UNQUOTED([DDOT_F77],[$fname],[Name of ddot after mangling])
-AC_MSG_CHECKING([name of ddot after mangling])
-echo "$fname"
-
-# dscal
-
-AC_F77_FUNC([dscal],[fname])
-if test "$fname" = "unknown"; then   # Assume g77 conventions 
-  fname="dscal_"
-fi
-AC_DEFINE_UNQUOTED([DSCAL_F77],[$fname],[Name of dscal after mangling])
-AC_MSG_CHECKING([name of dscal after mangling])
-echo "$fname"
-
 # Checks for header files.
 AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h])
 
@@ -195,13 +110,14 @@ AC_CHECK_LIB(m,sqrt)
 AC_CHECK_LIB(plCurve,plc_new)
 AC_CHECK_LIB(octrope,octrope)
 AC_CHECK_LIB(argtable2,arg_parse,[have_argtable2=true],[have_argtable2=false])
+AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([stdlib.h math.h malloc.h stdarg.h ctype.h stdio.h assert.h \
-                  string.h stdbool.h float.h wait.h sys/wait.h unistd.h \
-                  time.h octrope.h plCurve.h unistd.h signal.h time.h \
-		  sys/types.h sys/stat.h sys/dir.h])
+AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h \
+                  string.h stdbool.h float.h \
+                  time.h octrope.h plCurve.h libtsnnls/tsnnls.h time.h \
+		  sys/types.h ])
 
 # Checks for typedefs, structures, and compiler characteristics.
 

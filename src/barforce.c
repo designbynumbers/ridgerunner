@@ -25,7 +25,7 @@ barForce( plc_vector* dVdt, plCurve* inLink, search_state* inState )
   for( cItr=0; cItr<inLink->nc; cItr++ ) {
     
     if( inState->conserveLength[cItr] != 0 ) {
-     
+      
       barVerts += inLink->cp[cItr].nv;
       bars += plc_strand_edges(&inLink->cp[cItr]);
     }
@@ -41,9 +41,9 @@ barForce( plc_vector* dVdt, plCurve* inLink, search_state* inState )
   int				edges;
   
   for( cItr=0; cItr<inLink->nc; cItr++ ) {
-
+    
     if( inState->conserveLength[cItr] != 0 ) {
-
+      
       double length;
       edges = plc_strand_edges(&inLink->cp[cItr]);
       
