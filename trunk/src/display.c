@@ -1,23 +1,190 @@
 /*
 
-   Display.c : code to update a Geomview display as the program runs. 
+   Display.c : code to update runtime displays as the program runs. 
 
 */
 
 #include "ridgerunner.h"
 
-void init_display()
+FILE *gclpipe = NULL;
+
+#define RUNSTART_TEXT_YX   0,55
+#define RUNSTART_FIELD_YX  0,64
+
+#define RUNCLOCK_TEXT_YX   1,55
+#define RUNCLOCK_FIELD_YX  1,64
+
+#define ITER_TEXT_YX       10,0
+#define ITER_FIELD_YX      10,18
+
+#define TSCALLS_TEXT_YX    11,2
+#define TSCALLS_FIELD_YX   11,18
+
+#define ORCALLS_TEXT_YX    12,2
+#define ORCALLS_FIELD_YX   12,18
+
+#define MAXITER_TEXT_YX    13,0
+#define MAXITER_FIELD_YX   13,18
+
+#define CSATT_TEXT_YX      15,0
+#define CSATT_FIELD_YX     15,18
+
+#define ATT_TEXT_YX        16,0
+#define ATT_FIELD_YX       16,18
+
+#define FILEPATH_TEXT_YX   20,0
+#define FILEPATH_FIELD_YX  20,10
+
+#define THI_TEXT_YX  10,55
+#define THI_FIELD_YX 10,64
+
+#define ROP_TEXT_YX  11,55
+#define ROP_FIELD_YX 11,64
+
+#define STRUTS_TEXT_YX 12,55
+#define STRUTS_FIELD_YX 12,64
+
+#define MRSTRUTS_TEXT_YX 13,55
+#define MRSTRUTS_FIELD_YX 13,64
+
+#define CONSTRAINT_TEXT_YX 14,55
+#define CONSTRAINT_FIELD_YX 14,64
+
+#define LAMBDA_TEXT_YX 16,55
+#define LAMBDA_FIELD_YX 16,64
+
+#define TUBERAD_TEXT_YX 17,55
+#define TUBERAD_FIELD_YX 17,64
+
+#define MAXMIN_TEXT_YX 18,55
+#define MAXMIN_FIELD_YX 18,64
+
+
+
+void init_runtime_display(search_state *inState)
 {
-	
+  char plc_ver[1024],octrope_ver[1024],tsnnls_ver[1024];
+  char disp[1024];
+
+  plc_version(plc_ver,sizeof(plc_ver));
+  octrope_version(octrope_ver,sizeof(octrope_ver));
+  tsnnls_version(tsnnls_ver,sizeof(tsnnls_ver));
+
+  initscr();
+  sprintf(disp,"Ridgerunner %s (cvs build %s %s)",PACKAGE_VERSION, __DATE__ , __TIME__ );
+  printw(disp);
+
+  sprintf(disp,"plCurve %s",plc_ver);
+  mvprintw(1,0,disp);
+
+  sprintf(disp,"octrope %s",octrope_ver);
+  mvprintw(2,0,disp);
+
+  sprintf(disp,"tsnnls %s",tsnnls_ver);
+  mvprintw(3,0,disp);
+
+#ifdef HAVE_ASCTIME
+#ifdef HAVE_LOCALTIME
+#ifdef HAVE_TIME
+  
+  mvprintw(RUNSTART_FIELD_YX,"%s",asctime(localtime(&(inState->start_time))));
+
+  mvprintw(RUNSTART_TEXT_YX,"runstart:");
+  mvprintw(RUNCLOCK_TEXT_YX,"runclock:");
+
+#endif
+#endif
+#endif
+
+  mvprintw(ITER_TEXT_YX,   "Step number    :"); 
+  mvprintw(TSCALLS_TEXT_YX,"tsnnls calls :");
+  mvprintw(ORCALLS_TEXT_YX,"octrope calls:");
+  mvprintw(MAXITER_TEXT_YX,"Maximum step # :");
+
+  mvprintw(CSATT_TEXT_YX,  "cs attempts    :");
+  mvprintw(ATT_TEXT_YX,    "bs attempts    :");
+
+  mvprintw(THI_TEXT_YX,       "thickness  :");
+  mvprintw(STRUTS_TEXT_YX,    "struts     :");
+  mvprintw(MRSTRUTS_TEXT_YX,  "mr struts  :");
+  mvprintw(CONSTRAINT_TEXT_YX,"constraints:");
+
+  attron(A_BOLD);
+  mvprintw(ROP_TEXT_YX,       "ropelength :");
+  attroff(A_BOLD);
+
+  refresh();
+}  
+  
+void update_runtime_display(plCurve *inLink,search_state *inState) 
+{
+
+#ifdef HAVE_DIFFTIME
+#ifdef HAVE_TIME
+
+  time_t now;
+  double rclock;
+  int hrs,mins,secs;
+
+  now = time(NULL);
+  rclock = difftime(now,inState->start_time);
+
+  /* rclock is the runclock in seconds. Convert to hrs:mins:secs. */
+
+  hrs = floor(rclock/(60*60));
+  rclock -= (60*60*hrs);
+
+  mins = floor(rclock/(60));
+  rclock -= (60*mins);
+
+  secs = floor(rclock);
+
+  mvprintw(RUNCLOCK_FIELD_YX,"%3d:%2d:%2d",hrs,mins,secs);
+
+#endif
+#endif
+  
+  mvprintw(ITER_FIELD_YX,"%d",inState->steps);
+  mvprintw(TSCALLS_FIELD_YX,"%d",inState->tsnnls_evaluations);
+  mvprintw(ORCALLS_FIELD_YX,"%d",inState->octrope_calls);
+  mvprintw(MAXITER_FIELD_YX,"%d",inState->maxItrs);
+  mvprintw(CSATT_FIELD_YX,"%d",inState->last_cstep_attempts);
+  mvprintw(ATT_FIELD_YX,"%d",inState->last_step_attempts);
+
+  mvprintw(THI_FIELD_YX,"%g",inState->thickness);
+  mvprintw(ROP_FIELD_YX,"%g",inState->ropelength);
+  mvprintw(STRUTS_FIELD_YX,"%d",inState->lastStepStrutCount);
+  mvprintw(MRSTRUTS_FIELD_YX,"%d",inState->lastStepMinradStrutCount);
+ 
+  mvprintw(CONSTRAINT_FIELD_YX,"%d",plCurve_score_constraints(inLink));
+  mvprintw(LAMBDA_FIELD_YX,"%g",gLambda);
+  mvprintw(TUBERAD_FIELD_YX,"%g",inState->tube_radius);
+  mvprintw(MAXMIN_FIELD_YX,"%g",inState->lastMaxMin);
+
+  refresh();
+
+}
+  
+void close_runtime_display() {
+
+  endwin();
+
+}
+
+  
+ 
+
+void init_gv_display()
+{	
 }
 
 void
-shutdown_display()
+shutdown_gv_display()
 {
-	fclose(gclpipe);
+  fclose(gclpipe);
 }
 
-void refresh_display(plCurve *L) 
+void refresh_gv_display(plCurve *L) 
 
      /* Procedure displays the curve on the linked copy of Geomview. */
      /* We note that OOGLPIPE must be running in Geomview, and we must */
@@ -29,7 +196,7 @@ void refresh_display(plCurve *L)
 
   /* Open the curve file and update it. */
 
-   curvepipe = fopen("/tmp/curvepipe.oogl","w");
+  curvepipe = fopen("/tmp/curvepipe.oogl","w");
   plCurve_draw(curvepipe,L);
   fclose(curvepipe);
 
@@ -46,50 +213,6 @@ void refresh_display(plCurve *L)
 
 }
 
-extern int gSuppressOutput;
-
-void
-export_ted(plCurve* inLink, octrope_strut* strutSet, 
-			int inSize, octrope_mrloc* minradSet, int minradLocs, 
-			double* compressions, search_state* inState)
-{
-	char	fname[1024];
-
-	if( gSuppressOutput != 0 )
-		return;
-	
-	preptmpname(fname, "struts_ted.txt", inState);
-	FILE* ted = fopen(fname,"w");
-	
-	fprintf(ted, "STRUTS\n");
-	fprintf(ted, "%d %d\n", inSize, minradLocs);
-	
-	int i;
-	for( i=0; i<inSize; i++ )
-	{
-		fprintf(ted, "%d %d %d %d %3.10lf %3.10lf %3.10lf %e\n", 
-			strutSet[i].component[0], strutSet[i].component[1],
-			strutSet[i].lead_vert[0], strutSet[i].lead_vert[1],
-			strutSet[i].position[0], strutSet[i].position[1],
-			strutSet[i].length, compressions[i] );
-	}
-	for( i=0; i<minradLocs; i++ )
-	{
-		fprintf(ted, "%d %d %3.10lf %e\n", minradSet[i].component,
-					minradSet[i].vert, minradSet[i].mr,
-					compressions[i+inSize]);
-	}
-	
-	fprintf(ted, "%3.16lf\n", inState->residual );
-	
-	fclose(ted);
-}
-
-extern int gSurfaceBuilding;
-
-short gSurfaceIndex = 0; // the next filename for the surface building
-short gSurfaceItr = 0; // how long till next surface output
-
 void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist, 
 			  int strutCount, FILE *fp)
 
@@ -97,6 +220,7 @@ void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist,
 
 {
   int i;
+  double maxCompression;
   
   fprintf(fp, "VECT\n");
   fprintf(fp, "%d %d %d\n", strutCount, 2*strutCount, strutCount);
@@ -113,138 +237,31 @@ void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist,
   maxCompression = 0;
   
   for( i=0; i<strutCount; i++ ) {
-
-    maxCompression = (strutlist[i].compressions > maxCompression) ? 
-      strutlist[i].compressions : maxCompression;
-
+    
+    maxCompression = (strutlist[i].compression > maxCompression) ? 
+      strutlist[i].compression : maxCompression;
+    
   }
   
   if( maxCompression == 0 )
     maxCompression = 1e-6;
   
-  for( i=0; i<strutCount; i++ )
-    {
-      plc_vector  points[2];
-      
-      octrope_strut_ends( inLink, &strutSet[i], points );
-            
-      fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[0]));
-      fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[1]));
-      
-    }
+  for( i=0; i<strutCount; i++ ) {
+
+    plc_vector  points[2];
+    
+    octrope_strut_ends( inLink, &strutlist[i], points );
+    
+    fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[0]));
+    fprintf(fp, "%lf %lf %lf\n", plc_M_clist(points[1]));
+    
+  }
   
-  for( i=0; i<strutCount; i++ )
-    {
-      fprintf(fp, "%f,%f,%f,0\n", compressions[i]/maxCompression, 0.0, 0.0);
-    }
+  for( i=0; i<strutCount; i++ ) {
+
+    fprintf(fp, "%f,%f,%f,0\n", strutlist[i].compression/maxCompression, 0.0, 0.0);
+  }
   
 }
 
-void 
-export_struts(plCurve* inLink, octrope_strut* strutSet, int inSize, 
-	      double* compressions, search_state* inState)
 
-     /* Old code that probably doesn't work. */
-
-{
-  
-  
-	if( inSize == 0 || compressions == NULL )
-		return;
-	
-	if( gSuppressOutput == 1 )
-		return;
-		
-	// double time = inState->time;
-
-	char	fname[1024];
-
-	preptmpname(fname, "struts.vect", inState);
-	FILE* fp = fopen(fname, "w");
-	int i=0;
-	double maxCompression;
-		
-	preptmpname(fname, "struts_meta.txt", inState);
-	FILE* meta = fopen(fname,"w");
-	
-	preptmpname(fname, "struts_ted.txt", inState);
-	FILE* ted = fopen(fname, "w");
-	
-	if( inSize == 0 )
-	{
-		fclose(fp);
-		return;
-	}
-	
-	
-	fclose(meta);
-	fclose(ted);
-	
-	if( gSurfaceBuilding != 0 )
-	{
-		if( gSurfaceItr == 0 )
-		{
-			char cmd[1024];
-			printf("updating strut surface %d\n", gSurfaceIndex);
-			sprintf(cmd, "cp /tmp/struts.vect /tmp/struts%d.vect", gSurfaceIndex);
-			system(cmd);
-			sprintf(cmd, "cp /tmp/struts_meta.txt /tmp/struts_meta%d.txt", gSurfaceIndex);
-			system(cmd);
-			if( gSurfaceIndex == 5 )
-				gSurfaceIndex = 0;
-			else
-				gSurfaceIndex++;
-			gSurfaceItr = 0; //(rand() % 1);
-		}
-		else 
-		{
-			gSurfaceItr--;
-		}
-	}
-}
-
-void
-exportVect( const plc_vector* dl, plCurve* link, const char* fname )
-{
-	int totalVerts = 0, cItr, vItr, i;
-	FILE* fp = fopen( fname, "w" );
-	
-	for( cItr=0; cItr<link->nc; cItr++ )
-		totalVerts += link->cp[cItr].nv;
-	
-	fprintf(fp, "VECT\n");
-	fprintf(fp, "%d %d 1\n", totalVerts, 2*totalVerts );
-	
-	fprintf(fp, "2");
-	for( i=1; i<totalVerts; i++ )
-		fprintf( fp, " 2");
-	fprintf(fp, "\n");
-	
-	fprintf(fp, "1");
-	for( i=1; i<totalVerts; i++ )
-		fprintf( fp, " 0");
-	fprintf(fp, "\n");
-	
-	for( cItr=0, i=0; cItr<link->nc; cItr++ )
-	{
-		for( vItr=0; vItr<link->cp[cItr].nv; vItr++, i++ )
-		{
-			fprintf( fp, "%lf %lf %lf\n", 
-				link->cp[cItr].vt[vItr].c[0],
-				link->cp[cItr].vt[vItr].c[1],
-				link->cp[cItr].vt[vItr].c[2] );
-			fprintf( fp, "%lf %lf %lf\n", 
-				link->cp[cItr].vt[vItr].c[0] + .25*dl[i].c[0],
-				link->cp[cItr].vt[vItr].c[1] + .25*dl[i].c[1],
-				link->cp[cItr].vt[vItr].c[2] + .25*dl[i].c[2] );
-		}
-	}
-	
-	// Deep sky blue <- according to Rawdon 8)
-/*	if( strcmp( fname, "/tmp/dVdt.vect") == 0 )
-		fprintf( fp, "0,0,0,0\n");
-	else*/
-		fprintf( fp, "0,0.7461,0.9661,.5\n" );
-	
-	fclose(fp);
-}

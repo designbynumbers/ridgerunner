@@ -278,6 +278,85 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
 
 }
 
+// this is debugging code which is not used in a standard build
+double
+rigidityEntry( taucs_ccs_matrix* A, int strutCount, int minradLocs, int row, int col )
+{
+  int vItr;
+  
+  // the most common case will be a 0, so get that out of the way quick --
+  // movd this check to firstVariation for speed purposes
+  
+  // also note that this exploits the t_snnls enforced ordering of row
+  // entries and doesn't work for generic ccs matrices
+  /*	if( row < A->rowind[A->colptr[col]] || row > A->rowind[A->colptr[col+1]-1] )
+	return 0;
+  */
+  // now we look.
+  if( col < strutCount ) {
+
+    // we can manually unroll this loop -- data dependencies in here
+    // result in large slowdown according to shark.
+    /*		for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ )
+		{
+		if( A->rowind[vItr] == row )
+		return A->values.d[vItr];
+		}
+    */
+    /* Remember that if this column represents a strut, there at most
+       12 rows in the column (less only if the strut is vertex-vertex,
+       or vertex-edge).  So we need only search through 12 possible
+       rowind values looking for the desired row. 
+
+       If there are too few rows in this column, the search could in 
+       principle wrap around and return a row from the next column.*/
+
+    vItr=A->colptr[col];
+
+    if( A->rowind[vItr+0] == row ) return A->values.d[vItr+0];
+    if( A->rowind[vItr+1] == row ) return A->values.d[vItr+1];
+    if( A->rowind[vItr+2] == row ) return A->values.d[vItr+2];
+    if( A->rowind[vItr+3] == row ) return A->values.d[vItr+3];
+    
+    if( A->rowind[vItr+4] == row ) return A->values.d[vItr+4];
+    if( A->rowind[vItr+5] == row ) return A->values.d[vItr+5];
+    if( A->rowind[vItr+6] == row ) return A->values.d[vItr+6];
+    if( A->rowind[vItr+7] == row ) return A->values.d[vItr+7];
+    
+    if( A->rowind[vItr+8] == row ) return A->values.d[vItr+8];
+    if( A->rowind[vItr+9] == row ) return A->values.d[vItr+9];
+    if( A->rowind[vItr+10] == row ) return A->values.d[vItr+10];
+    if( A->rowind[vItr+11] == row ) return A->values.d[vItr+11];
+ 
+  } else {
+
+    /* This is not a strut constraint, so we're not sure how many 
+       columns to search. Check them all just to be sure. */
+    
+    for( vItr=A->colptr[col]; vItr<A->colptr[col+1]; vItr++ ) {
+
+      if( A->rowind[vItr] == row )
+	return A->values.d[vItr];
+    }
+  }
+
+  /* We should never reach this point in the code. */
+
+  char errmsg[1024];
+
+  sprintf(errmsg,
+	  "ridgerunner: illegal call to rigidityEntry\n"
+	  "             tried for entry (%d,%d) of %d x %d matrix A\n"
+	  "             strutcount %d\n"
+	  "             minradLocs %d\n",
+	  row,col,A->n,A->m,strutCount,minradLocs);
+
+  FatalError(errmsg, __FILE__ , __LINE__ );
+
+  return 0;
+}
+
+
 void
 checkDuplicates( octrope_strut* struts, int num )
 
