@@ -160,7 +160,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     /* Decide whether to initiate thickness correction. */
     
     if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
-	(inState->minrad < gLambda*inState->minradOverstepTol) ) {
+	(inState->minrad < gLambda*inState->tube_radius*(1-inState->minradOverstepTol))) {
 
       correct_thickness(*inLink,inState);
 
@@ -207,7 +207,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
    
     /* And we update our list of old ropelength values. */
 
-    for(rItr=19;rItr>1;rItr--) { oldrops[rItr] = oldrops[rItr-1]; }
+    for(rItr=19;rItr>0;rItr--) { oldrops[rItr] = oldrops[rItr-1]; }
     oldrops[0] = inState->ropelength;
 
     if (stepItr > 20) { rop_20_itrs_ago = oldrops[19]; }
@@ -215,12 +215,35 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   } 
 
   /* We have now terminated. The final output files will be written 
-     in ridgerunner_main.c */
+     in ridgerunner_main.c. However, we log the reason for termination. */
+
+  logprintf("ridgerunner: run complete. Terminated because \n");
+
+  if (!(stepItr < inState->maxItrs)) {
+    
+    logprintf("ridgerunner: reached maximum number of steps (%d).\n",
+	      stepItr);
+
+  }
+
+  if (!(rop_20_itrs_ago - inState->ropelength > inState->stop20)) {
+
+    logprintf("ridgerunner: change in rop over last 20 iterations %g > stop20 = %g.\n",
+	      rop_20_itrs_ago - inState->ropelength, inState->stop20);
+
+  }
+
+  if (!(inState->residual > inState->residualThreshold)) {
+
+    logprintf("ridgerunner: residual %g < residualThreshold %g\n",
+	      inState->residual, inState->residualThreshold);
+
+  }
 
 }
 
 
-void update_vect_directory(plCurve * const link, const search_state *state)
+void update_vect_directory(plCurve * const inLink, const search_state *inState)
 
      /* If it is time for the next vect output, go ahead and write 
 	another file to the appropriate directory. */
@@ -228,9 +251,10 @@ void update_vect_directory(plCurve * const link, const search_state *state)
   char tmpfilename[1024];
   FILE *outfile;
   
-  sprintf(tmpfilename,"%s%s.%7d.vect",state->vectprefix,state->fname,state->steps);
+  sprintf(tmpfilename,"%s.%07d.vect",
+	  inState->vectprefix,inState->steps);
   outfile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
-  plc_write(outfile,link);
+  plc_write(outfile,inLink);
   fclose(outfile);
   
 }
@@ -301,6 +325,7 @@ step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState 
 
 }
 
+  
 void convert_force_to_velocity(plc_vector *F, plCurve *inLink,search_state *inState)
 
      /* There is a difference between _force_ fields and _velocity_
@@ -318,6 +343,8 @@ void convert_force_to_velocity(plc_vector *F, plCurve *inLink,search_state *inSt
 {
   int vItr,cItr,Fitr=0;
   double avg, scale=1.0;
+
+  inState->avgSideLength = plc_arclength(inLink,NULL)/(double)(plc_edges(inLink,NULL));
       
   for(cItr=0;cItr < inLink->nc;cItr++) {
 
@@ -342,6 +369,113 @@ void convert_force_to_velocity(plc_vector *F, plCurve *inLink,search_state *inSt
   }
 
 }
+
+/***********************************************************************/
+/*                     Error correction code                           */
+/***********************************************************************/ 
+
+extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );
+/* This is linked in from tsnnls. */
+
+double*
+stanford_lsqr( search_state *inState, 
+	       taucs_ccs_matrix* sparseA, double* minusDL)
+{
+  /* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR */
+  lsqr_input   *lsqr_in;
+  lsqr_output  *lsqr_out;
+  lsqr_work    *lsqr_work;
+  lsqr_func    *lsqr_func;
+  int bItr;
+  double*		result;
+  char errmsg[1024];
+  
+  alloc_lsqr_mem( &lsqr_in, &lsqr_out, &lsqr_work, &lsqr_func, sparseA->m, sparseA->n );
+  
+  /* we let lsqr() itself handle the 0 values in this structure */
+  lsqr_in->num_rows = sparseA->m;
+  lsqr_in->num_cols = sparseA->n;
+  lsqr_in->damp_val = 0;
+  lsqr_in->rel_mat_err = kZeroThreshold;
+  lsqr_in->rel_rhs_err = 0;
+  lsqr_in->cond_lim = 1/(10*sqrt(DBL_EPSILON));
+  lsqr_in->max_iter = 4*lsqr_in->num_cols;  /* Suggested by lsqr docs */
+  lsqr_in->lsqr_fp_out = inState->logfiles[klsqrlog];	
+
+  for( bItr=0; bItr<sparseA->m; bItr++ ) {
+
+    lsqr_in->rhs_vec->elements[bItr] = minusDL[bItr];
+  
+  }
+  
+  /* Here we set the initial solution vector guess, which is 
+   * a vector of zeros. We might want to adjust this value later.
+   */
+
+  for( bItr=0; bItr<sparseA->n; bItr++ ) {
+
+    lsqr_in->sol_vec->elements[bItr] = 0; 
+  
+  }
+	
+  /* This is a function pointer to the matrix-vector multiplier */
+  lsqr_func->mat_vec_prod = sparse_lsqr_mult;
+  
+  
+  /**************************************************************/
+
+  lsqr( lsqr_in, lsqr_out, lsqr_work, lsqr_func, sparseA );
+
+  /**************************************************************/
+  
+
+  /* We now check the results, and return. */
+
+  if (lsqr_out->term_flag == 3 || lsqr_out->term_flag == 6) {
+
+    dumpAxb_sparse(inState,sparseA,NULL,minusDL);
+    sprintf(errmsg,
+	    "ridgerunner: lsqr failed in correction stepper because the\n"
+	    "             condition number of %d x %d matrix A^T > %g.\n"
+	    "             The matrix A^T has been dumped to A.dat and \n"
+	    "             the vector of desired corrections dumped to b.dat.\n"
+	    "\n"
+	    "             Check the log file 'lsqrlog' for more output.\n",
+	    sparseA->m,sparseA->n,lsqr_in->cond_lim);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+
+  }
+
+  if (lsqr_out->term_flag == 7) {
+
+    dumpAxb_sparse(inState,sparseA,NULL,minusDL);
+    sprintf(errmsg,
+	    "ridgerunner: lsqr failed to converge in correction stepper\n"
+	    "             on %d x %d matrix A^T after %ld iterations.\n"
+	    "             The matrix A^T has been dumped to A.dat and \n"
+	    "             the vector of desired corrections dumped to b.dat.\n"
+	    "\n"
+	    "             Check the log file 'lsqrlog' for more output.\n" ,
+	    sparseA->m,sparseA->n,lsqr_in->max_iter);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+
+  }
+  
+  result = (double*)malloc(sizeof(double)*sparseA->n);
+  fatalifnull_(result);
+  
+  for( bItr=0; bItr<sparseA->n; bItr++ ) // not really bItr here, but hey
+    result[bItr] = lsqr_out->sol_vec->elements[bItr];
+  
+  inState->ofvResidual = lsqr_out->resid_norm;
+  inState->ofvNorm = lsqr_out->sol_norm;
+  
+  free_lsqr_mem( lsqr_in, lsqr_out, lsqr_work, lsqr_func );
+  
+  return result;
+}
+
+
 
 double *thicknessError(plCurve *inLink,
 		       int strutCount, octrope_strut *strutList,
@@ -534,8 +668,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
   octrope_strut *strutSet = NULL;
   octrope_mrloc *minradSet = NULL;
   
-  int strutStorageSize = 6*plc_num_verts(inLink);
-  int minradStorageSize = plc_num_verts(inLink);
+  int strutStorageSize = 6*inState->totalVerts;
+  int minradStorageSize = inState->totalVerts;
   
   strutSet = (octrope_strut *)(malloc(sizeof(octrope_strut)*strutStorageSize));
   minradSet = (octrope_mrloc *)(malloc(sizeof(octrope_mrloc)*minradStorageSize));
@@ -601,22 +735,19 @@ void correct_thickness(plCurve *inLink,search_state *inState)
      *	       by square of norm o' gradient)
      */
     
-    ofv = t_lsqr(sparseAT, C);
+    ofv = stanford_lsqr(inState,sparseAT,C); 
+    /* This will die if it doesn't work, so we don't need error checking. */
 
-    /* We now record the norm of this vector. */
-
-    inState->ofvNorm = l2norm(ofv,3*plc_num_verts(inLink));
-
-    /* And convert to plc_vector format for step's benefit. */
+    /* Now convert to plc_vector format for step's benefit. */
     /* This could be done faster, but more dangerously, by recasting */
     /* the ofv pointer. */
 
-    ofv_vect = (plc_vector *)(malloc(plc_num_verts(inLink)*sizeof(plc_vector)));
+    ofv_vect = (plc_vector *)(malloc(inState->totalVerts*sizeof(plc_vector)));
     fatalifnull_(ofv_vect);
 
     int i;
 
-    for(i=0;i<plc_num_verts(inLink);i++) {
+    for(i=0;i<inState->totalVerts;i++) {
 
       ofv_vect[i].c[0] = ofv[3*i];
       ofv_vect[i].c[1] = ofv[3*i+1];
@@ -683,7 +814,7 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 		"ridgerunner: octrope found %d struts and %d mrlocs on\n"
 		"             the %d vertex link (dumped to %s), too close to\n"
 		"             minradStorageSize of %d or strutStorageSize %d.\n",
-		strutCount,minradCount,plc_num_verts(inLink),dumpname,
+		strutCount,minradCount,inState->totalVerts,dumpname,
 		minradStorageSize,strutStorageSize);
 	FatalError(errmsg, __FILE__ , __LINE__ );
 	
@@ -837,6 +968,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 
   dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
   /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
+  fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
   eqForce(dLen,inLink,inState);
@@ -900,7 +1032,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 
        I'm probably overthinking this. --Jason. */
   
-    octrope(inLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+    octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
 	    octmem,octmem_size,gLambda);
 
@@ -1196,7 +1328,7 @@ placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink,
     amag = plc_M_norm(A);
 		
     /* value = dot/(prevLen*thisLen); */
-    bool ok;
+    bool ok = true;
     angle = plc_angle(prevSide,thisSide,&ok);
 
     if (!ok) {
@@ -1502,8 +1634,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
      we did this malloc "once and for all" at the start of
      computation. */
 
-  strutStorageSize = 6*plc_num_verts(inLink);
-  minradStorageSize = plc_num_verts(inLink);
+  strutStorageSize = 6*inState->totalVerts;
+  minradStorageSize = inState->totalVerts;
 
   strutSet = malloc(sizeof(octrope_strut)*strutStorageSize);
   minradSet = malloc(sizeof(octrope_mrloc)*minradStorageSize);
@@ -1551,7 +1683,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 	    "ridgerunner: octrope found %d struts and %d mrlocs on\n"
 	    "             the %d vertex link (dumped to %s), too close to\n"
 	    "             minradStorageSize of %d or strutStorageSize %d.\n",
-	    strutCount,minradLocs,plc_num_verts(inLink),dumpname,
+	    strutCount,minradLocs,inState->totalVerts,dumpname,
 	    minradStorageSize,strutStorageSize);
     FatalError(errmsg, __FILE__ , __LINE__ );
 
@@ -1668,39 +1800,6 @@ void freeRigidityMatrix(taucs_ccs_matrix **A)
 /************************************************************************/
 
 void
-updateSideLengths( plCurve* inLink, search_state* inState )
-{
-  int cItr, vItr;
-  
-  inState->totalSides = 0;
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
-
-    inState->totalSides += inLink->cp[cItr].nv;
-  }
-  
-  if( inState->sideLengths != NULL )
-    free(inState->sideLengths);
-  
-  inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
-  fatalifnull_(inState->sideLengths);
-  
-  int tot = 0;
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
-
-    for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
-         
-      inState->sideLengths[inState->compOffsets[cItr] + vItr] = 
-	plc_M_distance(inLink->cp[cItr].vt[vItr],
-		       inLink->cp[cItr].vt[vItr+1]) /*;*/
-	
-      inState->avgSideLength += inState->sideLengths[inState->compOffsets[cItr] + vItr];
-      tot++;
-    }
-  }
-  inState->avgSideLength /= (double)tot;
-}
-
-void
 spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
      /* This adds to dlen a tangential force causing the tube to spin
@@ -1731,7 +1830,7 @@ spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
       
       for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
 	
-	bool ok;
+	bool ok = true;
 	char errmsg[1024],dumpname[1024];
 
 	sides[vItr] = plc_normalize_vect(
@@ -1786,85 +1885,37 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
 void
 eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+
 {
   int cItr, vItr;
   int *edges = malloc(sizeof(int)*inLink->nc);
   fatalifnull_(edges);
-	
-  // note to self - this can be made much faster by not being dumb
-	
-  plc_fix_wrap(inLink);
-		
-  double* diffFromAvg;
-  double* averages;
+  double *lengths = malloc(sizeof(double)*inLink->nc);
+  fatalifnull_(lengths);
 
-  diffFromAvg = (double*)malloc(sizeof(double)*inState->totalSides);
-  fatalifnull_(diffFromAvg);
-  averages = (double*)malloc(sizeof(double)*inLink->nc);
-  fatalifnull_(averages);
+  double lenUsed,goalUsed;
+  int dlItr;
+  double varianceSum = 0;
+  double scaleFactor;
+  bool ok = true;
+
+  plc_vector eqF;
 
   plc_edges(inLink,edges);
-  
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+  plc_arclength(inLink,lengths);
 
-    // the first thing to do is grab edge lengths
- 
-    double* lengths;
-    plc_vector* adjustments;
-    
-    double  averageLength;
-    double  usedLength;
-    double  scaleFactor;
-    
-    lengths = (double*)malloc(sizeof(double)*edges[cItr]);
-    fatalifnull_(lengths);
-    adjustments = (plc_vector*)calloc(edges[cItr], sizeof(plc_vector));
-    fatalifnull_(adjustments);
+  for(cItr=0,dlItr=0;cItr<inLink->nc;cItr++) {
 
-    averageLength = 0;
+    double avg_edge_length, this_edge_length;
     
-    for( vItr=0; vItr<edges[cItr]; vItr++ ) {
+    avg_edge_length = lengths[cItr]/edges[cItr];
 
-      lengths[vItr] = plc_M_distance(inLink->cp[cItr].vt[vItr+1],
-				     inLink->cp[cItr].vt[vItr]) /*;*/
-            	
-      averageLength += lengths[vItr];
-    
-    }
-    
-    averageLength /= edges[cItr];
-    averages[cItr] = averageLength;
-     
-    for( vItr=0; vItr<edges[cItr]; vItr++ ) {
-     
-      diffFromAvg[vItr+inState->compOffsets[cItr]] = 
-	fabs(lengths[vItr] - averageLength)/averageLength;	
+    for(lenUsed=0,vItr=0;vItr<inLink->cp[cItr].nv;vItr++,dlItr++) {
+
+      goalUsed = vItr*avg_edge_length;
+      scaleFactor = inState->eqMultiplier*(goalUsed - lenUsed);
       
-    }
-    
-    usedLength = 0;
-    
-    // fix zero and compute the tangential change necessary for the rest of the vertices
-    for( vItr=1; vItr<edges[cItr]-1; vItr++ ) {
-
-      usedLength += lengths[vItr];
-      scaleFactor = (vItr)*averageLength - usedLength;
-      // scale the side by the amount we need to move
-      scaleFactor *= inState->eqMultiplier;
-      
-      /* "we change the eq code so that it moves in the direction
-	 perpendicular to the gradient of length (that is, the
-	 average of the two tangent vectors) rather than in the
-	 direction of the tangent vector to the "left" edge at each
-	 vertex.  This might make a small difference in eq
-	 performance (it certainly shouldn't hurt) and it makes the
-	 theory nicer."
-      */
-
-      bool ok;
-      
-      adjustments[vItr] = plc_scale_vect(scaleFactor,
-					 plc_mean_tangent(inLink,cItr,vItr,&ok));
+      eqF = plc_scale_vect(scaleFactor,plc_mean_tangent(inLink,cItr,vItr,&ok));
 
       if (!ok) {
 
@@ -1878,48 +1929,26 @@ eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 	
       }
 
-      plc_M_add_vect(dlen[vItr + inState->compOffsets[cItr]],
-		     adjustments[vItr]) /*;*/
+      plc_M_add_vect(dlen[dlItr],eqF);
+
+      /* Now update lenUsed to prepare for the next iteration. */
+
+      this_edge_length = plc_distance(inLink->cp[cItr].vt[vItr],
+				      inLink->cp[cItr].vt[vItr+1]);
+
+      lenUsed += this_edge_length;
+      varianceSum += (this_edge_length - avg_edge_length)*
+	(this_edge_length - avg_edge_length);
 
     }
-    
-    free(lengths);
-    free(adjustments);
 
   }
+
+  inState->eqVariance = varianceSum/inState->totalVerts;
 
   free(edges);
+  free(lengths);
 
-  /* Now we compute some statistics about how well we're EQing. */
-  
-  double sum = 0, isum, sampleAvg=0;
-  int N = 0;
-  
-  // remember you made these all percent diffs 
-  
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
-      for( vItr=0; vItr<inState->totalSides; vItr++ ) {
-
-	sampleAvg += diffFromAvg[vItr+inState->compOffsets[cItr]];
-	N++;
-      }
-  }
-  sampleAvg /= (double)N;
-  
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
-    for( vItr=0; vItr<inState->totalSides; vItr++ ) {
-      
-      isum = diffFromAvg[vItr+inState->compOffsets[cItr]] - sampleAvg;
-      sum += isum*isum;
-
-    }
-  }
-  
-  inState->eqAvgDiff = sampleAvg;
-  inState->eqVariance = (1.0/(double)N)*sum;
-  
-  free(diffFromAvg);
-  free(averages);
 }
 
 int gFeasibleThreshold = 0;
@@ -1937,7 +1966,7 @@ plc_vector
 
 {
   
-  plc_vector*	     dVdt = malloc(sizeof(plc_vector)*plc_num_verts(inLink));
+  plc_vector*	     dVdt = malloc(sizeof(plc_vector)*inState->totalVerts);
   taucs_ccs_matrix*  A = NULL;
   int		     vItr, sItr; 
   // loop iterators over components, vertices, and struts
@@ -1960,7 +1989,7 @@ plc_vector
   if (A->n == 0) {  /* There are no constraints yet. 
 		       Copy dl to dvdt and quit. */		
     
-    for(vItr = 0;vItr < plc_num_verts(inLink);vItr++) { dVdt[vItr] = dl[vItr]; }
+    for(vItr = 0;vItr < inState->totalVerts;vItr++) { dVdt[vItr] = dl[vItr]; }
     
   } else { 			/* There is some linear algebra to do. */
 
@@ -2092,7 +2121,7 @@ normalizeStruts( plc_vector* strutDirections, octrope_strut* strutSet,
 		 plCurve* inLink, int strutCount )
 {
   int sItr;
-  bool ok;
+  bool ok = true;
   char errmsg[1024];
 
   for( sItr=0; sItr<strutCount; sItr++ ) {

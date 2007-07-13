@@ -95,7 +95,7 @@ plCurve_fixresolution( plCurve* inLink, double newres)
 
   plCurve*   newver;
   plc_spline *splinever;
-  bool       ok;
+  bool       ok = true;
   int        i,*nv = malloc(sizeof(int)*inLink->nc);
   double     thickness;
   double     *length = malloc(sizeof(double)*inLink->nc);
@@ -237,8 +237,12 @@ double plCurve_short_edge(plCurve *L)
   int i,comp;
   double minLen = {DBL_MAX};
   plc_vector diff;
-  int *compedge = malloc(sizeof(int)*L->nc);
+  
+  fatalifnull_(L);
 
+  int *compedge = malloc(sizeof(int)*L->nc);
+  fatalifnull_(compedge);
+  
   plc_edges(L,compedge);
   
   for(comp=0;comp < L->nc;comp++) {
@@ -266,7 +270,10 @@ double plCurve_long_edge(plCurve *L)
   int i,comp;
   double maxLen = {0};
   plc_vector diff;
-  int *compedge = malloc(sizeof(int)*L->nc);
+
+  fatalifnull_(L);
+  int *compedge = malloc(sizeof(int)*L->nc);  
+  fatalifnull_(compedge);
 
   plc_edges(L,compedge);
 

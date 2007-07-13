@@ -16,6 +16,7 @@
 #include "plCurve.h"
 #include "octrope.h"
 #include "libtsnnls/tsnnls.h"
+#include "libtsnnls/lsqr.h"
 #include "argtable2.h"
 #include "ncurses.h"
 
@@ -60,6 +61,7 @@ enum GraphTypes
   kMaxVertexForce,
   kCorrectionStepsNeeded, // the number of correction steps required to converge,
   kEQVariance,	// the variance of the set of (edge lengths - the average)
+  klsqrlog,
   
   kTotalLogTypes
 };
@@ -80,9 +82,10 @@ typedef struct
   short	fancyVisualization; // fancy visualization stuff w/ geomview, gnuplot, and tube
   FILE*	fancyPipe;	    // geomview pipe if we're fancy
   
-  char	fname[1024];
-  char  finalfilename[1024];
-  char  finalstrutname[1024];
+  char	fname[1024];           // full filename of input file:      ../data/3.1.vect
+  char  basename[1024];        // name of input file w/o extension: 3.1  
+  char  workingfilename[1024]; // name for intermediate output files
+  char  workingstrutname[1024];// name for intermediate strut files
   char  logfilename[1024];
   char  vectprefix[1024];
   char  fprefix[1024];
@@ -159,7 +162,6 @@ typedef struct
   int		tsnnls_evaluations;
   int           octrope_calls;
   
-  double*       sideLengths;
   double	avgSideLength;
   
   double*	perVertexResidual;   // if we're recording paper info... 
@@ -192,8 +194,6 @@ typedef struct
   double  eqVariance;	// if graphing eq variance, this will be set to 
                         // the variance of the set of edge length difference 
                         // from the average
-
-  double  eqAvgDiff;
 
   FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
   char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
@@ -256,7 +256,6 @@ void update_vect_directory(plCurve * const link, const search_state *state);
 
 void free_search_state(search_state *inState);
 
-void updateSideLengths( plCurve* inLink, search_state* inState );
 void reloadDump( double* A, int rows, int cols, double* x, double* b );
 
 void our_matrix_write(double val, double *A, int LDA, int i, int j);
@@ -315,5 +314,9 @@ void collapseStruts( octrope_strut** struts, int* count );
 
 FILE *fopen_or_die(const char *filename,const char *mode,
 		   const char *file,const int line); 
+int   system_or_die(char *cmdline,const char *file,int line);
+
+void  logprintf(char *format, ... );
+/* Prints to stdout and to the system log. */
 
 #endif

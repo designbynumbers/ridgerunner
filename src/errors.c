@@ -14,8 +14,20 @@
 void 
 DebugThrow( int inErr, const char* inFile, long inLine )
 {
-    printf( "fatal error: %d file: %s line: %ld \n", inErr, inFile, inLine );
-    exit(inErr);
+  char errmsg[1024];
+
+  if (inErr == kNULLPointer) {
+
+    sprintf(errmsg,"ridgerunner: Null pointer error.\n");
+
+  } else {
+    
+    sprintf(errmsg,"ridgerunner: Error number %d.\n",inErr);
+
+  }
+
+  FatalError(errmsg, inFile, inLine);
+
 }
 
 void
@@ -39,9 +51,14 @@ void FatalError(char *debugmsg,const char *file,int line)
 	and to stderr and quit. */
 
 {
-  
-  fprintf(gLogfile,"ridgerunner: Fatal error in file %s, line %d.\n",file,line);
-  fprintf(gLogfile,"%s",debugmsg);
+  /* We may not have lived long enough to open gLogfile. */
+
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,"ridgerunner: Fatal error in file %s, line %d.\n",file,line);
+    fprintf(gLogfile,"%s",debugmsg);
+
+  }
   
   fprintf(stderr,"ridgerunner: Fatal error in file %s, line %d.\n",file,line);
   fprintf(stderr,"%s",debugmsg);
@@ -53,10 +70,14 @@ void FatalError(char *debugmsg,const char *file,int line)
   time_t end_time;
   end_time = time(NULL);
   
-  fprintf(gLogfile,
-	  "Run ended: %s.\n",
-	  asctime(localtime(&end_time)));
-  
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,
+	    "Run ended: %s.\n",
+	    asctime(localtime(&end_time)));
+    
+  }
+
   fprintf(stderr,
 	  "Run ended: %s.\n",
 	  asctime(localtime(&end_time)));
@@ -92,6 +113,52 @@ FILE *fopen_or_die(const char *filename,const char *mode,const char *file,const 
 
 }
 
+int system_or_die(char *cmdline,const char *file,int line)
+
+{
+
+  int sysresult=0;
+  char errmsg[1024];
+
+  sysresult = system(cmdline);
+
+  if (sysresult != 0) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Command line \n"
+	    "               %s \n"
+	    "             failed with result %d.\n",
+	    cmdline,sysresult);
+
+    FatalError(errmsg,file,line);
+    
+  }
+
+  return sysresult;
+}
+
+void logprintf(char *format, ... )
+
+     /* Function prints a message both to the screen and the logfile. */
+     /* If the curses interface is running, will (eventually) write   */
+     /* to an appropriate area of the screen. */
+
+{
+  va_list args;
+  char msgbuf[2048];
+  
+  va_start(args,format);
+  vsprintf(msgbuf,format,args);
+  va_end(args);
+
+  printf("%s",msgbuf);
+  
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,"%s",msgbuf);
+
+  }
+}
 
 void
 dumpAxb_full( search_state *inState, 
