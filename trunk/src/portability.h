@@ -44,6 +44,14 @@ which need to be provided if system libraries are lacking.
   #include <assert.h>
 #endif
 
+#ifdef HAVE_STDARG_H
+  #include <stdarg.h>
+#endif
+
+#ifdef HAVE_STDBOOL_H
+  #include <stdbool.h>
+#endif
+
 #ifdef HAVE_CLAPACK_H
   #include <clapack.h>
 #else 

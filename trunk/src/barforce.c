@@ -9,6 +9,40 @@ hasn't been brought into v2, and may or may not compile.
 
 */
 
+void
+updateSideLengths( plCurve* inLink, search_state* inState )
+{
+  int cItr, vItr;
+  
+  inState->totalSides = 0;
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    inState->totalSides += inLink->cp[cItr].nv;
+  }
+  
+  if( inState->sideLengths != NULL )
+    free(inState->sideLengths);
+  
+  inState->sideLengths = (double*)malloc(inState->totalSides*sizeof(double));
+  fatalifnull_(inState->sideLengths);
+  
+  int tot = 0;
+  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+
+    for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
+         
+      inState->sideLengths[inState->compOffsets[cItr] + vItr] = 
+	plc_M_distance(inLink->cp[cItr].vt[vItr],
+		       inLink->cp[cItr].vt[vItr+1]) /*;*/
+	
+      inState->avgSideLength += inState->sideLengths[inState->compOffsets[cItr] + vItr];
+      tot++;
+    }
+  }
+  inState->avgSideLength /= (double)tot;
+}
+
+
 static void
 barForce( plc_vector* dVdt, plCurve* inLink, search_state* inState )
 {

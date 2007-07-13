@@ -63,6 +63,9 @@ FILE *gclpipe = NULL;
 
 void init_runtime_display(search_state *inState)
 {
+
+#ifdef CURSES_DISPLAY
+
   char plc_ver[1024],octrope_ver[1024],tsnnls_ver[1024];
   char disp[1024];
 
@@ -114,10 +117,20 @@ void init_runtime_display(search_state *inState)
   attroff(A_BOLD);
 
   refresh();
+
+#else 
+
+  printf("ridgerunner: Curses screen display disabled, using stdout.\n" 
+	 "             Define CURSES_DISPLAY to enable better screen display.\n");
+
+#endif
+
 }  
   
 void update_runtime_display(plCurve *inLink,search_state *inState) 
 {
+
+#ifdef CURSES_DISPLAY
 
 #ifdef HAVE_DIFFTIME
 #ifdef HAVE_TIME
@@ -163,11 +176,25 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
 
   refresh();
 
+#else 
+
+  printf("%4d   Rop:%3.7f  Str:%3d  MrStruts:%3d  Thi:%1.7f \n",
+	 inState->steps, inState->ropelength, 
+	 inState->lastStepStrutCount,
+	 inState->lastStepMinradStrutCount,
+	 inState->thickness);
+
+#endif
+
 }
   
 void close_runtime_display() {
 
+#ifdef CURSES_DISPLAY
+
   endwin();
+
+#endif
 
 }
 

@@ -47,7 +47,7 @@ AM_CONFIG_HEADER([config.h])
 AC_PROG_CC
 
 # Checks for functions
-AC_CHECK_FUNCS([memset memcpy])
+AC_CHECK_FUNCS([strncpy strstr])
 
 # Checks for FORTRAN.
 AC_PROG_F77		
@@ -114,7 +114,7 @@ AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h \
+AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h stdarg.h \
                   string.h stdbool.h float.h \
                   time.h octrope.h plCurve.h libtsnnls/tsnnls.h time.h \
 		  sys/types.h ])
