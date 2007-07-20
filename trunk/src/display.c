@@ -292,3 +292,62 @@ void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist,
 }
 
 
+plCurve *vectorfield_to_plCurve(plc_vector *vf, plCurve *inLink) 
+
+     /* Create a plCurve representing vf. */
+
+{
+  int vItr, vfItr, cItr;
+  
+  plCurve *outlink;
+  int *nv;
+  bool *open;
+  int *cc;
+  int verts;
+
+  /* First, a bit of error checking */
+
+  fatalifnull_(vf);
+  fatalifnull_(inLink);
+
+  /* Now allocate the plCurve... */
+
+  verts = plc_num_verts(inLink);
+
+  nv = (int *)malloc_or_die(verts*sizeof(int), __FILE__ , __LINE__ ); 
+  open = (bool *)malloc_or_die(verts*sizeof(bool), __FILE__ , __LINE__ );
+  cc = (int *)malloc_or_die(verts*sizeof(int), __FILE__ , __LINE__ );
+
+  for(cItr = 0;cItr < verts;cItr++) {
+
+    nv[cItr] = 2;
+    open[cItr] = true;
+    cc[cItr] = 1;
+
+  }
+
+  outlink = plc_new(verts,nv,open,cc);
+  fatalifnull_(outlink);
+
+  /* Now we enter the appropriate locations in outlink. */
+
+  for(vfItr=0,cItr=0;cItr < inLink->nc;cItr++) {
+
+    for(vItr=0;vItr < inLink->cp[cItr].nv;vItr++,vfItr++) {
+
+      outlink->cp[vfItr].vt[0] = inLink->cp[cItr].vt[vItr];
+      outlink->cp[vfItr].vt[1] = plc_vect_sum(outlink->cp[vfItr].vt[0],
+					      vf[vfItr]);
+
+    }
+  }
+
+  /* We can free memory, then we're done. */
+
+  free(nv); free(open); free(cc);
+
+  return outlink;
+
+}
+      
+
