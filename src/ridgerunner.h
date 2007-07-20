@@ -20,6 +20,9 @@
 #include "argtable2.h"
 #include "ncurses.h"
 
+#define DEBUG 1 
+/* Turn on all the asserts in the code. */
+
 #define kStepScale 0.01
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
@@ -89,6 +92,7 @@ typedef struct
   char  logfilename[1024];
   char  vectprefix[1024];
   char  fprefix[1024];
+  char  snapprefix[1024];      // prefix for "snapshots" of given steps
   
   /* Correction step information. */
 
@@ -108,6 +112,8 @@ typedef struct
   int     last_cstep_attempts; // # of attempts required to 
                                // converge in last round of 
                                // correction stepping.
+
+  int     cstep_count;
 
   int     last_step_attempts; // # of attempts required to find correct bsearch
                               // stepsize in last curvature step. 
@@ -195,6 +201,9 @@ typedef struct
                         // the variance of the set of edge length difference 
                         // from the average
 
+  int     snapinterval; // save a complete "snapshot" of the computation every 
+                        // snapinterval steps.
+
   FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
   char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
 
@@ -277,6 +286,7 @@ plc_vector plCurve_edge_dir(plCurve *L,int comp,int edge);
 int plCurve_score_constraints(plCurve *inLink);
 
 void   plCurve_draw(FILE *outfile, plCurve *L);
+void   plc_color_curve(plCurve *L,plc_color col);
 
 /* Display Routines */
 
@@ -294,6 +304,8 @@ void strut_vectfile_write(plCurve *inLink, octrope_strut *strutlist,
 void export_struts(plCurve* inLink, octrope_strut* inStruts, 
 		   int inSize, double* compressions, search_state* inState);
 
+plCurve *vectorfield_to_plCurve(plc_vector *vf, plCurve *inLink);
+
 /* Error Handling Routines. */
 
 void FatalError(char *debugmsg,const char *file,int line);
@@ -301,11 +313,18 @@ void FatalError(char *debugmsg,const char *file,int line);
 void dumpAxb_full( search_state *inState, 
 		   double* A, int rows, int cols, 
 		   double* x, double* b );
-void dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b );
+void dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, 
+		     double* x, double* b );
 void dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount);
+
 void dumpLink( plCurve *inLink, search_state *inState, char *dumpname);
 void dumpStruts( plCurve *inLink, search_state *inState, char *dumpname);
+void dumpDvdt( plc_vector* dvdt, plCurve *inLink, search_state *inState );
+void dumpdLen( plc_vector* dLen, plCurve *inLink, search_state *inState );
 
+void snapshot( plCurve *inLink,
+	       plc_vector *dVdt,plc_vector *dlen,
+	       search_state *inState );
 
 double rigidityEntry( taucs_ccs_matrix* A, int strutCount, 
 		      int minradLocs, int row, int col );
@@ -315,6 +334,7 @@ void collapseStruts( octrope_strut** struts, int* count );
 FILE *fopen_or_die(const char *filename,const char *mode,
 		   const char *file,const int line); 
 int   system_or_die(char *cmdline,const char *file,int line);
+void *malloc_or_die(size_t size, const char *file, const int line);
 
 void  logprintf(char *format, ... );
 /* Prints to stdout and to the system log. */

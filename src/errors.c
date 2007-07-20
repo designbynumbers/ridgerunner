@@ -91,7 +91,8 @@ void FatalError(char *debugmsg,const char *file,int line)
   
 }
 
-FILE *fopen_or_die(const char *filename,const char *mode,const char *file,const int line) 
+FILE *fopen_or_die(const char *filename,const char *mode,
+		   const char *file,const int line) 
 
      /* Opens the file or dies trying. */
 
@@ -137,6 +138,27 @@ int system_or_die(char *cmdline,const char *file,int line)
   return sysresult;
 }
 
+void *malloc_or_die(size_t size, const char *file, const int line)
+     
+     /* Allocates memory or dies trying. */
+
+{
+  void *mret;
+  char  errmsg[1024];
+
+  mret = malloc(size);
+
+  if (mret == NULL) {
+
+    sprintf(errmsg,"ridgerunner: Could not allocate block of size %d.\n",
+	    (int)(size));
+    FatalError(errmsg,file,line);
+
+  }
+
+  return mret;
+}
+
 void logprintf(char *format, ... )
 
      /* Function prints a message both to the screen and the logfile. */
@@ -169,7 +191,7 @@ dumpAxb_full( search_state *inState,
   
   static FILE* fp;
   int rItr, cItr;
-  char filename[1024],basename[1024];
+  char filename[1024];
   
   /* Construct filename for A */
 
@@ -196,9 +218,7 @@ dumpAxb_full( search_state *inState,
 
   if (x != NULL) {
     
-    sprintf(basename,"x.dat");
-    strcpy(filename,inState->fprefix);
-    strcat(filename,basename);
+    sprintf(filename,"%sx.dat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
     
     for( cItr=0; cItr<cols; cItr++ ) {
@@ -218,9 +238,7 @@ dumpAxb_full( search_state *inState,
 
   if (b != NULL) {
 
-    sprintf(basename,"b.dat");
-    strcpy(filename,inState->fprefix);
-    strcat(filename,basename);
+    sprintf(filename,"%sb.dat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
     
     for( rItr=0; rItr<rows; rItr++ )
@@ -287,14 +305,14 @@ dumpStruts( plCurve *inLink, search_state *inState, char *dumpname)
   FILE *strutsVect, *strutsTed;
   char tedname[1024],filename[1024];
 
-  sprintf(dumpname,"%s%s.struts.vect",inState->fprefix,inState->fname);
+  sprintf(dumpname,"%s%s.struts.vect",inState->fprefix,inState->basename);
   strutsVect = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
   strut_vectfile_write(inLink,
 		       inState->lastStepStruts,inState->lastStepStrutCount,
 		       strutsVect);
   fclose(strutsVect);
 
-  sprintf(tedname,"%s%s.struts",inState->fprefix,inState->fname);
+  sprintf(tedname,"%s%s.struts",inState->fprefix,inState->basename);
   strutsTed = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
   octrope_strutfile_write(inState->lastStepStrutCount,
 			  inState->lastStepStruts,
@@ -305,29 +323,108 @@ dumpStruts( plCurve *inLink, search_state *inState, char *dumpname)
 }
 
 void
-dumpDvdt( search_state *inState, plc_vector* dvdt, int size )
+dumpDvdt( plc_vector* dvdt, plCurve *inLink, search_state *inState )
 
      /* Again, this is debugging code which shouldn't usually be called. */
 
 {
-  int vItr;
   FILE* fp;
   char filename[1024];
+  plCurve *dVdTcurve;
+  plc_color blue;
 
-  sprintf(filename,"%sDvDt.dat",inState->fprefix);
+  sprintf(filename,"%sDvDt.vect",inState->fprefix);
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
 
-  fprintf( fp, "%d\n", size );
-  
-  for( vItr=0; vItr<size; vItr++ ) {
+  dVdTcurve = vectorfield_to_plCurve(dvdt,inLink);
+  blue = plc_build_color(0,0,1,1);
+  plc_color_curve(dVdTcurve,blue);
 
-    fprintf(fp, "%g %g %g\n", plc_M_clist(dvdt[vItr]));
+  plc_write(fp,dVdTcurve);
+  plc_free(dVdTcurve);
 
-  }
-
-  fclose(fp);
-	
 }
+
+void
+dumpdLen( plc_vector* dLen, plCurve *inLink, search_state *inState )
+
+     /* Again, this is debugging code which shouldn't usually be called. */
+
+{
+  FILE* fp;
+  char filename[1024];
+  plCurve *dLencurve;
+  plc_color red;
+
+  sprintf(filename,"%sdLen.vect",inState->fprefix);
+  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+
+  dLencurve = vectorfield_to_plCurve(dLen,inLink);
+  red = plc_build_color(1,0,0,1);
+  plc_color_curve(dLencurve,red);
+
+  plc_write(fp,dLencurve);
+  plc_free(dLencurve);
+
+}
+
+void snapshot( plCurve *inLink,
+	       plc_vector *dVdt,plc_vector *dlen,
+	       search_state *inState )
+
+{
+  FILE *fp,*gfp;
+  char filename[1024];
+  plCurve *VFcurve;
+  plc_color col;
+ 
+  /* We drop a complete snapshot of the link, together with a geomview
+     file tying everything together, to the snapshot directory. */
+
+  sprintf(filename,"%s.%d.geom",inState->snapprefix,inState->steps);
+  gfp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+  fprintf(gfp,"LIST\n");
+
+  sprintf(filename,"%s.%d.vect",inState->snapprefix,inState->steps);
+  fprintf(gfp,"\t{ < %s }\n",filename);
+  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+  plc_write(fp,inLink);
+  fclose(fp);
+
+  sprintf(filename,"%s.%d.struts.vect",inState->snapprefix,inState->steps);
+  fprintf(gfp,"\t{ < %s }\n",filename);
+  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+  strut_vectfile_write(inLink,inState->lastStepStruts,inState->lastStepStrutCount,fp);
+  fclose(fp);
+
+  sprintf(filename,"%s.%d.dlen.vect",inState->snapprefix,inState->steps);
+  fprintf(gfp,"\t{ < %s }\n",filename);
+  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+  VFcurve = vectorfield_to_plCurve(dlen,inLink);
+  col = plc_build_color(0,0,1,1);
+  plc_color_curve(VFcurve,col);
+  plc_write(fp,VFcurve);
+  plc_free(VFcurve);
+  fclose(fp);
+
+  sprintf(filename,"%s.%d.dVdt.vect",inState->snapprefix,inState->steps);
+  fprintf(gfp,"\t{ < %s }\n",filename);
+  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+  VFcurve = vectorfield_to_plCurve(dVdt,inLink);
+  col = plc_build_color(1,0,0,1);
+  plc_color_curve(VFcurve,col);
+  plc_write(fp,VFcurve);
+  plc_free(VFcurve);
+  fclose(fp);
+
+  fclose(gfp);
+}
+  
+  
+  
+  
+  
+  
 
 void dumpLink( plCurve *inLink, search_state *inState, char *dumpname) 
 
@@ -338,7 +435,7 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
 {
   FILE *dumpfile;
   
-  sprintf(dumpname,"./%s.rr/dumpLink.vect",inState->fname);
+  sprintf(dumpname,"%sdumpLink.vect",inState->fprefix);
   dumpfile = fopen_or_die(dumpname,"w", __FILE__ , __LINE__ );
   plc_write(dumpfile,inLink);
   fclose(dumpfile);

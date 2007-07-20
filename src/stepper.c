@@ -176,7 +176,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     
     /* Manage data output */
       
-    if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 ) { /* Note "k" means constant */
+    if( (stepItr%kOutputItrs) == 0 && gQuiet == 0 ) { 
+      /* Note "k" means constant */
       
       update_runtime_display(*inLink,inState);  
       
@@ -189,7 +190,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
       update_vect_directory(*inLink,inState);
       nextMovieOutput += 0.041666666667;
 
-    }
+    } 
 
     /* Last, we update "inState" to keep track of running variables. */
 
@@ -267,6 +268,7 @@ void update_runtime_logs(search_state *state)
      /* where this is defined in ridgerunner.h. */
 {
   int i;
+  static int logged_cstep_count = 0;
 
   fprintf(state->logfiles[kLength],"%g \n",state->length);
   fprintf(state->logfiles[kRopelength],"%g \n",state->ropelength);
@@ -281,14 +283,39 @@ void update_runtime_logs(search_state *state)
 
 #ifdef HAVE_TIME
   time_t now;
+  int hrs,min,sec;
+  double elapsed;
+
   now = time(NULL);
-  fprintf(state->logfiles[kWallTime],"%g \n",difftime(now,state->start_time));
+  elapsed = difftime(now,state->start_time);
+
+  hrs = floor(elapsed/3600.0);
+  elapsed -= 3600*hrs;
+  
+  min = floor(elapsed/60.0);
+  elapsed -= 60*min;
+
+  sec = floor(elapsed);
+
+  fprintf(state->logfiles[kWallTime],"%d:%d:%d\n",hrs,min,sec);
 #else
   fprintf(state->logfiles[kWallTime],"Could not link with 'time()' at compile.\n");
 #endif
 
   fprintf(state->logfiles[kMaxVertexForce],"%g \n",state->maxPush);
-  fprintf(state->logfiles[kCorrectionStepsNeeded],"%d \n",state->last_cstep_attempts);
+
+  /* We only update the cstep log when we have recently corrected. */
+  /* This log file marks everything by step number as well. */
+
+  if (state->cstep_count != logged_cstep_count) {
+
+    fprintf(state->logfiles[kCorrectionStepsNeeded],"%d %d\n",
+	    state->last_cstep_attempts,state->steps);
+
+    logged_cstep_count = state->cstep_count;
+
+  }
+
   fprintf(state->logfiles[kEQVariance],"%g \n",state->eqVariance);
 
   if (state->steps%LOG_FLUSH_INTERVAL == 0) {
@@ -656,8 +683,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
      overstepTol amount, but terminate correction if we are less than
      half this amount. This keeps the strut set relatively stable. */
 
-  /* To compute the error after a trial step is taken, we'll have to call octrope. */
-  /* This will require some setup. */
+  /* To compute the error after a trial step is taken, we'll have to
+     call octrope. This will require some setup. */
   
   plCurve *workerLink = NULL;
   double  *C = NULL,*workerC = NULL;
@@ -679,8 +706,10 @@ void correct_thickness(plCurve *inLink,search_state *inState)
   
   double rop, thi, len, minrad, shortest;				  
 
+  inState->cstep_count++;
+
   /* This is the main loop for Newton's method. */
-    
+
   for(gCorrectionAttempts=0;  
       ((inState->shortest < greenZone) ||
 	(inState->minrad < mrgreenZone)) && gCorrectionAttempts < gMaxCorrectionAttempts;
@@ -974,7 +1003,8 @@ bsearch_step( plCurve* inLink, search_state* inState )
   eqForce(dLen,inLink,inState);
   specialForce(dLen,inLink,inState);
 
-  dVdt = resolveForce(dLen,inLink,inState); /* Built from the bones of firstVariation. */
+  dVdt = resolveForce(dLen,inLink,inState); 
+  /* Built from the bones of firstVariation. */
 
   free(dLen);
 
@@ -2103,6 +2133,14 @@ plc_vector
       plc_M_add_vect(dVdt[dlItr],dl[dlItr]);
 
     }
+
+  }
+
+  /* At this point, we take a snapshot of the computation every state.snapinterval */
+
+  if (inState->steps % inState->snapinterval == 0) {
+    
+    snapshot(inLink,dVdt,dl,inState);
 
   }
 

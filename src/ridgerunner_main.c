@@ -102,6 +102,10 @@ main( int argc, char* argv[] )
   struct arg_int  *arg_maxcorr = arg_int0(NULL,"MaxCorrectionAttempts","<n>",
 					  "maximum # of Newton steps in error correction");
 
+  struct arg_int  *arg_snapinterval = arg_int0(NULL,"SnapshotInterval","<n>",
+					       "save a complete snapshot "
+					       "of computation every <n> steps");
+
   struct arg_end *end = arg_end(20);
   
   void *argtable[] = {arg_infile,arg_lambda,
@@ -116,11 +120,12 @@ main( int argc, char* argv[] )
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_help,
-		        arg_cstep_size,arg_maxcorr,arg_eqmult,arg_overstep,arg_mroverstep,
-		      arg_maxstep,
+		      arg_cstep_size,arg_maxcorr,
+		      arg_eqmult,arg_overstep,arg_mroverstep,
+		      arg_maxstep,arg_snapinterval,
 		      end};
   int nerrors;
-
+  int snapinterval = 10000;
 
   plCurve*	link = NULL;
   FILE*		linkFile = NULL;
@@ -199,6 +204,7 @@ main( int argc, char* argv[] )
   if (arg_maxstep->count > 0) { maxStep = arg_maxstep->dval[0]; }
 
   /* Note: there used to be a way to turn on "gSurfaceBuilding" and "gVerboseFiling" */
+  if (arg_snapinterval->count > 0) {snapinterval = arg_snapinterval->ival[0];}
 
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 
@@ -240,6 +246,7 @@ main( int argc, char* argv[] )
   state.minminrad = gLambda*state.tube_radius*(1 - minradOverstepTol);
   
   state.eqMultiplier = eqMult;
+  state.snapinterval = snapinterval;
 
   /* We now do a little bit of filename mangling. */
 
@@ -255,6 +262,8 @@ main( int argc, char* argv[] )
   sprintf(state.workingstrutname,"./%s.rr/%s.working.struts",
 	  state.basename,state.basename);
   sprintf(state.vectprefix,"./%s.rr/vectfiles/%s",
+	  state.basename,state.basename);
+  sprintf(state.snapprefix,"./%s.rr/snapshots/%s",
 	  state.basename,state.basename);
   sprintf(state.logfilename,"./%s.rr/%s.log",
 	  state.basename,state.basename);
@@ -280,6 +289,9 @@ main( int argc, char* argv[] )
     
   }
   
+  sprintf(cmdline,"mkdir %s.rr/snapshots",state.basename);
+  system_or_die(cmdline, __FILE__ , __LINE__ );
+
   /* We now initialize the log with a lot of (hopefully) helpful information
      about the run. */
   
@@ -641,7 +653,7 @@ initializeState( search_state* state, const char* fname )
 
   state->tsnnls_evaluations = 0;
   state->octrope_calls = 0;
-	
+  state->cstep_count = 0;	
   state->residual = 0;
 
   assert(kTotalLogTypes == sizeof(log_fnames)/sizeof(char *));
