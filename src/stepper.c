@@ -1020,7 +1020,11 @@ bsearch_step( plCurve* inLink, search_state* inState )
   workerLink = NULL;
   double curr_error = 0, mr_error=0, newpoca = 0, newmr=0;
 	
-  normalizeVects(dVdt, inState->totalVerts);
+  /* normalizeVects(dVdt, inState->totalVerts); */
+
+  /* We found that this was too aggressive as a step policy and tended
+     to overrun the correction stepper. It does give very fast performance,
+     though. */
     
   /* We're going to have to call octrope every time we go through this 
      loop in order to compute the level of error we have so far. In order
@@ -1204,7 +1208,7 @@ int rownum(search_state *inState, plCurve *inLink, int cmp, int vert, int coord)
 
     } else {
 
-      vert = inLink->cp[cmp].nv-1;
+      vert = 0;
 
     }
 
