@@ -210,6 +210,8 @@ typedef struct
   int     snapinterval; // save a complete "snapshot" of the computation every 
                         // snapinterval steps.
 
+  int     maxlogsize;   // Maximum logfile size (bytes). 
+
   FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
   char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
 
@@ -263,6 +265,16 @@ void specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
 
 plc_vector *resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState);
 /* Uses rigidity matrix to resolve the force dl over struts, kinks, and constraints. */
+
+void open_runtime_logs(search_state *state, char opentype);
+/* Opens the runtime logs */
+
+void close_runtime_logs(search_state *state);
+/* Closes the runtime logs. */
+
+void compress_runtime_logs(search_state *state);
+/* Compresses the various runtime logs to save disk space during a long run, 
+   if we need to save space. */
 
 void update_runtime_logs(search_state *state);
 /* Writes data on current run to various log files. */

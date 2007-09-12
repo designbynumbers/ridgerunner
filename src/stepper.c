@@ -260,7 +260,50 @@ void update_vect_directory(plCurve * const inLink, const search_state *inState)
   
 }
 
+void open_runtime_logs(search_state *state,char code)
 
+{
+  char tmpfilename[1024];
+  char opentype[10];
+  int  i;
+
+  sprintf(opentype,"%c",code);
+
+  for(i=0;i<kTotalLogTypes;i++) {
+
+    sprintf(tmpfilename,"./%s.rr/logfiles/%s.dat",
+	    state->basename,
+	    state->logfilenames[i]);
+
+    state->logfiles[i] = fopen_or_die(tmpfilename,opentype, __FILE__ , __LINE__ );
+
+  }
+
+}
+
+void close_runtime_logs(search_state *state)
+
+{
+  int i;
+
+  for(i=0;i<kTotalLogTypes;i++) {
+
+    fclose(state->logfiles[i]);
+
+  }
+
+}
+
+void compress_runtime_logs(search_state *state)
+
+/* We check the runtime logs against our maximum logfilesize. If the
+   logs appear to be getting close to the maximum, we thin them by 
+   deleting every other entry. */
+
+{
+
+}
+  
 void update_runtime_logs(search_state *state)
 
      /* We now update the various data logs for the run. */

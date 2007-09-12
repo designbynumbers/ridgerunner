@@ -28,6 +28,8 @@ void initializeState( search_state* state, const char* fname );
 #ifndef min
   #define min(a,b) ((a)<(b)) ? (a) : (b)
 #endif
+
+int parse_logsize(const char *sizestring);
 	
 int
 main( int argc, char* argv[] )
@@ -70,6 +72,9 @@ main( int argc, char* argv[] )
   
   struct arg_lit  *arg_suppressfiles = arg_lit0(NULL,"NoOutputFiles",
 		      "don't save intermediate files during run");
+
+  struct arg_str  *arg_maxlogsize = arg_str0(NULL,"MaxLogSize","<100K>",
+					     "maximum log file size in bytes, K, or M");
 
   // struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
   //					  "</home/../outdir/>",
@@ -117,7 +122,7 @@ main( int argc, char* argv[] )
 		      arg_stop20,arg_stopRes,arg_stopSteps,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
-		      arg_suppressfiles, /* arg_outpath, */
+		      arg_suppressfiles, arg_maxlogsize, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_help,
@@ -222,6 +227,16 @@ main( int argc, char* argv[] )
   if (arg_stopRes->count > 0) { residualThreshold = arg_stopRes->dval[0]; }
 
   if (arg_eqmult->count > 0) { eqMult = arg_eqmult->dval[0]; }
+
+  if (arg_maxlogsize->count > 0) { 
+    
+    state.maxlogsize = parse_logsize(arg_maxlogsize->sval[0]);
+
+  } else {
+
+    state.maxlogsize = 10*1024*1024;  /* 10 Mb */
+
+  }
 
   /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
@@ -537,20 +552,7 @@ main( int argc, char* argv[] )
   // use amd column ordering if the user hasn't specified something else
   setenv("COL_ORDERING", "amd", 0);
     
-  /* Now we open the data logfiles in state. */
-
-  char tmpfilename[1024];
-  
-  for(i=0;i<kTotalLogTypes;i++) {
-
-    sprintf(tmpfilename,"./%s.rr/logfiles/%s.dat",
-	    state.basename,
-	    state.logfilenames[i]);
-
-    state.logfiles[i] = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
-
-  }
-
+  open_runtime_logs(&state,'w');
   init_runtime_display(&state);
 
   printf("ridgerunner: Starting run. Will stop if \n"
@@ -585,6 +587,8 @@ main( int argc, char* argv[] )
 
   /* Now write the concluding file to the appropriate directory. */
 
+  char tmpfilename[2048];
+
   sprintf(tmpfilename,"./%s.rr/%s.final.vect",
 	  state.basename,state.basename);  
   savefile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
@@ -608,6 +612,7 @@ main( int argc, char* argv[] )
 
   /* Now clean up allocated memory and close files. */
 
+  close_runtime_logs(&state);
   close_runtime_display();
   free_search_state(&state);
   plc_free(link);
@@ -678,5 +683,49 @@ void free_search_state(search_state *inState)
   
 }
 
+int parse_logsize(const char *argstring)
+
+/* Function parses a filesize and returns a value in bytes. */
+
+{
+
+  char sizestring[1024];
+  int unitcvrt = 1;
+  int len;
+  float sizef;
+  int result;
+
+  strncpy(sizestring,argstring,sizeof(sizestring));
+
+  /* First we parse and remove any letter representing units (M or K). */
+  
+  len = strlen(sizestring);
+  
+  if (sizestring[len-1] == 'M' || sizestring[len-1] == 'm') { /* Megabytes */
+
+    unitcvrt = 1024*1024;
+    sizestring[len-1] = 0;
+
+  } else if (sizestring[len-1] == 'K' || sizestring[len-1] == 'k') { /* kilobytes */
+
+    unitcvrt = 1024;
+    sizestring[len-1] = 0;
+
+  } 
+
+  /* Now we attempt to parse the number. */
+  
+  if (sscanf(sizestring,"%g",&sizef) != 1) {
+
+    logprintf("parse_logsize: Could not parse logfile size argument %s.\n",sizestring);
+    exit(0);
+
+  }
+
+  result = (int)(floor((float)(unitcvrt)*sizef));
+
+  return result;
+
+}
 
 
