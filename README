@@ -1,0 +1,18 @@
+Ridgerunner is a program for computing minimum ropelength knots and
+links using a version of constrained gradient descent. The program
+depends on a number of other libraries:
+
+plCurve
+octrope
+tsnnls
+ncurses
+argtable2 (2-7 or later)
+BLAS
+LAPACK
+
+To use the movie generation script, you must also have 
+
+tube
+geomview
+
+

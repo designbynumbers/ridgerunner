@@ -10,6 +10,12 @@
 #ifndef _H_ridgerunner
 #define _H_ridgerunner
 
+#include "ncurses.h"         
+
+/* Ncurses rudely stomps the "bool" type without checking to see if it's already */
+/* defined (say, by stdbool.h). As a result, it must appear before we include    */
+/* portability (and hence stdbool). */
+
 #include "portability.h"
 #include "errors.h"
 
@@ -18,7 +24,7 @@
 #include "libtsnnls/tsnnls.h"
 #include "libtsnnls/lsqr.h"
 #include "argtable2.h"
-#include "ncurses.h"
+
 
 #define DEBUG 1 
 /* Turn on all the asserts in the code. */
