@@ -70,9 +70,10 @@ main( int argc, char* argv[] )
   
   struct arg_lit  *arg_suppressfiles = arg_lit0(NULL,"NoOutputFiles",
 		      "don't save intermediate files during run");
-  struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
-					  "</home/../outdir/>",
-					  0,"path for output files");
+
+  // struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
+  //					  "</home/../outdir/>",
+  //					  0,"path for output files");
 
   struct arg_rem  *arg_bl6 = arg_rem("","");
   struct arg_rem  *arg_progopts = arg_rem("","Program and Algorithm Options");
@@ -116,7 +117,7 @@ main( int argc, char* argv[] )
 		      arg_stop20,arg_stopRes,arg_stopSteps,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
-		      arg_suppressfiles,arg_outpath,
+		      arg_suppressfiles, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_help,

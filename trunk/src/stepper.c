@@ -965,7 +965,7 @@ equalStruts( const octrope_strut* s1, const octrope_strut* s2 )
 }
 
 
-static void
+void
 normalizeVects( plc_vector* dvdt, int size )
 
      /* Scale the 3*size vector dvdt to norm 10 in R^{3*size}. */
