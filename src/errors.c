@@ -383,22 +383,27 @@ void snapshot( plCurve *inLink,
 
   sprintf(filename,"%s.%d.geom",inState->snapprefix,inState->steps);
   gfp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
-  fprintf(gfp,"LIST\n");
+  fprintf(gfp,"LIST {\n");
 
   sprintf(filename,"%s.%d.vect",inState->snapprefix,inState->steps);
-  fprintf(gfp,"\t{ < %s }\n",filename);
+  fprintf(gfp,"\t{ < %s.%d.vect }\n",inState->basename,inState->steps);
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   plc_write(fp,inLink);
   fclose(fp);
 
-  sprintf(filename,"%s.%d.struts.vect",inState->snapprefix,inState->steps);
-  fprintf(gfp,"\t{ < %s }\n",filename);
-  fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
-  strut_vectfile_write(inLink,inState->lastStepStruts,inState->lastStepStrutCount,fp);
-  fclose(fp);
+  if (inState->lastStepStrutCount > 0) {
+
+    sprintf(filename,"%s.%d.struts.vect",inState->snapprefix,inState->steps);
+    fprintf(gfp,"\t{ < %s.%d.struts.vect }\n",inState->basename,inState->steps);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
+    strut_vectfile_write(inLink,inState->lastStepStruts,
+			 inState->lastStepStrutCount,fp);
+    fclose(fp);
+
+  }
 
   sprintf(filename,"%s.%d.dlen.vect",inState->snapprefix,inState->steps);
-  fprintf(gfp,"\t{ < %s }\n",filename);
+  fprintf(gfp,"\t{ < %s.%d.dlen.vect }\n",inState->basename,inState->steps);
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   VFcurve = vectorfield_to_plCurve(dlen,inLink);
   col = plc_build_color(0,0,1,1);
@@ -408,7 +413,7 @@ void snapshot( plCurve *inLink,
   fclose(fp);
 
   sprintf(filename,"%s.%d.dVdt.vect",inState->snapprefix,inState->steps);
-  fprintf(gfp,"\t{ < %s }\n",filename);
+  fprintf(gfp,"\t{ < %s.%d.dVdt.vect }\n",inState->basename,inState->steps);
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   VFcurve = vectorfield_to_plCurve(dVdt,inLink);
   col = plc_build_color(1,0,0,1);
@@ -417,6 +422,7 @@ void snapshot( plCurve *inLink,
   plc_free(VFcurve);
   fclose(fp);
 
+  fprintf(gfp,"}\n");
   fclose(gfp);
 }
   
