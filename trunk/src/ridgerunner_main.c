@@ -228,16 +228,6 @@ main( int argc, char* argv[] )
 
   if (arg_eqmult->count > 0) { eqMult = arg_eqmult->dval[0]; }
 
-  if (arg_maxlogsize->count > 0) { 
-    
-    state.maxlogsize = parse_logsize(arg_maxlogsize->sval[0]);
-
-  } else {
-
-    state.maxlogsize = 10*1024*1024;  /* 10 Mb */
-
-  }
-
   /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
   
@@ -249,6 +239,16 @@ main( int argc, char* argv[] )
   /* We now set as much of "state" as we can from this amount of data. */
   
   initializeState( &state, fname);  
+
+  if (arg_maxlogsize->count > 0) { 
+    
+    state.maxlogsize = parse_logsize(arg_maxlogsize->sval[0]);
+
+  } else {
+
+    state.maxlogsize = 10*1024*1024;  /* 10 Mb */
+
+  }
 
   state.stop20 = stop20;
   state.maxItrs = maxItrs;  

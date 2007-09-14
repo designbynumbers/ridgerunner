@@ -50,7 +50,7 @@ extern int gMaxCorrectionAttempts;
 
 /************* Defined Data Types ***********************/
 
-#define LOG_FLUSH_INTERVAL 10
+#define LOG_FLUSH_INTERVAL 100
 
 enum GraphTypes
 {

@@ -320,9 +320,9 @@ void compress_runtime_logs(search_state *state)
 
   for(i=0;i<kTotalLogTypes;i++) { 
 
-    fstat(fileno(state->logfiles[i]),&buf);
-
-    if (buf.st_size > (2.0/3.0)*state->maxlogsize) { 
+    for (fstat(fileno(state->logfiles[i]),&buf);
+	 buf.st_size > (2.0/3.0)*state->maxlogsize;
+	 fstat(fileno(state->logfiles[i]),&buf)) { 
 
       /* We begin by rebuilding the filename of this logfile. */
 
@@ -362,7 +362,7 @@ void compress_runtime_logs(search_state *state)
 	
 	for(j=0;fgets(linebuf,linebufsize,state->logfiles[i]) != NULL;j++) {
 	  
-	  if (j % 2 != 0) { fprintf(tmpfile,"%s",linebuf); }
+	  if (j % 2 == 0) { fprintf(tmpfile,"%s",linebuf); }
 	  
 	}
 	
@@ -371,6 +371,7 @@ void compress_runtime_logs(search_state *state)
 	/* Finally, we delete the old file, replace it with the new, smaller file, */
 	/* and reopen the new logfile for appending. */
 	
+	fclose(tmpfile);
 	fclose(state->logfiles[i]);
 	remove_or_die(logfilename, __FILE__ , __LINE__);
 	rename_or_die(tmpfilename,logfilename, __FILE__ , __LINE__ );
@@ -383,7 +384,7 @@ void compress_runtime_logs(search_state *state)
       fstat(fileno(state->logfiles[i]),&afterbuf);
 
       logprintf("Compressed logfile %s at size %d (of maxlogsize %d) to size %d.\n",
-		buf.st_size,state->maxlogsize,afterbuf.st_size);
+		state->logfilenames[i],(int)buf.st_size,state->maxlogsize,(int)(afterbuf.st_size));
 
     }
 
@@ -465,7 +466,7 @@ void update_runtime_logs(search_state *state)
 
   }
 
-  if (state->steps%10*LOG_FLUSH_INTERVAL == 0) {
+  if (state->steps%(10*LOG_FLUSH_INTERVAL) == 0) {
 
     compress_runtime_logs(state);
 
