@@ -302,6 +302,104 @@ void compress_runtime_logs(search_state *state)
 
 {
 
+  int i,j;
+
+#ifdef HAVE_FSTAT
+
+  struct stat buf;
+  struct stat afterbuf;
+
+  char *linebuf;
+  size_t linebufsize;
+
+  char tmpfilename[4096];
+  char logfilename[4096];
+  
+  int  tmpdes;
+  FILE *tmpfile;
+
+  for(i=0;i<kTotalLogTypes;i++) { 
+
+    fstat(fileno(state->logfiles[i]),&buf);
+
+    if (buf.st_size > (2.0/3.0)*state->maxlogsize) { 
+
+      /* We begin by rebuilding the filename of this logfile. */
+
+      sprintf(logfilename,"./%s.rr/logfiles/%s.dat",
+	      state->basename,
+	      state->logfilenames[i]);
+      
+      /* There is a special case to handle here. "lsqroutput" is not 
+	 a standard line-based logfile. The best we can do is delete 
+	 what we've got and start over. */
+      
+      if (strcmp(state->logfilenames[i],"lsqroutput") == 0) {
+	
+	fclose(state->logfiles[i]);
+	state->logfiles[i] = fopen_or_die(logfilename,"w", __FILE__ , __LINE__ );
+	
+      } else { 
+
+	/* We are actually going to try to preserve some data from the
+	   start of the run. We now open a new file to read the data
+	   we're going to save into. */
+	
+	sprintf(tmpfilename,"%sXXXXXX",logfilename);
+	
+	tmpdes = mkstemp_or_die(tmpfilename, __FILE__ , __LINE__ );
+	tmpfile = fdopen_or_die(tmpdes,"w", __FILE__ , __LINE__ );
+	
+	/* We now close and reopen the original log file to rewind it. */
+	
+	fclose(state->logfiles[i]);
+	state->logfiles[i] = fopen_or_die(logfilename,"r", __FILE__ , __LINE__ );
+	
+	/* We now copy the data from file to file. */
+	
+	linebuf = malloc_or_die(4096*sizeof(char), __FILE__ , __LINE__ );
+	linebufsize = 4096*sizeof(char);
+	
+	for(j=0;fgets(linebuf,linebufsize,state->logfiles[i]) != NULL;j++) {
+	  
+	  if (j % 2 != 0) { fprintf(tmpfile,"%s",linebuf); }
+	  
+	}
+	
+	free(linebuf);
+	
+	/* Finally, we delete the old file, replace it with the new, smaller file, */
+	/* and reopen the new logfile for appending. */
+	
+	fclose(state->logfiles[i]);
+	remove_or_die(logfilename, __FILE__ , __LINE__);
+	rename_or_die(tmpfilename,logfilename, __FILE__ , __LINE__ );
+	state->logfiles[i] = fopen_or_die(logfilename,"a", __FILE__ , __LINE__ );
+      	
+      }
+
+      /* Now we report our progress in the log. */
+
+      fstat(fileno(state->logfiles[i]),&afterbuf);
+
+      logprintf("Compressed logfile %s at size %d (of maxlogsize %d) to size %d.\n",
+		buf.st_size,state->maxlogsize,afterbuf.st_size);
+
+    }
+
+  }
+
+#else
+
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,
+	    "compress_runtime_logs: Warning! This system does not have fstat.\n"
+	    "No compression of runtime logs will be attempted.\n");
+
+  }
+
+#endif
 }
   
 void update_runtime_logs(search_state *state)
@@ -313,16 +411,16 @@ void update_runtime_logs(search_state *state)
   int i;
   static int logged_cstep_count = 0;
 
-  fprintf(state->logfiles[kLength],"%g \n",state->length);
-  fprintf(state->logfiles[kRopelength],"%g \n",state->ropelength);
-  fprintf(state->logfiles[kStrutCount],"%d %d\n",
+  fprintf(state->logfiles[kLength],"%d %g \n",state->steps,state->length);
+  fprintf(state->logfiles[kRopelength],"%d %g \n",state->steps,state->ropelength);
+  fprintf(state->logfiles[kStrutCount],"%d %d %d\n",state->steps,
 	  state->lastStepStrutCount,state->lastStepMinradStrutCount);
-  fprintf(state->logfiles[kStepSize],"%g \n",state->stepSize);
-  fprintf(state->logfiles[kThickness],"%g \n",state->thickness);
-  fprintf(state->logfiles[kMinrad],"%g \n",state->minrad);
-  fprintf(state->logfiles[kResidual],"%g \n",state->residual);
-  fprintf(state->logfiles[kMaxOverMin],"%g \n",state->lastMaxMin);
-  fprintf(state->logfiles[kRcond],"%g \n",state->rcond);
+  fprintf(state->logfiles[kStepSize],"%d %g \n",state->steps,state->stepSize);
+  fprintf(state->logfiles[kThickness],"%d %g \n",state->steps,state->thickness);
+  fprintf(state->logfiles[kMinrad],"%d %g \n",state->steps,state->minrad);
+  fprintf(state->logfiles[kResidual],"%d %g \n",state->steps,state->residual);
+  fprintf(state->logfiles[kMaxOverMin],"%d %g \n",state->steps,state->lastMaxMin);
+  fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
 
 #ifdef HAVE_TIME
   time_t now;
@@ -340,12 +438,12 @@ void update_runtime_logs(search_state *state)
 
   sec = floor(elapsed);
 
-  fprintf(state->logfiles[kWallTime],"%d:%d:%d\n",hrs,min,sec);
+  fprintf(state->logfiles[kWallTime],"%d %d:%d:%d\n",state->steps,hrs,min,sec);
 #else
   fprintf(state->logfiles[kWallTime],"Could not link with 'time()' at compile.\n");
 #endif
 
-  fprintf(state->logfiles[kMaxVertexForce],"%g \n",state->maxPush);
+  fprintf(state->logfiles[kMaxVertexForce],"%d %g \n",state->steps,state->maxPush);
 
   /* We only update the cstep log when we have recently corrected. */
   /* This log file marks everything by step number as well. */
@@ -359,11 +457,17 @@ void update_runtime_logs(search_state *state)
 
   }
 
-  fprintf(state->logfiles[kEQVariance],"%g \n",state->eqVariance);
+  fprintf(state->logfiles[kEQVariance],"%d %g \n",state->steps,state->eqVariance);
 
   if (state->steps%LOG_FLUSH_INTERVAL == 0) {
 
     for(i=0;i<kTotalLogTypes;i++) fflush(state->logfiles[i]);
+
+  }
+
+  if (state->steps%10*LOG_FLUSH_INTERVAL == 0) {
+
+    compress_runtime_logs(state);
 
   }
 
