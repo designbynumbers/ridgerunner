@@ -353,6 +353,10 @@ FILE *fopen_or_die(const char *filename,const char *mode,
 		   const char *file,const int line); 
 int   system_or_die(char *cmdline,const char *file,int line);
 void *malloc_or_die(size_t size, const char *file, const int line);
+void  remove_or_die(char *filename,const char *file, const int line);
+void  rename_or_die(char *oldname,char *newname,const char *file, const int line);
+int   mkstemp_or_die(char *template,const char *file, const int line);
+FILE *fdopen_or_die(int fd, const char *opentype, const char *file, const int line);
 
 void  logprintf(char *format, ... );
 /* Prints to stdout and to the system log. */

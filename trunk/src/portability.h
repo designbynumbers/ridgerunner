@@ -32,6 +32,10 @@ which need to be provided if system libraries are lacking.
   #include <sys/types.h>
 #endif
 
+#ifdef HAVE_SYS_STAT_H
+  #include <sys/stat.h>
+#endif
+
 #ifdef HAVE_MATH_H
   #include <math.h>
 #endif
@@ -50,6 +54,10 @@ which need to be provided if system libraries are lacking.
 
 #ifdef HAVE_STDBOOL_H
   #include <stdbool.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+  #include <unistd.h>
 #endif
 
 #ifdef HAVE_CLAPACK_H

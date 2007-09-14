@@ -57,8 +57,6 @@ AC_F77_LIBRARY_LDFLAGS
 AC_CANONICAL_HOST
 AC_MSG_CHECKING(how to link with BLAS and LAPACK)
 
-echo ${host_os}
-
 case "${host_os}" in
   darwin*)
     echo -framework vecLib
@@ -103,7 +101,7 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
 AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h])
 
 # Checks for system functions.
-AC_CHECK_FUNCS([asctime localtime time difftime]) 
+AC_CHECK_FUNCS([asctime localtime time difftime fstat mkstemp]) 
 
 # Checks for libraries.
 AC_CHECK_LIB(m,sqrt)
@@ -117,7 +115,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h stdarg.h \
                   string.h stdbool.h float.h \
                   time.h octrope.h plCurve.h libtsnnls/tsnnls.h time.h \
-		  sys/types.h ])
+		  sys/types.h sys/stat.h unistd.h] )
 
 # Checks for typedefs, structures, and compiler characteristics.
 

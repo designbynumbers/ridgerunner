@@ -159,6 +159,101 @@ void *malloc_or_die(size_t size, const char *file, const int line)
   return mret;
 }
 
+void remove_or_die(char *filename,const char *file, const int line)
+
+/* Deletes the file "filename" or dies trying. */
+
+{
+  
+  int retcode;
+  char errmsg[1024];
+
+  retcode = remove(filename);
+
+  if (retcode != 0) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't remove file %s due to %s\n",
+	    filename,strerror(retcode));
+    
+    FatalError(errmsg,file,line);
+
+  }
+  
+}
+
+void rename_or_die(char *oldname,char *newname,const char *file, const int line)
+
+/* Deletes the file "filename" or dies trying. */
+
+{
+  
+  int retcode;
+  char errmsg[1024];
+
+  retcode = rename(oldname,newname);
+
+  if (retcode == -1) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't rename file %s to %s due to %s\n",
+	    oldname,newname,strerror(retcode));
+    
+    FatalError(errmsg,file,line);
+
+  }
+  
+}
+
+int   mkstemp_or_die(char *template,const char *file, const int line) 
+
+/* Construct a temporary file from the given template or die trying. */
+
+{
+
+  int retcode;
+  char errmsg[1024];
+
+  retcode = mkstemp(template);
+
+  if (retcode == -1) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't mkstemp file based on template %s\n",
+	    template);
+    
+    FatalError(errmsg,file,line);
+
+  }
+
+  return retcode;
+  
+}
+
+FILE *fdopen_or_die(int fd, const char *opentype, const char *file, const int line)
+
+/* Open a stream from the given file descriptor or die trying. */
+
+{
+  FILE *retfile;
+  char errmsg[1024];
+
+  retfile = fdopen(fd,opentype);
+
+  if (retfile == NULL) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't associate stream to fd %d.\n",
+	    fd);
+    
+    FatalError(errmsg,file,line);
+
+  }
+
+  return retfile;
+  
+}  
+
 void logprintf(char *format, ... )
 
      /* Function prints a message both to the screen and the logfile. */
