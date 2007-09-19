@@ -20,7 +20,7 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/display.c 
 
 
-src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS)
+src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
 # We include a copy of the knotplot distribution of loose knots for testing.
 
