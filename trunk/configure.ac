@@ -86,14 +86,23 @@ nonstandard spot. This test may fail even if you have BLAS if you
 don't have a FORTRAN compiler (preferably g77) on your default path.])
     fi
 
-    # Now look for a full (or minimal ATLAS) lapack
     AC_F77_FUNC(dpotrf)
-    ACX_LAPACK([],AC_CHECK_LIB([lapack],$dpotrf,[atlas_lapack=yes 
+    ACX_LAPACK(AM_CONDITIONAL([HAVE_LAPACK],[test x1 = x1]),AC_CHECK_LIB([lapack],$dpotrf,[atlas_lapack=yes 
        LAPACK_LIBS="-llapack -lcblas -lf77blas -latlas"
        AC_DEFINE_UNQUOTED([HAVE_ATLAS_LAPACK],[1],[ATLAS (instead of full) LAPACK])
+       AM_CONDITIONAL([HAVE_LAPACK],[test 1 == 0])
        ],[atlas_lapack=no],[-lcblas -lf77blas -latlas $FLIBS -lm]))
     AC_MSG_CHECKING([for minimal ATLAS lapack])
     echo $atlas_lapack
+
+ #  Now look for a full (or minimal ATLAS) lapack
+ #   AC_F77_FUNC(dpotrf)
+ #   ACX_LAPACK([],AC_CHECK_LIB([lapack],$dpotrf,[atlas_lapack=yes 
+ #      LAPACK_LIBS="-llapack -lcblas -lf77blas -latlas"
+ #      AC_DEFINE_UNQUOTED([HAVE_ATLAS_LAPACK],[1],[ATLAS (instead of full) LAPACK])
+ #      ],[atlas_lapack=no],[-lcblas -lf77blas -latlas $FLIBS -lm]))
+ #   AC_MSG_CHECKING([for minimal ATLAS lapack])
+ #   echo $atlas_lapack
     
   esac
 
