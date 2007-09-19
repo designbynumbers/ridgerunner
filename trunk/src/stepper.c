@@ -285,6 +285,7 @@ void compress_vectdir(const search_state *inState)
   DIR  *dirstream;
   struct dirent *ent;
   char fullname[2048];
+  int deleted = 0;
 
   sprintf(dirname,"./%s.rr/vectfiles",inState->basename);  
   dirstream = opendir_or_die(dirname, __FILE__ , __LINE__ );
@@ -299,6 +300,7 @@ void compress_vectdir(const search_state *inState)
 
 	sprintf(fullname,"%s/%s",dirname,ent->d_name);
 	remove_or_die(fullname, __FILE__ , __LINE__ );
+	deleted++;
 
       }
 
@@ -307,6 +309,9 @@ void compress_vectdir(const search_state *inState)
   }
 
   closedir(dirstream);
+
+  logprintf("Compressed vect file directory by deleting %d files.\n",
+	    deleted);
 
 }   
   
