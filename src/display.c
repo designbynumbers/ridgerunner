@@ -8,61 +8,65 @@
 
 FILE *gclpipe = NULL;
 
-#define RUNSTART_TEXT_YX   0,55
+#define RUNSTART_TEXT_YX   0,52
 #define RUNSTART_FIELD_YX  0,64
 
-#define RUNCLOCK_TEXT_YX   1,55
+#define RUNCLOCK_TEXT_YX   1,52
 #define RUNCLOCK_FIELD_YX  1,64
 
-#define ITER_TEXT_YX       10,0
-#define ITER_FIELD_YX      10,18
+#define ITER_TEXT_YX       5,0
+#define ITER_FIELD_YX      5,18
 
-#define TSCALLS_TEXT_YX    11,2
-#define TSCALLS_FIELD_YX   11,18
+#define TSCALLS_TEXT_YX    6,2
+#define TSCALLS_FIELD_YX   6,18
 
-#define ORCALLS_TEXT_YX    12,2
-#define ORCALLS_FIELD_YX   12,18
+#define ORCALLS_TEXT_YX    7,2
+#define ORCALLS_FIELD_YX   7,18
 
-#define MAXITER_TEXT_YX    13,0
-#define MAXITER_FIELD_YX   13,18
+#define MAXITER_TEXT_YX    10,0
+#define MAXITER_FIELD_YX   10,18
 
-#define CSATT_TEXT_YX      15,0
-#define CSATT_FIELD_YX     15,18
+#define CSATT_TEXT_YX      9,0
+#define CSATT_FIELD_YX     9,20
 
-#define ATT_TEXT_YX        16,0
-#define ATT_FIELD_YX       16,18
+#define ATT_TEXT_YX        10,0
+#define ATT_FIELD_YX       10,18
 
 #define FILEPATH_TEXT_YX   20,0
 #define FILEPATH_FIELD_YX  20,10
 
-#define THI_TEXT_YX  10,55
-#define THI_FIELD_YX 10,64
+#define THI_TEXT_YX  5,40
+#define THI_FIELD_YX 5,55
 
-#define ROP_TEXT_YX  11,55
-#define ROP_FIELD_YX 11,64
+#define ROP_TEXT_YX  6,40
+#define ROP_FIELD_YX 6,55
 
-#define STRUTS_TEXT_YX 12,55
-#define STRUTS_FIELD_YX 12,64
+#define MR_TEXT_YX   7,40
+#define MR_FIELD_YX  7,55
 
-#define MRSTRUTS_TEXT_YX 13,55
-#define MRSTRUTS_FIELD_YX 13,64
+#define STRUTS_TEXT_YX 9,40
+#define STRUTS_FIELD_YX 9,55
 
-#define CONSTRAINT_TEXT_YX 14,55
-#define CONSTRAINT_FIELD_YX 14,64
+#define MRSTRUTS_TEXT_YX 10,40
+#define MRSTRUTS_FIELD_YX 10,55
 
-#define LAMBDA_TEXT_YX 16,55
-#define LAMBDA_FIELD_YX 16,64
+#define CONSTRAINT_TEXT_YX 11,0
+#define CONSTRAINT_FIELD_YX 11,15
 
-#define TUBERAD_TEXT_YX 17,55
-#define TUBERAD_FIELD_YX 17,64
+#define LAMBDA_TEXT_YX 12,0
+#define LAMBDA_FIELD_YX 12,15
 
-#define MAXMIN_TEXT_YX 18,55
-#define MAXMIN_FIELD_YX 18,64
+#define TUBERAD_TEXT_YX 13,0
+#define TUBERAD_FIELD_YX 13,15
 
+#define MAXMIN_TEXT_YX 12,40
+#define MAXMIN_FIELD_YX 12,55
 
 
 void init_runtime_display(search_state *inState)
 {
+
+  char errmsg[1024];
 
 #ifdef CURSES_DISPLAY
 
@@ -102,19 +106,39 @@ void init_runtime_display(search_state *inState)
   mvprintw(ITER_TEXT_YX,   "Step number    :"); 
   mvprintw(TSCALLS_TEXT_YX,"tsnnls calls :");
   mvprintw(ORCALLS_TEXT_YX,"octrope calls:");
-  mvprintw(MAXITER_TEXT_YX,"Maximum step # :");
 
-  mvprintw(CSATT_TEXT_YX,  "cs attempts    :");
-  mvprintw(ATT_TEXT_YX,    "bs attempts    :");
+  mvprintw(CSATT_TEXT_YX,  "correction steps:");
 
-  mvprintw(THI_TEXT_YX,       "thickness  :");
-  mvprintw(STRUTS_TEXT_YX,    "struts     :");
-  mvprintw(MRSTRUTS_TEXT_YX,  "mr struts  :");
-  mvprintw(CONSTRAINT_TEXT_YX,"constraints:");
+  mvprintw(THI_TEXT_YX,       "thickness   :");
+  mvprintw(STRUTS_TEXT_YX,    "struts      :");
+  mvprintw(MRSTRUTS_TEXT_YX,  "mr struts   :");
+  mvprintw(CONSTRAINT_TEXT_YX,"constraints :");
 
   attron(A_BOLD);
-  mvprintw(ROP_TEXT_YX,       "ropelength :");
+  mvprintw(ROP_TEXT_YX,       "ropelength  :");
   attroff(A_BOLD);
+
+  mvprintw(MR_TEXT_YX,        "minrad      :");
+
+  mvprintw(LAMBDA_TEXT_YX,    "lambda      :");
+  mvprintw(TUBERAD_TEXT_YX,   "tube radius :");
+  mvprintw(MAXMIN_TEXT_YX,    "max/min side:");
+
+
+  mvprintw(15,0,"Ridgerunner log messages:");
+  gLogwin = newwin(0, 0, 16, 1);
+  
+  if (gLogwin == NULL) {
+
+    printf(errmsg,"ridgerunner: Couldn't open curses window gLogwin.\n");
+    FatalError(errmsg, __FILE__ , __LINE__ );
+
+  }
+  
+  wrefresh(gLogwin);
+  idlok(gLogwin,TRUE);
+  scrollok(gLogwin,TRUE);
+  curs_set(0);  /* Set cursor to invisible during run */
 
   refresh();
 
@@ -152,29 +176,29 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
 
   secs = floor(rclock);
 
-  mvprintw(RUNCLOCK_FIELD_YX,"%3d:%2d:%2d",hrs,mins,secs);
+  mvprintw(RUNCLOCK_FIELD_YX,"%d:%d:%02d",hrs,mins,secs);
 
 #endif
 #endif
   
-  mvprintw(ITER_FIELD_YX,"%d",inState->steps);
+  mvprintw(ITER_FIELD_YX,"%d (%d)",inState->steps,inState->maxItrs);
   mvprintw(TSCALLS_FIELD_YX,"%d",inState->tsnnls_evaluations);
   mvprintw(ORCALLS_FIELD_YX,"%d",inState->octrope_calls);
-  mvprintw(MAXITER_FIELD_YX,"%d",inState->maxItrs);
-  mvprintw(CSATT_FIELD_YX,"%d",inState->last_cstep_attempts);
-  mvprintw(ATT_FIELD_YX,"%d",inState->last_step_attempts);
+  mvprintw(CSATT_FIELD_YX,"%d (%d)",inState->cstep_count,inState->last_cstep_attempts);
 
-  mvprintw(THI_FIELD_YX,"%g",inState->thickness);
-  mvprintw(ROP_FIELD_YX,"%g",inState->ropelength);
+  mvprintw(THI_FIELD_YX,"%3.10g",inState->thickness);
+  mvprintw(ROP_FIELD_YX,"%3.10g",inState->ropelength);
+  mvprintw(MR_FIELD_YX,"%3.10g",inState->minrad);
   mvprintw(STRUTS_FIELD_YX,"%d",inState->lastStepStrutCount);
   mvprintw(MRSTRUTS_FIELD_YX,"%d",inState->lastStepMinradStrutCount);
  
   mvprintw(CONSTRAINT_FIELD_YX,"%d",plCurve_score_constraints(inLink));
   mvprintw(LAMBDA_FIELD_YX,"%g",gLambda);
   mvprintw(TUBERAD_FIELD_YX,"%g",inState->tube_radius);
-  mvprintw(MAXMIN_FIELD_YX,"%g",inState->lastMaxMin);
+  mvprintw(MAXMIN_FIELD_YX,"%.8g",inState->lastMaxMin);
 
   refresh();
+  wrefresh(gLogwin);
 
 #else 
 
