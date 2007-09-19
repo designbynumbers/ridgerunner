@@ -50,7 +50,7 @@ extern int gMaxCorrectionAttempts;
 
 /************* Defined Data Types ***********************/
 
-#define LOG_FLUSH_INTERVAL 100
+#define LOG_FLUSH_INTERVAL 1000
 
 enum GraphTypes
 {
@@ -85,6 +85,9 @@ typedef struct
   long	 maxItrs;     // maximum number of steps to perform before quit
   double stop20;     // must decrease by this amount per 20 steps to continue
   double residualThreshold;	// threshold for residual stopping, will use if nonzero
+
+  double moviefactor;           // multiplier determines how often to save movie frames. 
+  int    maxmovieframes;        // maximum number of movie frames to save.
 
   short	saveConvergence;    // saving convergence info?
   short	movie;		    // are we generating movie frames?
@@ -210,9 +213,10 @@ typedef struct
   int     snapinterval; // save a complete "snapshot" of the computation every 
                         // snapinterval steps.
 
-  int     maxlogsize;   // Maximum logfile size (bytes). 
+  int     maxlogsize;   // Maximum logfile size (entries).
+  int     loginterval;  // Log data every nth step.
 
-  FILE    *logfiles[128]; /* The logfiles hold the various data that can be recorded.*/
+  FILE    *logfiles[128];     /* The logfiles hold the various data that can be recorded.*/
   char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
 
 #ifdef HAVE_TIME
@@ -279,7 +283,8 @@ void compress_runtime_logs(search_state *state);
 void update_runtime_logs(search_state *state);
 /* Writes data on current run to various log files. */
 
-void update_vect_directory(plCurve * const link, const search_state *state);
+void update_vect_directory(plCurve * const link, search_state *state);
+void compress_vectdir(const search_state *inState);
 
 void free_search_state(search_state *inState);
 
@@ -357,6 +362,7 @@ void  remove_or_die(char *filename,const char *file, const int line);
 void  rename_or_die(char *oldname,char *newname,const char *file, const int line);
 int   mkstemp_or_die(char *template,const char *file, const int line);
 FILE *fdopen_or_die(int fd, const char *opentype, const char *file, const int line);
+DIR  *opendir_or_die(char *dirname,const char *file, const int line);
 
 void  logprintf(char *format, ... );
 /* Prints to stdout and to the system log. */

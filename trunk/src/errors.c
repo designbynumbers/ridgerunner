@@ -205,6 +205,31 @@ void rename_or_die(char *oldname,char *newname,const char *file, const int line)
   
 }
 
+DIR *opendir_or_die(char *dirname,const char *file, const int line)
+
+/* Opens the directory "dirname" or dies trying. */
+
+{
+  
+  DIR *ret;
+  char errmsg[1024];
+
+  ret = opendir(dirname);
+
+  if (ret == NULL) {
+
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't open directory %s due to %s\n",
+	    dirname,strerror(errno));
+    
+    FatalError(errmsg,file,line);
+
+  }
+  
+  return ret;
+
+}
+
 int   mkstemp_or_die(char *template,const char *file, const int line) 
 
 /* Construct a temporary file from the given template or die trying. */

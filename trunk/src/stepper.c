@@ -183,13 +183,17 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
       
     }
 
-    update_runtime_logs(inState);
+    if ( inState->steps%inState->loginterval == 0 ) {
+
+      update_runtime_logs(inState);
+
+    }
 
     if (inState->time >= nextMovieOutput) {
 
       update_vect_directory(*inLink,inState);
-      nextMovieOutput += 0.041666666667;
-
+      nextMovieOutput += 0.041666666667*inState->moviefactor;
+      
     } 
 
     /* Last, we update "inState" to keep track of running variables. */
@@ -244,13 +248,14 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 }
 
 
-void update_vect_directory(plCurve * const inLink, const search_state *inState)
+void update_vect_directory(plCurve * const inLink, search_state *inState)
 
      /* If it is time for the next vect output, go ahead and write 
 	another file to the appropriate directory. */
 {
   char tmpfilename[1024];
   FILE *outfile;
+  static int frames_written_since_compression = 0;
   
   sprintf(tmpfilename,"%s.%07d.vect",
 	  inState->vectprefix,inState->steps);
@@ -258,7 +263,53 @@ void update_vect_directory(plCurve * const inLink, const search_state *inState)
   plc_write(outfile,inLink);
   fclose(outfile);
   
+  frames_written_since_compression++;
+
+  if (frames_written_since_compression == inState->maxmovieframes/2) { 
+
+    compress_vectdir(inState);
+    frames_written_since_compression = 0;
+    inState->moviefactor *= 2;
+
+  }
+      
 }
+
+void compress_vectdir(const search_state *inState)
+
+/* Deletes half of the files in the vect directory. */
+
+{
+  int  j = 0;
+  char dirname[1024];
+  DIR  *dirstream;
+  struct dirent *ent;
+  char fullname[2048];
+
+  sprintf(dirname,"./%s.rr/vectfiles",inState->basename);  
+  dirstream = opendir_or_die(dirname, __FILE__ , __LINE__ );
+
+  while ( (ent = readdir(dirstream)) ) {  /* Note! The single = is not a bug. */
+  
+    if (strstr(ent->d_name,"vect") != NULL) { /* Make sure we have a vect file */
+
+      j++;
+
+      if (j % 2 == 0) { /* Delete the odd vect files. */
+
+	sprintf(fullname,"%s/%s",dirname,ent->d_name);
+	remove_or_die(fullname, __FILE__ , __LINE__ );
+
+      }
+
+    }
+
+  }
+
+  closedir(dirstream);
+
+}   
+  
 
 void open_runtime_logs(search_state *state,char code)
 
@@ -301,13 +352,7 @@ void compress_runtime_logs(search_state *state)
    deleting every other entry. */
 
 {
-
   int i,j;
-
-#ifdef HAVE_FSTAT
-
-  struct stat buf;
-  struct stat afterbuf;
 
   char *linebuf;
   size_t linebufsize;
@@ -319,90 +364,71 @@ void compress_runtime_logs(search_state *state)
   FILE *tmpfile;
 
   for(i=0;i<kTotalLogTypes;i++) { 
-
-    for (fstat(fileno(state->logfiles[i]),&buf);
-	 buf.st_size > (2.0/3.0)*state->maxlogsize;
-	 fstat(fileno(state->logfiles[i]),&buf)) { 
-
-      /* We begin by rebuilding the filename of this logfile. */
-
-      sprintf(logfilename,"./%s.rr/logfiles/%s.dat",
-	      state->basename,
-	      state->logfilenames[i]);
+    
+    /* We begin by rebuilding the filename of this logfile. */
+    
+    sprintf(logfilename,"./%s.rr/logfiles/%s.dat",
+	    state->basename,
+	    state->logfilenames[i]);
+    
+    /* There is a special case to handle here. "lsqroutput" is not 
+       a standard line-based logfile. The best we can do is delete 
+       what we've got and start over. */
+    
+    if (strcmp(state->logfilenames[i],"lsqroutput") == 0) {
       
-      /* There is a special case to handle here. "lsqroutput" is not 
-	 a standard line-based logfile. The best we can do is delete 
-	 what we've got and start over. */
+      fclose(state->logfiles[i]);
+      state->logfiles[i] = fopen_or_die(logfilename,"w", __FILE__ , __LINE__ );
       
-      if (strcmp(state->logfilenames[i],"lsqroutput") == 0) {
+    } else { 
+      
+      /* We are actually going to try to preserve some data from the
+	 start of the run. We now open a new file to read the data
+	 we're going to save into. */
+      
+      sprintf(tmpfilename,"%sXXXXXX",logfilename);
+      
+      tmpdes = mkstemp_or_die(tmpfilename, __FILE__ , __LINE__ );
+      tmpfile = fdopen_or_die(tmpdes,"w", __FILE__ , __LINE__ );
+      
+      /* We now close and reopen the original log file to rewind it. */
+      
+      fclose(state->logfiles[i]);
+      state->logfiles[i] = fopen_or_die(logfilename,"r", __FILE__ , __LINE__ );
+      
+      /* We now copy the data from file to file. */
+      
+      linebuf = malloc_or_die(4096*sizeof(char), __FILE__ , __LINE__ );
+      linebufsize = 4096*sizeof(char);
+      
+      for(j=0;fgets(linebuf,linebufsize,state->logfiles[i]) != NULL;j++) {
 	
-	fclose(state->logfiles[i]);
-	state->logfiles[i] = fopen_or_die(logfilename,"w", __FILE__ , __LINE__ );
+	if (j % 2 == 0) { fprintf(tmpfile,"%s",linebuf); }
 	
-      } else { 
-
-	/* We are actually going to try to preserve some data from the
-	   start of the run. We now open a new file to read the data
-	   we're going to save into. */
-	
-	sprintf(tmpfilename,"%sXXXXXX",logfilename);
-	
-	tmpdes = mkstemp_or_die(tmpfilename, __FILE__ , __LINE__ );
-	tmpfile = fdopen_or_die(tmpdes,"w", __FILE__ , __LINE__ );
-	
-	/* We now close and reopen the original log file to rewind it. */
-	
-	fclose(state->logfiles[i]);
-	state->logfiles[i] = fopen_or_die(logfilename,"r", __FILE__ , __LINE__ );
-	
-	/* We now copy the data from file to file. */
-	
-	linebuf = malloc_or_die(4096*sizeof(char), __FILE__ , __LINE__ );
-	linebufsize = 4096*sizeof(char);
-	
-	for(j=0;fgets(linebuf,linebufsize,state->logfiles[i]) != NULL;j++) {
-	  
-	  if (j % 2 == 0) { fprintf(tmpfile,"%s",linebuf); }
-	  
-	}
-	
-	free(linebuf);
-	
-	/* Finally, we delete the old file, replace it with the new, smaller file, */
-	/* and reopen the new logfile for appending. */
-	
-	fclose(tmpfile);
-	fclose(state->logfiles[i]);
-	remove_or_die(logfilename, __FILE__ , __LINE__);
-	rename_or_die(tmpfilename,logfilename, __FILE__ , __LINE__ );
-	state->logfiles[i] = fopen_or_die(logfilename,"a", __FILE__ , __LINE__ );
-      	
       }
-
-      /* Now we report our progress in the log. */
-
-      fstat(fileno(state->logfiles[i]),&afterbuf);
-
-      logprintf("Compressed logfile %s at size %d (of maxlogsize %d) to size %d.\n",
-		state->logfilenames[i],(int)buf.st_size,state->maxlogsize,(int)(afterbuf.st_size));
-
+	
+      free(linebuf);
+	
+      /* Finally, we delete the old file, replace it with the new, smaller file, */
+      /* and reopen the new logfile for appending. */
+      
+      fclose(tmpfile);
+      fclose(state->logfiles[i]);
+      remove_or_die(logfilename, __FILE__ , __LINE__);
+      rename_or_die(tmpfilename,logfilename, __FILE__ , __LINE__ );
+      state->logfiles[i] = fopen_or_die(logfilename,"a", __FILE__ , __LINE__ );
+   	
     }
 
   }
 
-#else
-
-  if (gLogfile != NULL) {
-
-    fprintf(gLogfile,
-	    "compress_runtime_logs: Warning! This system does not have fstat.\n"
-	    "No compression of runtime logs will be attempted.\n");
-
-  }
-
-#endif
-}
+  /* Now we report our progress in the log. */
   
+  logprintf("Compressed logfiles at step %d = (%d * %d).\n",
+	    state->steps,state->loginterval,state->maxlogsize);
+  
+}
+
 void update_runtime_logs(search_state *state)
 
      /* We now update the various data logs for the run. */
@@ -411,17 +437,20 @@ void update_runtime_logs(search_state *state)
 {
   int i;
   static int logged_cstep_count = 0;
+  static int log_entries_since_compression = 0;
 
-  fprintf(state->logfiles[kLength],"%d %g \n",state->steps,state->length);
-  fprintf(state->logfiles[kRopelength],"%d %g \n",state->steps,state->ropelength);
+  fprintf(state->logfiles[kLength],"%d %8g \n",state->steps,state->length);
+  fprintf(state->logfiles[kRopelength],"%d %8g \n",state->steps,state->ropelength);
   fprintf(state->logfiles[kStrutCount],"%d %d %d\n",state->steps,
 	  state->lastStepStrutCount,state->lastStepMinradStrutCount);
   fprintf(state->logfiles[kStepSize],"%d %g \n",state->steps,state->stepSize);
-  fprintf(state->logfiles[kThickness],"%d %g \n",state->steps,state->thickness);
-  fprintf(state->logfiles[kMinrad],"%d %g \n",state->steps,state->minrad);
+  fprintf(state->logfiles[kThickness],"%d %7g \n",state->steps,state->thickness);
+  fprintf(state->logfiles[kMinrad],"%d %7g \n",state->steps,state->minrad);
   fprintf(state->logfiles[kResidual],"%d %g \n",state->steps,state->residual);
   fprintf(state->logfiles[kMaxOverMin],"%d %g \n",state->steps,state->lastMaxMin);
   fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
+
+  log_entries_since_compression++;
 
 #ifdef HAVE_TIME
   time_t now;
@@ -460,15 +489,17 @@ void update_runtime_logs(search_state *state)
 
   fprintf(state->logfiles[kEQVariance],"%d %g \n",state->steps,state->eqVariance);
 
-  if (state->steps%LOG_FLUSH_INTERVAL == 0) {
+  if (log_entries_since_compression%LOG_FLUSH_INTERVAL == 0) {
 
     for(i=0;i<kTotalLogTypes;i++) fflush(state->logfiles[i]);
 
   }
 
-  if (state->steps%(10*LOG_FLUSH_INTERVAL) == 0) {
+  if (state->steps == (state->loginterval*state->maxlogsize)) {
 
-    compress_runtime_logs(state);
+    compress_runtime_logs(state); /* Drop the size of each log by half.   */
+    state->loginterval *= 2;      /* Log half as often from now on. */
+    log_entries_since_compression = 0;
 
   }
 
