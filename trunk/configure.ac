@@ -124,6 +124,9 @@ AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h stdarg.h \
 AC_C_INLINE
 AC_C_CONST
 
+# Add dmalloc support if desired
+AM_WITH_DMALLOC
+
 # Output
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
