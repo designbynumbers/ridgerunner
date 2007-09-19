@@ -36,6 +36,14 @@ which need to be provided if system libraries are lacking.
   #include <sys/stat.h>
 #endif
 
+#ifdef HAVE_ERRNO_H
+  #include <errno.h>
+#endif
+
+#ifdef HAVE_DIRENT_H
+  #include <dirent.h>
+#endif 
+
 #ifdef HAVE_MATH_H
   #include <math.h>
 #endif

@@ -29,7 +29,7 @@ void initializeState( search_state* state, const char* fname );
   #define min(a,b) ((a)<(b)) ? (a) : (b)
 #endif
 
-int parse_logsize(const char *sizestring);
+double parse_size(const char *sizestring);
 	
 int
 main( int argc, char* argv[] )
@@ -75,6 +75,9 @@ main( int argc, char* argv[] )
 
   struct arg_str  *arg_maxlogsize = arg_str0(NULL,"MaxLogSize","<100K>",
 					     "maximum log file size in bytes, K, or M");
+
+  struct arg_str  *arg_maxvectdirsize = arg_str0(NULL,"MaxVectDirSize","<100M>",
+					      "maximum size of movie dir in bytes, K, or M");
 
   // struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
   //					  "</home/../outdir/>",
@@ -122,7 +125,8 @@ main( int argc, char* argv[] )
 		      arg_stop20,arg_stopRes,arg_stopSteps,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
-		      arg_suppressfiles, arg_maxlogsize, /* arg_outpath, */
+		      arg_suppressfiles, arg_maxlogsize, 
+		      arg_maxvectdirsize, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_help,
@@ -240,22 +244,25 @@ main( int argc, char* argv[] )
   
   initializeState( &state, fname);  
 
+#define BYTES_PER_ENTRY 32.0
+
   if (arg_maxlogsize->count > 0) { 
     
-    state.maxlogsize = parse_logsize(arg_maxlogsize->sval[0]);
+    state.maxlogsize = (int)(parse_size(arg_maxlogsize->sval[0])/BYTES_PER_ENTRY);
 
   } else {
 
-    state.maxlogsize = 10*1024*1024;  /* 10 Mb */
+    state.maxlogsize = (int)(10*1024*1024.0/BYTES_PER_ENTRY);  /* 10 Mb */
 
   }
 
   state.stop20 = stop20;
   state.maxItrs = maxItrs;  
   state.residualThreshold = residualThreshold;
-
+  
   state.correctionStepDefault = correctionStepSize;
   state.movie = movie;
+  state.moviefactor = 1.0;
   
   state.overstepTol = overstepTol;
   state.minradOverstepTol = minradOverstepTol;
@@ -535,7 +542,32 @@ main( int argc, char* argv[] )
   /* Piatek's realtime graphing fanciness has been replaced by
      comprehensive data logging, so a bunch of code was deleted
      here. */
+
+  sprintf(filename,"./%s.rr/%s.atstart.vect",
+	  state.basename,state.basename);
+  
+  struct stat savefilebuf;
+
+  if (stat(filename,&savefilebuf)) {
+
+    sprintf(errmsg,"ridgerunner: Failed to stat the file %s.\n",filename);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+
+  }
+
+  if (arg_maxvectdirsize->count > 0) { 
     
+    state.maxmovieframes = (int)
+      (parse_size(arg_maxvectdirsize->sval[0]))/((float)(savefilebuf.st_size));
+       
+  } else {
+    
+    state.maxmovieframes = (int)(50*1024*1024.0/((float)(savefilebuf.st_size)));  /* 50 Mb */
+
+  }
+
+  if (state.maxmovieframes % 2 == 1) { state.maxmovieframes--; } /* Make sure this is even. */
+  
   state.minrad = octrope_minradval(link);
   state.thickness = octrope_thickness(link,NULL,0,gLambda);
   state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
@@ -647,8 +679,7 @@ initializeState( search_state* state, const char* fname )
   
   strncpy(state->fname, fname, sizeof(state->fname)-1);
   
-  state->tube_radius = 0.5; // fix this for now
-    
+  state->tube_radius = 0.5; // fix this for now    
   state->shortest = 2*state->tube_radius;
 
   state->eqMultiplier = 1;
@@ -664,7 +695,7 @@ initializeState( search_state* state, const char* fname )
 
   assert(kTotalLogTypes == sizeof(log_fnames)/sizeof(char *));
   for(i=0;i<kTotalLogTypes;i++) {state->logfilenames[i] = log_fnames[i];}
-
+  state->loginterval = 1;
 }
 
 void free_search_state(search_state *inState)
@@ -683,17 +714,17 @@ void free_search_state(search_state *inState)
   
 }
 
-int parse_logsize(const char *argstring)
+double parse_size(const char *argstring)
 
-/* Function parses a filesize and returns a value in bytes. */
+/* Function parses a human-readable size and returns a value in bytes. */
 
 {
 
   char sizestring[1024];
-  int unitcvrt = 1;
+  double unitcvrt = 1;
   int len;
-  float sizef;
-  int result;
+  double sizef;
+  double result;
 
   strncpy(sizestring,argstring,sizeof(sizestring));
 
@@ -701,7 +732,12 @@ int parse_logsize(const char *argstring)
   
   len = strlen(sizestring);
   
-  if (sizestring[len-1] == 'M' || sizestring[len-1] == 'm') { /* Megabytes */
+  if (sizestring[len-1] == 'G' || sizestring[len-1] == 'g') { /* Gigabytes */
+
+    unitcvrt = 1024*1024*1024;
+    sizestring[len-1] = 0;
+    
+  } else if (sizestring[len-1] == 'M' || sizestring[len-1] == 'm') { /* Megabytes */
 
     unitcvrt = 1024*1024;
     sizestring[len-1] = 0;
@@ -715,14 +751,23 @@ int parse_logsize(const char *argstring)
 
   /* Now we attempt to parse the number. */
   
-  if (sscanf(sizestring,"%g",&sizef) != 1) {
+  if (sscanf(sizestring,"%lg",&sizef) != 1) {
 
-    logprintf("parse_logsize: Could not parse logfile size argument %s.\n",sizestring);
+    logprintf("parse_size: Could not parse size argument %s.\n",sizestring);
     exit(0);
 
   }
 
-  result = (int)(floor((float)(unitcvrt)*sizef));
+  if (2.0*1024.0*1024.0*1024.0 < unitcvrt*sizef) {
+
+    logprintf("parse_size: Warning! Size greater than 2GB will be truncated to 2GB.\n");    
+    result = 2*1024*1024*1024.0;
+
+  } else {
+
+    result = floor(unitcvrt*sizef);
+    
+  }
 
   return result;
 
