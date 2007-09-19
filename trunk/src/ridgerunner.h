@@ -29,6 +29,8 @@
 #define DEBUG 1 
 /* Turn on all the asserts in the code. */
 
+#define CURSES_DISPLAY 1 
+
 #define kStepScale 0.01
 //#define kMinStepSize 1e-5
 //#define kMaxStepSize 1e-3
@@ -47,6 +49,12 @@ extern int gSuppressOutput;
 extern int gQuiet;
 extern double gLambda;                  /* lambda-stiffness of rope */
 extern int gMaxCorrectionAttempts;
+
+#ifdef CURSES_DISPLAY
+
+WINDOW *gLogwin;
+
+#endif
 
 /************* Defined Data Types ***********************/
 

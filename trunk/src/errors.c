@@ -293,7 +293,16 @@ void logprintf(char *format, ... )
   vsprintf(msgbuf,format,args);
   va_end(args);
 
+#ifdef CURSES_DISPLAY
+
+  if (gLogwin != NULL) { wprintw(gLogwin,"%s",msgbuf); }
+  else { printf("%s",msgbuf); }	/* The error might be in the windowing system! */
+
+#else
+
   printf("%s",msgbuf);
+
+#endif
   
   if (gLogfile != NULL) {
 

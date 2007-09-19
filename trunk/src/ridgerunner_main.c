@@ -587,7 +587,7 @@ main( int argc, char* argv[] )
   open_runtime_logs(&state,'w');
   init_runtime_display(&state);
 
-  printf("ridgerunner: Starting run. Will stop if \n"
+  logprintf("ridgerunner: Starting run. Will stop if \n"
 	 "               step number >= %ld \n"
 	 "               residual < %g \n"
 	 "               ropelength decrease over last 20 steps < %g.\n\n",
