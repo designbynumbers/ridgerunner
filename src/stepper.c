@@ -155,7 +155,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
      the stepper loop. Note that this means we are assuming that 
      the number of verts stays more or less constant inside here. */
 
-  gOctmem_size = octrope_est_mem(plc_num_edges(inLink));
+  gOctmem_size = octrope_est_mem(plc_num_edges(*inLink));
   gOctmem = malloc_or_die(sizeof(char)*gOctmem_size, __FILE__ , __LINE__ );
   
   for( stepItr=0; /* Main loop, incorporates stopping criteria. */
