@@ -21,7 +21,7 @@ int gMaxCorrectionAttempts = 25;
 
 void usage();
 void reload_handler( int sig );
-void initializeState( search_state* state, const char* fname );
+void initializeState( search_state* state );
 
 /* globals moved to ridgerunner.h */
 
@@ -242,7 +242,7 @@ main( int argc, char* argv[] )
 
   /* We now set as much of "state" as we can from this amount of data. */
   
-  initializeState( &state, fname);  
+  initializeState( &state );  
 
 #define BYTES_PER_ENTRY 32.0
 
@@ -649,6 +649,10 @@ main( int argc, char* argv[] )
   free_search_state(&state);
   plc_free(link);
 
+  fclose(gLogfile);
+
+  arg_freetable(argtable,sizeof(argtable)/sizeof(argtable[0]));
+
   /* Finally, signal the user that we terminated normally. */
 
   printf("ridgerunner: Run complete.\n");
@@ -657,7 +661,7 @@ main( int argc, char* argv[] )
 }
 
 void
-initializeState( search_state* state, const char* fname )
+initializeState( search_state* state )
 
      /* Performs all initializations which _don't_ depend on inLink. */
 {
@@ -670,15 +674,13 @@ initializeState( search_state* state, const char* fname )
   }; 
 
   search_state *zerostate;
-
-  // zero all those pointers
+  
+  // zero everything
   zerostate = calloc(1,sizeof(search_state));
   fatalifnull_(zerostate);
   *state = *zerostate;
   free(zerostate);
-  
-  strncpy(state->fname, fname, sizeof(state->fname)-1);
-  
+
   state->tube_radius = 0.5; // fix this for now    
   state->shortest = 2*state->tube_radius;
 
@@ -700,13 +702,9 @@ initializeState( search_state* state, const char* fname )
 
 void free_search_state(search_state *inState)
 
-     /* Free memory and close filehandles. */
+     /* Free memory. */
 
 {
-
-  int i;
-
-  for(i=0;i<kTotalLogTypes;i++) { fclose(inState->logfiles[i]); }
 
   free(inState->compOffsets);  
   free(inState->lastStepStruts);
