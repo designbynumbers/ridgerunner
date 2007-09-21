@@ -61,6 +61,7 @@ case "${host_os}" in
   darwin*)
     echo -framework vecLib
     AM_CONDITIONAL([DARWIN],[test 1 == 1])
+    AM_CONDITIONAL([HAVE_LAPACK],[test 1 == 1])
     AC_DEFINE([HAVE_DARWIN],[1],[Defined if we are in the Apple environment.])
 #    LIBS="$LIBS -framework vecLib"
     AC_SUBST([LAPACK_LIBS],["-framework vecLib"])
