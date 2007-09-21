@@ -126,6 +126,9 @@ extern int gVerboseFiling;
 
 int	gCorrectionAttempts = 0;
 
+void   *gOctmem;
+int     gOctmem_size;
+
 void 
 bsearch_stepper( plCurve** inLink, search_state* inState )
 {
@@ -147,6 +150,13 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   
   inState->steps = 0;
   int stepItr;
+
+  /* We allocate a global buffer for all the octrope calls inside
+     the stepper loop. Note that this means we are assuming that 
+     the number of verts stays more or less constant inside here. */
+
+  gOctmem_size = octrope_est_mem(plc_num_edges(inLink));
+  gOctmem = malloc_or_die(sizeof(char)*gOctmem_size, __FILE__ , __LINE__ );
   
   for( stepItr=0; /* Main loop, incorporates stopping criteria. */
        (stepItr < inState->maxItrs) && 
@@ -218,6 +228,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     if (stepItr > 20) { rop_20_itrs_ago = oldrops[19]; }
     
   } 
+
+  free(gOctmem);
 
   /* We have now terminated. The final output files will be written 
      in ridgerunner_main.c. However, we log the reason for termination. */
@@ -1211,15 +1223,9 @@ bsearch_step( plCurve* inLink, search_state* inState )
      though. */
     
   /* We're going to have to call octrope every time we go through this 
-     loop in order to compute the level of error we have so far. In order
-     to speed these calls up (slightly), we allocate memory once, in advance. */
+     loop in order to compute the level of error we have so far. 
 
-  void *octmem;
-  int  octmem_size;
-
-  octmem_size = octrope_est_mem(plc_num_edges(inLink));
-  octmem = malloc(sizeof(char)*octmem_size);
-  fatalifnull_(octmem);
+     We will use the globals "gOctmem" and "gOctmem_size" for memory. */
     
   double newthi,newrop,newlen;
 
@@ -1252,7 +1258,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   
     octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	    octmem,octmem_size,gLambda);
+	    gOctmem,gOctmem_size,gLambda);
 
     inState->octrope_calls++;
     
@@ -1334,7 +1340,6 @@ bsearch_step( plCurve* inLink, search_state* inState )
     inState->stepSize = inState->length/inState->totalVerts*.1;
   
   free(dVdt);
-  free(octmem);
   
   return inLink;
 }
