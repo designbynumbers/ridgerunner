@@ -29,7 +29,7 @@
 #define DEBUG 1 
 /* Turn on all the asserts in the code. */
 
-#define CURSES_DISPLAY 1 
+// #define CURSES_DISPLAY 1
 
 #define kStepScale 0.01
 //#define kMinStepSize 1e-5

@@ -310,6 +310,7 @@ double plCurve_long_edge(plCurve *L)
 
   }
 
+  free(compedge);
   return maxLen;
 }
 
