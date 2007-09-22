@@ -441,9 +441,12 @@ void compress_runtime_logs(search_state *state)
 
   /* Now we report our progress in the log. */
   
-  logprintf("Compressed logfiles at step %d = (%d * %d).\n",
-	    state->steps,state->loginterval,state->maxlogsize);
+  if (VERBOSITY > 0) {
+   
+    logprintf("Compressed logfiles at step %d = (%d * %d).\n",
+	      state->steps,state->loginterval,state->maxlogsize);
   
+  }
 }
 
 void update_runtime_logs(search_state *state)
@@ -456,13 +459,13 @@ void update_runtime_logs(search_state *state)
   static int logged_cstep_count = 0;
   static int log_entries_since_compression = 0;
 
-  fprintf(state->logfiles[kLength],"%d %8g \n",state->steps,state->length);
-  fprintf(state->logfiles[kRopelength],"%d %8g \n",state->steps,state->ropelength);
+  fprintf(state->logfiles[kLength],"%d %2.8g \n",state->steps,state->length);
+  fprintf(state->logfiles[kRopelength],"%d %2.8g \n",state->steps,state->ropelength);
   fprintf(state->logfiles[kStrutCount],"%d %d %d\n",state->steps,
 	  state->lastStepStrutCount,state->lastStepMinradStrutCount);
   fprintf(state->logfiles[kStepSize],"%d %g \n",state->steps,state->stepSize);
-  fprintf(state->logfiles[kThickness],"%d %7g \n",state->steps,state->thickness);
-  fprintf(state->logfiles[kMinrad],"%d %7g \n",state->steps,state->minrad);
+  fprintf(state->logfiles[kThickness],"%d %2.7g \n",state->steps,state->thickness);
+  fprintf(state->logfiles[kMinrad],"%d %2.7g \n",state->steps,state->minrad);
   fprintf(state->logfiles[kResidual],"%d %g \n",state->steps,state->residual);
   fprintf(state->logfiles[kMaxOverMin],"%d %g \n",state->steps,state->lastMaxMin);
   fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
@@ -893,6 +896,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
   
   int strutStorageSize = 6*inState->totalVerts;
   int minradStorageSize = inState->totalVerts;
+
+  if (VERBOSITY >= 5) { logprintf("Starting correction step...\n"); }
   
   strutSet = (octrope_strut *)(malloc(sizeof(octrope_strut)*strutStorageSize));
   minradSet = (octrope_mrloc *)(malloc(sizeof(octrope_mrloc)*minradStorageSize));
@@ -960,7 +965,12 @@ void correct_thickness(plCurve *inLink,search_state *inState)
      *	       by square of norm o' gradient)
      */
     
+    if (VERBOSITY >= 10) { logprintf("\tCalling stanford_lsqr..."); }
+
     ofv = stanford_lsqr(inState,sparseAT,C); 
+
+    if (VERBOSITY >= 10) { logprintf("ok\n"); }
+
     /* This will die if it doesn't work, so we don't need error checking. */
 
     /* Now convert to plc_vector format for step's benefit. */
@@ -986,6 +996,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
     double alpha = 1e-4; /* 10^-4 is a standard alpha for this kind of thing */
 
     do {
+
+      if (VERBOSITY >= 10) { logprintf("Attempting cstep at size %2.8g.\n",stepSize/2); }
 
       stepSize /= 2;
 
@@ -1190,6 +1202,12 @@ bsearch_step( plCurve* inLink, search_state* inState )
   // create initial vector field for which we want to move along in this step
   plc_vector  *dVdt;
   plc_vector  *dLen; 
+
+  if (VERBOSITY >= 5) {  /* Verbose or higher */ 
+
+    logprintf("Starting bsearch step %d.\n",inState->steps);
+
+  }
 
   dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
   /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
@@ -2204,6 +2222,12 @@ plc_vector
 	
   assert(dl != NULL && inLink != NULL && inState != NULL);
   fatalifnull_(dVdt);
+
+  if (VERBOSITY >= 10) { /* Very verbose */
+
+    logprintf("\tStarting resolveforce...\n");
+
+  }
   
   /* Now we get to work. */
 
@@ -2250,9 +2274,13 @@ plc_vector
 
     // Note to self: We really should implement some kind of fail-safe on t_snnls,
     // which causes the code to time out after some number of minutes. 
+
+    if (VERBOSITY >= 10) { logprintf("\tCalling t_snnls..."); }
     
     compressions = t_snnls(A, minusDL, &inState->residual, 2, 1);
     
+    if (VERBOSITY >= 10) { logprintf("ok\n"); }
+
     if (compressions == NULL) {  
 
       /* Here's where we expect to fail. Put recovery code in here when designed. */
