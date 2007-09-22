@@ -897,7 +897,7 @@ void correct_thickness(plCurve *inLink,search_state *inState)
   int strutStorageSize = 6*inState->totalVerts;
   int minradStorageSize = inState->totalVerts;
 
-  if (VERBOSITY >= 5) { logprintf("Starting correction step...\n"); }
+  if (VERBOSITY >= 5) { logprintf("Correction step...\n"); }
   
   strutSet = (octrope_strut *)(malloc(sizeof(octrope_strut)*strutStorageSize));
   minradSet = (octrope_mrloc *)(malloc(sizeof(octrope_mrloc)*minradStorageSize));
@@ -1205,7 +1205,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 
   if (VERBOSITY >= 5) {  /* Verbose or higher */ 
 
-    logprintf("Starting bsearch step %d.\n",inState->steps);
+    logprintf("Bsearch step %d.\n",inState->steps);
 
   }
 
@@ -1875,6 +1875,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
      we did this malloc "once and for all" at the start of
      computation. */
 
+  if (VERBOSITY >= 10) { logprintf("\tbuildRigidityMatrix..."); }
+
   strutStorageSize = 6*inState->totalVerts;
   minradStorageSize = inState->totalVerts;
 
@@ -2015,6 +2017,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   // We may want to put some kind of strut-exporting code here if we want 
   // intermediate strut sets. 
 
+  if (VERBOSITY >= 10) { logprintf(" ok\n"); }
+  
   return cleanA;
 
 }
@@ -2223,11 +2227,7 @@ plc_vector
   assert(dl != NULL && inLink != NULL && inState != NULL);
   fatalifnull_(dVdt);
 
-  if (VERBOSITY >= 10) { /* Very verbose */
-
-    logprintf("\tStarting resolveforce...\n");
-
-  }
+  if (VERBOSITY >= 10) { logprintf("\tresolveForce...\n"); }
   
   /* Now we get to work. */
 
