@@ -510,6 +510,8 @@ void snapshot( plCurve *inLink,
   /* We drop a complete snapshot of the link, together with a geomview
      file tying everything together, to the snapshot directory. */
 
+  if (VERBOSITY >= 10) { logprintf("Snapshot at step %d.\n",inState->steps); }
+
   sprintf(filename,"%s.%d.geom",inState->snapprefix,inState->steps);
   gfp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   fprintf(gfp,"LIST {\n");

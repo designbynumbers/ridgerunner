@@ -43,28 +43,28 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_curveopts = arg_rem("","Operations on input curve before run");
   struct arg_rem  *arg_bl1 = arg_rem("","");
 
-  struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","automatically scale curve "
+  struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
 					    "to thickness 1.001");
 
-  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<# verts/unit ropelength>",
-					     "spline the curve to this resolution");
+  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
+					     "spline curve to this resolution");
 
   struct arg_lit  *arg_eqit = arg_lit0("e","eq","equilateralize curve"); 
 
   struct arg_rem  *arg_bl2 = arg_rem("","");
-  struct arg_rem  *arg_stopopts = arg_rem("","Stopping Criteria (can use more than one)");
+  struct arg_rem  *arg_stopopts = arg_rem("","Stopping Criteria (stop when)");
   struct arg_rem  *arg_bl3 = arg_rem("","");
 
-  struct arg_dbl  *arg_stop20 = arg_dbl0(NULL,"Stop20","<change in Rop>","stop when "
-					 "average change in ropelength over last 20 "
-					 "steps is less than this value");
+  struct arg_dbl  *arg_stop20 = arg_dbl0(NULL,"Stop20","<change in Rop>",
+					 "rop change over last 20 "
+					 "steps < value");
 
   struct arg_dbl  *arg_stopRes = arg_dbl0(NULL,"StopResidual","<fraction>",
-					  "stop when less than this fraction of "
-					  "curvature force remains after projection");
+					  "fraction of "
+					  "curvature force after projection < value");
 
-  struct arg_int  *arg_stopSteps = arg_int0("s","StopSteps","<#steps>","stop after "
-					    "this number of steps");
+  struct arg_int  *arg_stopSteps = arg_int0("s","StopSteps","<#steps>",
+					    "steps >= value");
 
   struct arg_rem  *arg_bl4 = arg_rem("","");
   struct arg_rem  *arg_fileopts = arg_rem("","File Output Options");
@@ -89,6 +89,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_quiet  = arg_lit0("q","quiet","quiet");
   struct arg_lit  *arg_verbose = arg_lit0("v","verbose","verbose");
+  struct arg_lit  *arg_vverbose = arg_lit0(NULL,"VeryVerbose","very verbose (debugging)");
+
   struct arg_lit  *arg_help = arg_lit0("h","help","print this help and exit");
 
   struct arg_dbl  *arg_cstep_size = arg_dbl0("k","CorrectionStepSize","<fraction>",
@@ -129,7 +131,7 @@ main( int argc, char* argv[] )
 		      arg_maxvectdirsize, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
-		      arg_quiet,arg_verbose,arg_help,
+		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_cstep_size,arg_maxcorr,
 		      arg_eqmult,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
@@ -236,6 +238,12 @@ main( int argc, char* argv[] )
      from the cmdline. */
   
   if (arg_autoscale->count > 0) { autoscale = 1; }
+
+  if (arg_quiet->count > 0) { VERBOSITY = 0; }
+
+  if (arg_verbose->count > 0) { VERBOSITY = 5; }
+
+  if (arg_vverbose->count > 0) { VERBOSITY = 10; }
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
