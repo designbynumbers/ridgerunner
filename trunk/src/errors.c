@@ -281,9 +281,12 @@ FILE *fdopen_or_die(int fd, const char *opentype, const char *file, const int li
 
 void logprintf(char *format, ... )
 
-     /* Function prints a message both to the screen and the logfile. */
-     /* If the curses interface is running, will (eventually) write   */
-     /* to an appropriate area of the screen. */
+/* Function prints a message both to the screen and the logfile. */
+/* If the curses interface is running, will (eventually) write   */
+/* to an appropriate area of the screen. */
+  
+/* For this function we flush as soon as we write if VERBOSITY >= 10
+   since we're trying to detect crashes of the system then. */
 
 {
   va_list args;
@@ -301,13 +304,14 @@ void logprintf(char *format, ... )
 #else
 
   printf("%s",msgbuf);
+  if (VERBOSITY >= 10) {fflush(stdout);}
 
 #endif
   
   if (gLogfile != NULL) {
 
     fprintf(gLogfile,"%s",msgbuf);
-
+    if (VERBOSITY >= 10) {fflush(gLogfile);}
   }
 }
 
