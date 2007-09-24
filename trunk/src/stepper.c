@@ -2280,6 +2280,7 @@ plc_vector
       printf("ridgerunner: Step 55 dumper enabled. Kill this debugging"
 	     "code at %s : %d.\n", __FILE__ , __LINE__ );
       dumpAxb_sparse( inState, A, NULL, minusDL);
+      tsnnls_verbosity(10);
 
     }
 
