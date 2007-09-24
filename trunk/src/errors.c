@@ -318,7 +318,7 @@ dumpAxb_full( search_state *inState,
 {
   /* Saves a problem Ax = b in MATLAB or Octave format */
   
-  static FILE* fp;
+  FILE* fp;
   int rItr, cItr;
   char filename[1024];
   
@@ -326,10 +326,17 @@ dumpAxb_full( search_state *inState,
 
   if (A != NULL) {
 
-    sprintf(filename,"%sA.dat",inState->fprefix);
+    sprintf(filename,"%sA.mat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
     
     /* Now construct the file. */
+    
+    fprintf(fp,
+	    "# Created by ridgerunner (dumpAxb_full) \n"
+	    "# name: A\n"
+	    "# type: matrix\n"
+	    "# rows: %d\n"
+	    "# columns: %d\n",rows,cols);
     
     for( rItr=0; rItr<rows; rItr++ ) {
       
@@ -347,18 +354,9 @@ dumpAxb_full( search_state *inState,
 
   if (x != NULL) {
     
-    sprintf(filename,"%sx.dat",inState->fprefix);
+    sprintf(filename,"%sx.mat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    
-    for( cItr=0; cItr<cols; cItr++ ) {
-      
-      if( x != NULL )
-	fprintf( fp, "%10.16lf\n", x[cItr] );
-      else
-	fprintf( fp, "0\n" );
-      
-    }
-  
+    colvector_write_mat(fp,x,cols,"x");
     fclose(fp);
 
   }
@@ -367,25 +365,59 @@ dumpAxb_full( search_state *inState,
 
   if (b != NULL) {
 
-    sprintf(filename,"%sb.dat",inState->fprefix);
+    sprintf(filename,"%sb.mat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    
-    for( rItr=0; rItr<rows; rItr++ )
-      fprintf( fp, "%lf\n", b[rItr] );
-    
+    colvector_write_mat(fp,b,cols,"b");    
     fclose(fp);
+
   }
 
 }
 
 void
 dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b )
-{
-  double* vals = taucs_convert_ccs_to_doubles(A);
-  dumpAxb_full(inState,vals,A->m,A->n,x,b);
-  free(vals);
 
-}  
+/* This is debugging code which is only called as part of an exit from error. */
+
+{
+  FILE* fp;
+  char filename[1024];
+  
+  /* Construct filename for A */
+
+  if (A != NULL) {
+
+    sprintf(filename,"%sA.sparse",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_sparse(fp,A);
+    fclose(fp);
+
+  }
+
+  /* Construct filename for x. */
+
+  if (x != NULL) {
+    
+    sprintf(filename,"%sx.mat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    colvector_write_mat(fp,x,A->n,"x");
+    fclose(fp);
+
+  }
+
+  /* Construct filename for b. */
+
+  if (b != NULL) {
+
+    sprintf(filename,"%sb.mat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    colvector_write_mat(fp,b,A->m,"b");    
+    fclose(fp);
+
+  }
+
+}
+
  
 void
 dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount)

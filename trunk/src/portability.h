@@ -80,5 +80,7 @@ which need to be provided if system libraries are lacking.
   #endif
 #endif
 
-
+#ifdef WITH_DMALLOC
+  #include <dmalloc.h>
+#endif
 

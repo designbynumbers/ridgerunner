@@ -2275,6 +2275,14 @@ plc_vector
     // Note to self: We really should implement some kind of fail-safe on t_snnls,
     // which causes the code to time out after some number of minutes. 
 
+    if (inState->steps == 55) {
+
+      printf("ridgerunner: Step 55 dumper enabled. Kill this debugging"
+	     "code at %s : %d.\n", __FILE__ , __LINE__ );
+      dumpAxb_sparse( inState, A, NULL, minusDL);
+
+    }
+
     if (VERBOSITY >= 10) { logprintf("\tCalling t_snnls..."); }
     
     compressions = t_snnls(A, minusDL, &inState->residual, 2, 1);
@@ -2355,6 +2363,9 @@ plc_vector
 
     }
 
+    free(minusDL);
+    free(compressions);
+
   }
 
   /* At this point, we take a snapshot of the computation every state.snapinterval */
@@ -2368,8 +2379,6 @@ plc_vector
   /* We have now generated dVdt. Go ahead and free memory and then return it. */
 
   taucs_ccs_free(A);
-  free(minusDL);
-  free(compressions);
 
   return dVdt;
 
