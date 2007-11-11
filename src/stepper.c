@@ -2275,14 +2275,6 @@ plc_vector
     // Note to self: We really should implement some kind of fail-safe on t_snnls,
     // which causes the code to time out after some number of minutes. 
 
-    if (inState->steps == 55) {
-
-      printf("ridgerunner: Step 55 dumper enabled. Kill this debugging"
-	     "code at %s : %d.\n", __FILE__ , __LINE__ );
-      dumpAxb_sparse( inState, A, NULL, minusDL);
-      tsnnls_verbosity(10);
-
-    }
 
     if (VERBOSITY >= 10) { logprintf("\tCalling t_snnls..."); }
     
