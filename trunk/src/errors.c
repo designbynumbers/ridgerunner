@@ -468,17 +468,17 @@ dumpStruts( plCurve *inLink, search_state *inState, char *dumpname)
      /* Assumes that the strut set is given inside inState. */
 {
   FILE *strutsVect, *strutsTed;
-  char tedname[1024],filename[1024];
+  char tedname[1024];
 
   sprintf(dumpname,"%s%s.struts.vect",inState->fprefix,inState->basename);
-  strutsVect = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
+  strutsVect = fopen_or_die(dumpname,"w", __FILE__ , __LINE__ );   
   strut_vectfile_write(inLink,
 		       inState->lastStepStruts,inState->lastStepStrutCount,
 		       strutsVect);
   fclose(strutsVect);
 
   sprintf(tedname,"%s%s.struts",inState->fprefix,inState->basename);
-  strutsTed = fopen_or_die(filename,"w", __FILE__ , __LINE__ );   
+  strutsTed = fopen_or_die(tedname,"w", __FILE__ , __LINE__ );   
   octrope_strutfile_write(inState->lastStepStrutCount,
 			  inState->lastStepStruts,
 			  inState->lastStepMinradStrutCount,
@@ -608,7 +608,7 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
 {
   FILE *dumpfile;
   
-  sprintf(dumpname,"%sdumpLink.vect",inState->fprefix);
+  sprintf(dumpname,"%s%s.vect",inState->fprefix,inState->basename);
   dumpfile = fopen_or_die(dumpname,"w", __FILE__ , __LINE__ );
   plc_write(dumpfile,inLink);
   fclose(dumpfile);
