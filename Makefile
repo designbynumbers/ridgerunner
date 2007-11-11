@@ -101,7 +101,7 @@ AWK = awk
 BLAS_LIBS =  
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS = -g
 CPP = gcc -E
 CPPFLAGS = 
 CYGPATH_W = echo

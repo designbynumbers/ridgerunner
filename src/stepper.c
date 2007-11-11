@@ -2275,12 +2275,20 @@ plc_vector
     // Note to self: We really should implement some kind of fail-safe on t_snnls,
     // which causes the code to time out after some number of minutes. 
 
-
     if (VERBOSITY >= 10) { logprintf("\tCalling t_snnls..."); }
     
-    compressions = t_snnls(A, minusDL, &inState->residual, 2, 1);
+    compressions = t_snnls_fallback(A, minusDL, &inState->residual, 2, 1);
     
     if (VERBOSITY >= 10) { logprintf("ok\n"); }
+    
+    char *terr;
+
+    if (tsnnls_error(&terr)) {  /* If tsnnls throws a code, log it. */
+	
+      logprintf("%s",terr);
+      dumpAxb_sparse(inState,A,NULL,minusDL);
+
+    }
 
     if (compressions == NULL) {  
 
