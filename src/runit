@@ -1,1 +1,1 @@
-./ridgerunner -a 3_1_328.vect -s 10000 --MaxLogSize=1M --MaxVectDirSize=10MB 
+./ridgerunner -a 3_1_328.vect -s 100 --MaxLogSize=1M --MaxVectDirSize=10MB 
