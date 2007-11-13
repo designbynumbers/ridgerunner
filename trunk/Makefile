@@ -196,11 +196,10 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/ridgerunner_main.c \
         src/stepper.c \
 	src/dlen.h \
-	src/eqedge.h \
 	src/errors.h \
-        src/settings.h \
-	src/stepper.h \
-	src/display.c 
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 

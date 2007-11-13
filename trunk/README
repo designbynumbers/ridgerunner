@@ -1,3 +1,6 @@
+
+1. Installation and dependencies.
+
 Ridgerunner is a program for computing minimum ropelength knots and
 links using a version of constrained gradient descent. The program
 depends on a number of other libraries:
@@ -5,14 +8,187 @@ depends on a number of other libraries:
 plCurve
 octrope
 tsnnls
-ncurses
 argtable2 (2-7 or later)
 BLAS
 LAPACK
+
+It is recommended that you also have installed 
+
+ncurses
+vecttools
+geomview
+
+in order to view the results of your tightenings, but this is not
+strictly neccessary. 
+
+The rrpackage script installrr.sh will install all of the needed
+libraries except BLAS and LAPACK in either standard locations (if you
+have admin priviledges on the install machine) or in your account (if
+you don't).
 
 To use the movie generation script, you must also have 
 
 tube
 geomview
 
+2. The (really brief) user's guide to Ridgerunner.
+
+The best way to get help on the various RR options is to use
+
+ridgerunner --help
+
+This displays a brief summary of the available options. For most
+users, the standard invocation of ridgerunner should look something
+like
+
+ridgerunner -a myknot.vect -r 5 -s 1000
+
+Here's what those options mean:
+       
+-a   autoscale 	  
+
+This scales the knot to (radius) thickness .501 before proceeding. This
+eliminates all self-contacts of the knot. Even if you are starting
+with a very tight knot, it is wise to use -a and let this run of
+ridgerunner rebuild the set of self contacts rather than starting from
+a tight position.
+
+myknot.vect 	  
+
+The input file, in Geomview VECT format. You can read a description of
+VECT at www.geomview.org.
+
+-r 5 		  
+
+Resolution of 5 vertices per unit ropelength. This is considered a low
+resolution run, which is what you should be starting with. For a
+trefoil knot, this is a resolution of about 150 vertices. In
+principle, -r 10 is a medium resolution run, -r 20 is a
+high-resolution run, and -r 40 is about where ridgerunner starts to
+break down. 
+
+The recommended procedure for getting high resolution data is to
+tighten as much as possible at -r 5 and -r 10 before jumping into an
+-r 20 run. 
+
+-s 1000
+
+Ridgerunner has a variety of options controlling when the computation
+stops. The easiest to understand is -s <n>, which gives the number of
+steps to take. -s 1000 is a fairly short run.
+
+2a. Ok, what happens then?
+
+You should get a screen display which looks about like:
+
+-------------------------------------------------------------
+
+Ridgerunner 1.0.1 (cvs build Nov 10 2007 23:53:55)
+plCurve Version: 1.0.1
+Octrope Version: 1.4
+tsnnls Version: 2.01.2
+Loaded 1 component, 328 vertex plCurve from myfile.vect.
+Saved copy of myfile.vect to ./myfile.rr/myfile.vect.
+Curve has thickness 0.499985. Scaling to thickness 0.501.
+Scaled curve has thickness 0.501.
+ Autoscale selftest ok.
+Rerez'd, autoscaled, eq'd file written to ./myfile.rr/myfile.atstart.vect.
+Overstep tolerance: 0.000100 of thickness 0.500000 (0.499950) minminrad: 0.49997500
+ridgerunner: Curses screen display disabled, using stdout.
+             Define CURSES_DISPLAY to enable better screen display.
+ridgerunner: Starting run. Will stop if 
+               step number >= 10000 
+               residual < 0 
+               ropelength decrease over last 20 steps < -1.
+
+   1   Rop:32.7526832  Str:  0  MrStruts:  0  Thi:0.5009661 
+   2   Rop:32.7535673  Str:  0  MrStruts:  0  Thi:0.5009238 
+   3   Rop:32.7544560  Str:  0  MrStruts:  0  Thi:0.5008814 
+   4   Rop:32.7553638  Str:  0  MrStruts:  0  Thi:0.5008388 
+   5   Rop:32.7563305  Str:  0  MrStruts:  0  Thi:0.5007954 
+   6   Rop:32.7572847  Str:  0  MrStruts:  0  Thi:0.5007522 
+   7   Rop:32.7582274  Str:  0  MrStruts:  0  Thi:0.5007092 
+   8   Rop:32.7591592  Str:  0  MrStruts:  0  Thi:0.5006664 
+   9   Rop:32.7600809  Str:  0  MrStruts:  0  Thi:0.5006239 
+  10   Rop:32.7609933  Str:  0  MrStruts:  0  Thi:0.5005815 
+  11   Rop:32.7618970  Str:  0  MrStruts:  0  Thi:0.5005393 
+
+-----------------------------------------------------------
+
+This display is fairly self-explanatory. On the left is the step
+number. The "Rop:" column displays the current ropelength of the
+knot. The "Str:" column displays the number of self-contacts in the
+current version of the knot. The "MrStruts:" column displays the
+vertices of the knot which have reached the maximum curvature bound
+for the run. And the "Thi:" column tells you the current thickness of
+the knot.
+
+These columns will continue to scroll down your screen, every so often
+interrupted by a few debugging messages, until the end of the run. If
+all goes well, "Rop" should decrease steadily over time, slowing down
+as the run continues.
+
+Eventually, this display ends with something like
+
+------------------------------------------------------------
+
+  98   Rop:32.7556295  Str:369  MrStruts:  0  Thi:0.4999833 
+  99   Rop:32.7555984  Str:372  MrStruts:  0  Thi:0.4999833 
+ 100   Rop:32.7555691  Str:375  MrStruts:  0  Thi:0.4999833 
+ridgerunner: run complete. Terminated because 
+ridgerunner: reached maximum number of steps (100).
+ridgerunner: Run complete.
+
+------------------------------------------------------------
+
+2b. So where's my data?
+
+All of the output files from the run are stored in a new subdirectory
+of whatever directory you were in when you started RR. This new
+directory has a name derived from the name of the input file.
+
+myfile.vect  ------> output stored in myfile.rr
+3.1.328.vect ------> output stored in 3.1.328.rr
+
+Let's look into this directory. It should look like:
+
+myfile.atstart.vect    myfile.log             snapshots/
+myfile.final.struts    myfile.vect            vectfiles/
+myfile.final.vect      logfiles/
+
+The filenames are pretty self-explanatory. Since you autoscaled and
+maybe changed the resolution of your input VECT file,
+myfile.atstart.vect records the literal VECT file that RR started with
+on step 1. You also have a copy of your original myfile.vect for comparison.
+
+The final output of RR is the myfile.final.vect. The file
+myfile.final.struts is mostly useful for strutplot-- it's not very
+helpful to read and won't plot in Geomview, either.
+
+myfile.log contains an overview of what went on in the computation
+(helpful for long runs where you weren't watching the screen). Unless
+something went wrong, it's not very useful and you don't need to worry
+about it.
+
+The directories snapshots/ vectfiles/ and logfiles/ contain data
+gathered during the run. Unless you're debugging, writing a paper, or
+making a movie, you probably don't care. We note that vectfiles/, for
+instance, stores the curve at various stages of tightening, and can
+get pretty big (it's capped at 100 MB by default). logfiles/ can get
+large also. You can control their size with the options
+
+--MaxLogSize=1M      (maximum log size 1 megabyte per log -- 20 MB total)
+--MaxVectDirSize=20M (maximum size of /vectfiles)
+
+Snapshots are taken every 1000 steps by default. You can change this
+frequency with
+
+--SnapshotInterval=n
+
+2c. What if something goes wrong?
+
+If something goes wrong, you'll get an error message (we hope). At
+that point, please pack up the entire directory myfile.rr and send it
+to jason.cantarella AT gmail.com. If it's really big, then it's ok to
+post it somewhere on the web and send me a link to it.
 
