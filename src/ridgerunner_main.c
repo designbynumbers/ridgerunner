@@ -487,21 +487,22 @@ main( int argc, char* argv[] )
   
   double thickness;
   thickness = octrope_thickness(link,NULL,0,gLambda);
+  double t_margin = 0.0001;
   
-  if( arg_autoscale->count > 0 || thickness < state.tube_radius + 0.001) {
+  if( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin) {
   
     logprintf("Curve has thickness %g. Scaling to thickness %g.\n",
-	   thickness,state.tube_radius + 0.001);
+	   thickness,state.tube_radius + t_margin);
     
-    plc_scale(link,(state.tube_radius + 0.001)/thickness);
+    plc_scale(link,(state.tube_radius + t_margin)/thickness);
     thickness = octrope_thickness(link,NULL,0,gLambda);
     
     logprintf("Scaled curve has thickness %g.\n",thickness);
        
-    if (fabs(thickness - (state.tube_radius + 0.001) > 1e-12)) {
+    if (fabs(thickness - (state.tube_radius + t_margin) > 1e-12)) {
       
-      sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness 1.001."
-	      "             Aborting run.\n",fname);
+      sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
+	      "             Aborting run.\n",fname,state.tube_radius + t_margin);
       FatalError(errmsg, __FILE__ , __LINE__ );
       
     } else {
