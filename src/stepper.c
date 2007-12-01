@@ -994,8 +994,12 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 
     double stepSize = 2;
     double alpha = 1e-4; /* 10^-4 is a standard alpha for this kind of thing */
+    int maxsplits = 18;
+    int splits = 0;
 
     do {
+      
+      splits++;
 
       if (VERBOSITY >= 10) { logprintf("Attempting cstep at size %2.8g.\n",stepSize/2); }
 
@@ -1068,7 +1072,30 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 
       newError = l2norm(workerC,Csize);
 
-    } while (newError > (1 - alpha*stepSize)*currentError);
+    } while (newError > (1 - alpha*stepSize)*currentError && splits < maxsplits);
+
+    if (splits == maxsplits) {
+
+      char dumpname[1024];
+      char errmsg[1024];
+          
+      dumpLink(inLink,inState,dumpname);   
+      sprintf(errmsg,
+	      "correct_thickness: Couldn't get error to meet the sufficient\n"
+	      "decrease condition in %d splits.\n"
+	      "\n"
+	      "newError = %g, alpha = %g, stepSize = %g, currentError = %g.\n"
+	      "so\n"
+	      "newError vs (1 - alpha*stepSize)*currentError is\n"
+	      "%g vs %g.\n"
+	      "\nTerminating run here, which this link dumped to %s\n",
+	      maxsplits,newError,alpha,stepSize,currentError,
+	      newError,(1 - alpha*stepSize)*currentError,
+	      dumpname);
+      
+      FatalError(errmsg, __FILE__ , __LINE__ );
+      
+    }
 
     /* This "sufficient decrease" condition comes from Kelley,
        "Solving nonlinear equations with Newton's method", p. 13. 
@@ -1079,7 +1106,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
        workerLink (and friends) to current data in inLink and
        inState. */
 
-    step(inLink,stepSize,ofv_vect,inState); /* Trust me-- this was better than copying. */
+    step(inLink,stepSize,ofv_vect,inState); 
+    /* Trust me-- this was better than copying. */
 
     /* Now we update inState. */
 
