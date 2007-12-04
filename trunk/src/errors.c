@@ -73,7 +73,7 @@ void FatalError(char *debugmsg,const char *file,int line)
   if (gLogfile != NULL) {
 
     fprintf(gLogfile,
-	    "Run ended: %s.\n",
+	    "Run ended: %s\n",
 	    asctime(localtime(&end_time)));
     
   }
