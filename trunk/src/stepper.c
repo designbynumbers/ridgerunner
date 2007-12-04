@@ -720,7 +720,7 @@ double *thicknessError(plCurve *inLink,
   
   int sItr;
   
-  for( sItr=0; sItr < inState->lastStepStrutCount ; sItr++) {
+  for( sItr=0; sItr < strutCount ; sItr++) {
     
     double secondGreenZone = 
       2*inState->tube_radius*(1 - inState->overstepTol*.25);
@@ -1007,6 +1007,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 
       if (workerLink != NULL) plc_free(workerLink);
       workerLink = plc_copy(inLink);
+      fatalifnull_(workerLink);
+      /* We have to check that the copy worked. */   
       
       step(workerLink,stepSize,ofv_vect,inState);
 
