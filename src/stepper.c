@@ -663,10 +663,10 @@ stanford_lsqr( search_state *inState,
     sprintf(errmsg,
 	    "ridgerunner: lsqr failed in correction stepper because the\n"
 	    "             condition number of %d x %d matrix A^T > %g.\n"
-	    "             The matrix A^T has been dumped to A.dat and \n"
-	    "             the vector of desired corrections dumped to b.dat.\n"
+	    "             The matrix A^T has been dumped to A.sparse and \n"
+	    "             the vector of desired corrections dumped to b.mat.\n"
 	    "\n"
-	    "             Check the log file 'lsqrlog' for more output.\n",
+	    "             Check the log file 'lsqroutput' for more output.\n",
 	    sparseA->m,sparseA->n,lsqr_in->cond_lim);
     FatalError(errmsg, __FILE__ , __LINE__ );
 
@@ -678,10 +678,10 @@ stanford_lsqr( search_state *inState,
     sprintf(errmsg,
 	    "ridgerunner: lsqr failed to converge in correction stepper\n"
 	    "             on %d x %d matrix A^T after %ld iterations.\n"
-	    "             The matrix A^T has been dumped to A.dat and \n"
-	    "             the vector of desired corrections dumped to b.dat.\n"
+	    "             The matrix A^T has been dumped to A.sparse and \n"
+	    "             the vector of desired corrections dumped to b.mat.\n"
 	    "\n"
-	    "             Check the log file 'lsqrlog' for more output.\n" ,
+	    "             Check the log file 'lsqroutput' for more output.\n" ,
 	    sparseA->m,sparseA->n,lsqr_in->max_iter);
     FatalError(errmsg, __FILE__ , __LINE__ );
 
