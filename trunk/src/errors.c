@@ -79,7 +79,7 @@ void FatalError(char *debugmsg,const char *file,int line)
   }
 
   fprintf(stderr,
-	  "Run ended: %s.\n",
+	  "Run ended: %s\n",
 	  asctime(localtime(&end_time)));
   
   

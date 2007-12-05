@@ -924,6 +924,11 @@ void correct_thickness(plCurve *inLink,search_state *inState)
     sparseA = buildRigidityMatrix(inLink,inState);  /* Note: strut set in inState updates */
     sparseAT = taucs_ccs_transpose(sparseA);
 
+    Csize = inState->lastStepStrutCount+inState->lastStepMinradStrutCount+
+      plCurve_score_constraints(inLink);
+
+    if (C != NULL) { free(C); }
+
     C = thicknessError(inLink,
 		       inState->lastStepStrutCount,inState->lastStepStruts,
 		       inState->lastStepMinradStrutCount,inState->lastStepMRlist,
@@ -996,6 +1001,7 @@ void correct_thickness(plCurve *inLink,search_state *inState)
     double alpha = 1e-4; /* 10^-4 is a standard alpha for this kind of thing */
     int maxsplits = 18;
     int splits = 0;
+    int workerCsize;
 
     do {
       
@@ -1072,7 +1078,9 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 			       minradCount,minradSet,
 			       inState);
 
-      newError = l2norm(workerC,Csize);
+      workerCsize = strutCount+minradCount+plCurve_score_constraints(inLink);
+
+      newError = l2norm(workerC,workerCsize);
 
     } while (newError > (1 - alpha*stepSize)*currentError && splits < maxsplits);
 
@@ -1111,7 +1119,7 @@ void correct_thickness(plCurve *inLink,search_state *inState)
     step(inLink,stepSize,ofv_vect,inState); 
     /* Trust me-- this was better than copying. */
 
-    /* Now we update inState. */
+    /* Now we update inState. Couldn't we, nay, shouldn't we call octrope? */
 
     assert(inState->lastStepStruts != NULL && inState->lastStepMRlist != NULL);
    
@@ -1126,11 +1134,15 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 
     int sItr;
 
+    inState->lastStepStrutCount = strutCount;
+
     for(sItr=0;sItr<strutCount;sItr++) { 
       
       inState->lastStepStruts[sItr] = strutSet[sItr];
 
     }
+
+    inState->lastStepMinradStrutCount = minradCount;
 
     for(sItr=0;sItr<minradCount;sItr++) {
 
@@ -1146,12 +1158,12 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 
     /* Finally, we free memory used in this step. */
 
-    free(C);
-    free(ofv);
-    free(ofv_vect);
+    free(C);   C = NULL;
+    free(ofv); ofv = NULL;
+    free(ofv_vect); ofv_vect = NULL;
 
-    taucs_ccs_free(sparseA);
-    taucs_ccs_free(sparseAT);
+    taucs_ccs_free(sparseA); sparseA = NULL;
+    taucs_ccs_free(sparseAT); sparseAT = NULL;
     
   }
 
