@@ -89,11 +89,11 @@ do
 
       cp $oldvect $thisvect
 
-      while [ `echo "$rdrop < -0.1" | bc` -gt 0 ] && [ $count -lt 10 ]; do
+      while [ `echo "$rdrop < -0.01" | bc` -gt 0 ] && [ $count -lt 10 ]; do
       
-	  echo "Running rr on " $thisvect " for 200 steps..."
-	  echo "ridgerunner -a -r " $res $thisvect "-s 200 > " $thisbase.out
-	  ridgerunner -a -r $res $thisvect -s 200 > $thisbase.out
+	  echo "Running rr on " $thisvect " for 20000 steps..."
+	  echo "ridgerunner -a -r " $res $thisvect "-s 20000 > " $thisbase.out
+	  ridgerunner -a -r $res $thisvect -s 20000 > $thisbase.out
 	  echo "Run completed."
 
 	  finalvect=./$thisbase.rr/$thisbase.final.vect
