@@ -69,7 +69,7 @@ do
   
   res=5
 
-  thisbase=$basefile.r$res
+  thisbase=$basename.r$res
   thisvect=$thisbase.vect
       
   echo cp $basefile ../working/$thisvect
@@ -84,15 +84,16 @@ do
       echo "Running " $basename " at resolution " $res 
       
       oldvect=$thisvect
-      thisbase=$basefile.r$res
+      thisbase=$basename.r$res
       thisvect=$thisbase.vect
 
       cp $oldvect $thisvect
 
-      while [ $rdrop -le -0.1 -a $count < 10 ]; do
+      while [ `echo "$rdrop < -0.1" | bc` -gt 0 ] && [ $count -lt 10 ]; do
       
-	  echo "Running rr on " $thisvect " for 20,000 steps..."
-	  ridgerunner -a -r $res $thisvect -s 20000 > $thisvect.out
+	  echo "Running rr on " $thisvect " for 200 steps..."
+	  echo "ridgerunner -a -r " $res $thisvect "-s 200 > " $thisbase.out
+	  ridgerunner -a -r $res $thisvect -s 200 > $thisbase.out
 	  echo "Run completed."
 
 	  finalvect=./$thisbase.rr/$thisbase.final.vect
@@ -114,27 +115,31 @@ do
 	  echo "Checking to see whether ropelength dropped... "
 	  startrop=`ropelength -q $thisvect`
           endrop=`ropelength -q $finalvect`
+	  rdrop=`echo $endrop - $startrop | bc`
+
 	  echo "     Initial ropelength " $startrop 
 	  echo "     Final   ropelength " $endrop
-	  echo "     Ropelength change  " $endrop - $startrop
-	  rdrop=$endrop - $startrop
-
+	  echo "     Ropelength change  " $rdrop
+	
 	  echo "Copying " $finalvect " to " $thisvect " for next run."
 	  cp $finalvect ./$thisvect
-	  count=$count+1
+	  let count=$count+1
 	  echo ""
-
+	  
       done
 
       # We are now ready to change resolution. We kick this copy into ./done
 
       echo "Finished " $thisvect " at resolution " $res 
-      echo "Moving " `ls $thisbase*` " to ./done" 
+      echo "Moving " $thisbase.rr $thisbase.out " to ./done" 
       cp $thisvect ../done/$thisvect
-      mv $thisbase* ../done/    
-	
+      mv $thisbase.rr ../done/    
+      mv $thisbase.out ../done/
+
+      let res=$res+5
+
   done
 
   cd ../inputs
-
+  
 done
