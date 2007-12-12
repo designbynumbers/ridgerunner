@@ -76,7 +76,7 @@ do
   cp $basefile ../working/$thisvect
   cd ../working
       
-  while [ $res -le 10 ]; do 
+  while [ $res -le 20 ]; do 
 
       rdrop=-1
       count=1
