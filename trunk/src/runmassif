@@ -1,0 +1,1 @@
+valgrind --tool=massif --heap=yes --alloc-fn=malloc_or_die --alloc-fn=calloc_or_die ridgerunner -a 3_1_328.vect -s 50 
