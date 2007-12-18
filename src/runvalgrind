@@ -1,0 +1,1 @@
+valgrind --tool=memcheck --leak-check=full --show-reachable=yes ridgerunner -a 3_1_328.vect -s 100 --MaxLogSize=1M --MaxVectDirSize=10MB 2> vglog.txt 1> rrlog.txt
