@@ -244,6 +244,22 @@ main( int argc, char* argv[] )
   if (arg_verbose->count > 0) { VERBOSITY = 5; }
 
   if (arg_vverbose->count > 0) { VERBOSITY = 10; }
+
+  if (arg_lambda->count > 0) { 
+
+    if (arg_lambda->dVal[0] >= 1.0) { 
+      
+      gLambda = arg_lambda->dVal[0]; 
+
+    } else {
+
+      char badlambda[1024];
+      sprintf(badlambda,"Lambda values < 1.0 are illegal (this causes the model to break down).\n");
+      FatalError(badlambda, __FILE__ , __LINE__ );
+
+    }
+
+  }   
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
