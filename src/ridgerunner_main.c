@@ -247,9 +247,9 @@ main( int argc, char* argv[] )
 
   if (arg_lambda->count > 0) { 
 
-    if (arg_lambda->dVal[0] >= 1.0) { 
+    if (arg_lambda->dval[0] >= 1.0) { 
       
-      gLambda = arg_lambda->dVal[0]; 
+      gLambda = arg_lambda->dval[0]; 
 
     } else {
 
