@@ -83,6 +83,16 @@ enum GraphTypes
   kTotalLogTypes
 };
 
+/* This struct will be used to implement "external body" forces, such as gravity. */
+
+typedef struct {
+
+  int cp;
+  int vt;
+  plc_vector force;
+
+} bodyforce;
+
 /* "State" a long data structure for holding everything related to the 
    current state of the computation. */
 
@@ -144,6 +154,12 @@ typedef struct
   double  thickness;     // the overall thickness of the link
 
   double  factor;	 // curvature scaling factor
+
+  /* Data about the forces to apply to the link. Not implemented yet. */
+
+  int          elasticforce;  // 1 if the elastic force is on, 0 otherwise
+  int          nbodyforces;   // number of (external) body forces to apply.
+  bodyforce   *bodyforces;    // pointer to array of bodyforces 
 
   /* Data about the current run. */
 

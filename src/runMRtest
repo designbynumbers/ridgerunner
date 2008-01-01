@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#
+# runMRtest. Runs the MR strut test.
+#
+
+if [ -f MRtest_pentagon.vect ]; then
+
+  ridgerunner MRtest_pentagon.vect -l 1.5 -s 200 
+
+else
+
+  ./makeMRtest_pentagon
+  ridgerunner MRtest_pentagon.vect -l 2.0 -s 200
+  
+fi
