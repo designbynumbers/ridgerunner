@@ -244,22 +244,6 @@ main( int argc, char* argv[] )
   if (arg_verbose->count > 0) { VERBOSITY = 5; }
 
   if (arg_vverbose->count > 0) { VERBOSITY = 10; }
-
-  if (arg_lambda->count > 0) { 
-
-    if (arg_lambda->dval[0] >= 1.0) { 
-      
-      gLambda = arg_lambda->dval[0]; 
-
-    } else {
-
-      char badlambda[1024];
-      sprintf(badlambda,"Lambda values < 1.0 are illegal (this causes the model to break down).\n");
-      FatalError(badlambda, __FILE__ , __LINE__ );
-
-    }
-
-  }   
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
@@ -434,8 +418,44 @@ main( int argc, char* argv[] )
   fclose(savefile);
   
   logprintf("Saved copy of %s to %s.\n",state.fname,filename);
+ 
+  /* Now complete state initializations which depend on the curve. */
 
-  /* We now complete any initial operations on the curve. */
+  state.maxStepSize = 0.1*plCurve_short_edge(link);
+  state.minrad = octrope_minradval(link);
+  state.totalVerts = plc_num_verts(link);
+  state.stepSize = 0.5*state.maxStepSize;
+
+  if( ((double)1)/(double)state.totalVerts < state.stepSize )
+    {
+      state.stepSize = ((double)1/(double)state.totalVerts);
+    }
+
+  if( state.maxStepSize > 1e-3 ) { state.maxStepSize = 1e-3; }
+
+    if( maxStep > 0 ) {
+
+      printf("max step size: %e\n", maxStep);
+      state.maxStepSize = maxStep;
+  
+  }  
+  state.stepSize = min(state.stepSize, state.maxStepSize);
+
+  state.compOffsets = malloc(sizeof(int)*(link->nc));
+  fatalifnull_(state.compOffsets);
+  
+  int offset = 0;
+
+  for( i=0; i<link->nc; i++ )    {
+    
+    state.compOffsets[i] = offset;
+    offset += link->cp[i].nv;
+    
+  }
+
+  state.conserveLength = NULL; /* We aren't using this. */
+  
+  /* Now perform initial operations. */
   
   plCurve *tempLink;
   
@@ -514,6 +534,7 @@ main( int argc, char* argv[] )
     }
 
   }
+
       
   /* Now save the modified file so that we record what we actually ran with. */
 
@@ -555,43 +576,6 @@ main( int argc, char* argv[] )
   }
 
   if (state.maxmovieframes % 2 == 1) { state.maxmovieframes--; } /* Make sure this is even. */
-
-  state.maxStepSize = 0.1*plCurve_short_edge(link);
-  state.minrad = octrope_minradval(link);
-  state.totalVerts = plc_num_verts(link);
-  state.stepSize = 0.5*state.maxStepSize;
-
-  if( ((double)1)/(double)state.totalVerts < state.stepSize )
-    {
-      state.stepSize = ((double)1/(double)state.totalVerts);
-    }
-
-  if( state.maxStepSize > 1e-3 ) { state.maxStepSize = 1e-3; }
-
-    if( maxStep > 0 ) {
-
-      printf("max step size: %e\n", maxStep);
-      state.maxStepSize = maxStep;
-  
-  }  
-  state.stepSize = min(state.stepSize, state.maxStepSize);
-
-  state.compOffsets = malloc(sizeof(int)*(link->nc));
-  fatalifnull_(state.compOffsets);
-  
-  int offset = 0;
-
-  for( i=0; i<link->nc; i++ )    {
-    
-    state.compOffsets[i] = offset;
-    offset += link->cp[i].nv;
-    
-  }
-
-  state.conserveLength = NULL; /* We aren't using this. */
-  
-  /* Now perform initial operations. */
-
   
   state.minrad = octrope_minradval(link);
   state.thickness = octrope_thickness(link,NULL,0,gLambda);
