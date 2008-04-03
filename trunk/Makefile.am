@@ -18,11 +18,6 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/ridgerunner.h \
 	src/portability.h
 
-noinst_PROGRAMS = src/makeMRstruttest
-src_makeMRstruttest_SOURCES = src/makeMRstruttest.c
-noinst_SCRIPTS= src/runMRtest
-
-dist_bin_SCRIPTS=src/batchrunner
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
