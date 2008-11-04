@@ -50,8 +50,8 @@ AC_PROG_CC
 AC_CHECK_FUNCS([strncpy strstr])
 
 # Checks for FORTRAN.
-AC_PROG_F77		
-AC_F77_LIBRARY_LDFLAGS
+AC_PROG_FC([gfortran g77])		
+AC_FC_LIBRARY_LDFLAGS
 
 # Checks for Darwin.
 AC_CANONICAL_HOST
@@ -87,7 +87,7 @@ nonstandard spot. This test may fail even if you have BLAS if you
 don't have a FORTRAN compiler (preferably g77) on your default path.])
     fi
 
-    AC_F77_FUNC(dpotrf)
+    AC_FC_FUNC(dpotrf)
     ACX_LAPACK(AM_CONDITIONAL([HAVE_LAPACK],[test x1 = x1]),AC_CHECK_LIB([lapack],$dpotrf,[atlas_lapack=yes 
        LAPACK_LIBS="-llapack -lcblas -lf77blas -latlas"
        AC_DEFINE_UNQUOTED([HAVE_ATLAS_LAPACK],[1],[ATLAS (instead of full) LAPACK])
@@ -115,10 +115,11 @@ AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename ope
 
 # Checks for libraries.
 AC_CHECK_LIB(m,sqrt)
-AC_CHECK_LIB(plCurve,plc_new)
-AC_CHECK_LIB(octrope,octrope)
+AC_CHECK_LIB(plCurve,plc_new,[],AC_MSG_ERROR([ridgerunner requires the plCurve library]))
+AC_CHECK_LIB(octrope,octrope,[],AC_MSG_ERROR([ridgerunner requires the octrope library]))
 AC_CHECK_LIB(argtable2,arg_parse,[have_argtable2=true],[have_argtable2=false])
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
+AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
 
 # Checks for header files.
 AC_HEADER_STDC
