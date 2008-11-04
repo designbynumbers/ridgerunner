@@ -13,9 +13,9 @@
 #
 #   To link with BLAS, you should link with:
 #
-#   	$BLAS_LIBS $LIBS $FLIBS
+#   	$BLAS_LIBS $LIBS $FCLIBS
 #
-#   in that order. FLIBS is the output variable of the
+#   in that order. FCLIBS is the output variable of the
 #   AC_F77_LIBRARY_LDFLAGS macro (called if necessary by ACX_BLAS), and
 #   is sometimes necessary in order to link with F77 libraries. Users
 #   will also need to use AC_F77_DUMMY_MAIN (see the autoconf manual),
@@ -75,7 +75,7 @@
 
 AC_DEFUN([ACX_BLAS], [
 AC_PREREQ(2.50)
-AC_REQUIRE([AC_F77_LIBRARY_LDFLAGS])
+AC_REQUIRE([AC_FC_LIBRARY_LDFLAGS])
 acx_blas_ok=no
 
 AC_ARG_WITH(blas,
@@ -88,11 +88,11 @@ case $with_blas in
 esac
 
 # Get fortran linker names of BLAS functions to check for.
-AC_F77_FUNC(sgemm)
-AC_F77_FUNC(dgemm)
+AC_FC_FUNC(sgemm)
+AC_FC_FUNC(dgemm)
 
 acx_blas_save_LIBS="$LIBS"
-LIBS="$LIBS $FLIBS"
+LIBS="$LIBS $FCLIBS"
 
 # First, check BLAS_LIBS environment variable
 if test $acx_blas_ok = no; then
@@ -169,7 +169,7 @@ if test $acx_blas_ok = no; then
 	AC_CHECK_LIB(blas, $sgemm,
 		[AC_CHECK_LIB(essl, $sgemm,
 			[acx_blas_ok=yes; BLAS_LIBS="-lessl -lblas"],
-			[], [-lblas $FLIBS])])
+			[], [-lblas $FCLIBS])])
 fi
 
 # Generic BLAS library?
@@ -205,19 +205,19 @@ fi
 #
 #   To link with LAPACK, you should link with:
 #
-#       $LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS
+#       $LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS
 #
 #   in that order. BLAS_LIBS is the output variable of the ACX_BLAS
-#   macro, called automatically. FLIBS is the output variable of the
-#   AC_F77_LIBRARY_LDFLAGS macro (called if necessary by ACX_BLAS), and
-#   is sometimes necessary in order to link with F77 libraries. Users
-#   will also need to use AC_F77_DUMMY_MAIN (see the autoconf manual),
+#   macro, called automatically. FCLIBS is the output variable of the
+#   AC_FC_LIBRARY_LDFLAGS macro (called if necessary by ACX_BLAS), and
+#   is sometimes necessary in order to link with FC libraries. Users
+#   will also need to use AC_FC_DUMMY_MAIN (see the autoconf manual),
 #   for the same reason.
 #
 #   The user may also use --with-lapack=<lib> in order to use some
 #   specific LAPACK library <lib>. In order to link successfully,
 #   however, be aware that you will probably need to use the same
-#   Fortran compiler (which can be set via the F77 env. var.) as was
+#   Fortran compiler (which can be set via the FC env. var.) as was
 #   used to compile the LAPACK and BLAS libraries.
 #
 #   ACTION-IF-FOUND is a list of shell commands to run if a LAPACK
@@ -277,7 +277,7 @@ case $with_lapack in
 esac
 
 # Get fortran linker name of LAPACK function to check for.
-AC_F77_FUNC(cheev)
+AC_FC_FUNC(cheev)
 
 # We cannot use LAPACK if BLAS is not found
 if test "x$acx_blas_ok" != xyes; then
@@ -286,7 +286,7 @@ fi
 
 # First, check LAPACK_LIBS environment variable
 if test "x$LAPACK_LIBS" != x; then
-        save_LIBS="$LIBS"; LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS"
+        save_LIBS="$LIBS"; LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS"
         AC_MSG_CHECKING([for $cheev in $LAPACK_LIBS])
         AC_TRY_LINK_FUNC($cheev, [acx_lapack_ok=yes], [LAPACK_LIBS=""])
         AC_MSG_RESULT($acx_lapack_ok)
@@ -298,7 +298,7 @@ fi
 
 # LAPACK linked to by default?  (is sometimes included in BLAS lib)
 if test $acx_lapack_ok = no; then
-        save_LIBS="$LIBS"; LIBS="$LIBS $BLAS_LIBS $FLIBS"
+        save_LIBS="$LIBS"; LIBS="$LIBS $BLAS_LIBS $FCLIBS"
         AC_CHECK_FUNC($cheev, [acx_lapack_ok=yes])
         LIBS="$save_LIBS"
 fi
@@ -308,7 +308,7 @@ for lapack in lapack lapack_rs6k; do
         if test $acx_lapack_ok = no; then
                 save_LIBS="$LIBS"; LIBS="$BLAS_LIBS $LIBS"
                 AC_CHECK_LIB($lapack, $cheev,
-                    [acx_lapack_ok=yes; LAPACK_LIBS="-l$lapack"], [], [$FLIBS])
+                    [acx_lapack_ok=yes; LAPACK_LIBS="-l$lapack"], [], [$FCLIBS])
                 LIBS="$save_LIBS"
         fi
 done
