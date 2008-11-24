@@ -2355,7 +2355,12 @@ plc_vector
 
     /* Note: what to do with constraint strut "compressions"? They aren't recorded! */
 
-    inState->rcond = taucs_rcond(A);
+    if (gNoRcond) {
+      inState->rcond = 10; 
+    } else {
+      inState->rcond = taucs_rcond(A);
+    }
+      
     inState->tsnnls_evaluations++;
 
     /* We now build dVdt = dl + cleanA*compressions; */

@@ -18,6 +18,7 @@ int gSuppressOutput = 0;
 int gQuiet = 0;
 double gLambda = 1.0;   /* lambda-stiffness of rope */
 int gMaxCorrectionAttempts = 25;
+int gNoRcond = 0;
 
 void usage();
 void reload_handler( int sig );
@@ -116,7 +117,9 @@ main( int argc, char* argv[] )
   struct arg_int  *arg_snapinterval = arg_int0(NULL,"SnapshotInterval","<n>",
 					       "save a complete snapshot "
 					       "of computation every <n> steps");
-
+  
+  struct arg_lit *arg_norcond = arg_lit0(NULL,"NoRcond","don't log condition number for matrices");
+  
   struct arg_end *end = arg_end(20);
   
   void *argtable[] = {arg_infile,arg_lambda,
@@ -135,6 +138,7 @@ main( int argc, char* argv[] )
 		      arg_cstep_size,arg_maxcorr,
 		      arg_eqmult,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
+		      arg_norcond,
 		      end};
   int nerrors;
   int snapinterval = 10000;
@@ -217,6 +221,8 @@ main( int argc, char* argv[] )
 
   /* Note: there used to be a way to turn on "gSurfaceBuilding" and "gVerboseFiling" */
   if (arg_snapinterval->count > 0) {snapinterval = arg_snapinterval->ival[0];}
+
+  if (arg_norcond->count > 0) { gNoRcond = 1; }
 
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 
