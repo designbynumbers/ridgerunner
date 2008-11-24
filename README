@@ -12,6 +12,27 @@ argtable2 (2-7 or later)
 BLAS
 LAPACK
 
+You usually use ATLAS Blas/Lapack to satisfy this part of the
+dependency tree.  On certain systems, especially RedHat derived linux
+systems, you need to be careful of the fact that shared libraries are
+not handled particularly well. If you get runtime problems along the
+lines of
+
+george:/> ridgerunner ridgerunner: error while loading shared
+libraries: libplCurve.so.0: cannot open shared object file: No such
+file or directory
+
+then the problem is that the directory in which autoconf has installed
+the shared libraries (usually /usr/local/lib) is not on the path for
+shared libraries established in /etc/ld.so.conf. The standard solution
+is to move the file ridgerunner.conf to the directory /etc/ld.so.conf.d/.
+A model for this file is included here: it should contain one line
+
+/usr/local/lib
+
+or whatever the name of the directory is where you installed plCurve.
+Afterwards, you must run sudo ldconfig to register the new directory.
+
 It is recommended that you also have installed 
 
 ncurses
