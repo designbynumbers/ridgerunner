@@ -94,6 +94,7 @@ typedef struct
   long	 maxItrs;     // maximum number of steps to perform before quit
   double stop20;     // must decrease by this amount per 20 steps to continue
   double residualThreshold;	// threshold for residual stopping, will use if nonzero
+  int    stopTime;    // Maximum time for the run, in seconds.
 
   double moviefactor;           // multiplier determines how often to save movie frames. 
   int    maxmovieframes;        // maximum number of movie frames to save.

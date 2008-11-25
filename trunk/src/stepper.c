@@ -141,10 +141,17 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   double oldrops[20];
   int rItr;
   
-#ifdef HAVE_CLOCK  
+#ifdef HAVE_TIME  
   
-  clock_t startTime;
-  startTime = clock();
+  time_t startTime,now;
+  startTime = time(NULL);
+  now = startTime;
+
+#else
+
+  int startTime,now;
+  startTime = 0;
+  now = 0;
 
 #endif
   
@@ -161,7 +168,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   for( stepItr=0; /* Main loop, incorporates stopping criteria. */
        (stepItr < inState->maxItrs) && 
 	 (rop_20_itrs_ago - inState->ropelength > inState->stop20) &&
-	 (inState->residual > inState->residualThreshold);
+	 (inState->residual > inState->residualThreshold) &&
+	 (now - startTime < inState->stopTime);
        stepItr++ ) {
     
     int lastSet;      
@@ -231,6 +239,12 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     oldrops[0] = inState->ropelength;
 
     if (stepItr > 20) { rop_20_itrs_ago = oldrops[19]; }
+
+    #ifdef HAVE_TIME
+
+    now = time(NULL);
+
+    #endif
     
   } 
 
@@ -259,6 +273,13 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
     logprintf("ridgerunner: residual %g < residualThreshold %g\n",
 	      inState->residual, inState->residualThreshold);
+
+  }
+
+  if (!(now - startTime < inState->stopTime)) {
+
+    logprintf("ridgerunner: elapsed time %d (sec) > stopTime %d (sec).\n",
+	      now - startTime, inState->stopTime);
 
   }
 

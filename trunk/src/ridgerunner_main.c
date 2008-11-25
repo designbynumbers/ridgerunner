@@ -67,6 +67,8 @@ main( int argc, char* argv[] )
   struct arg_int  *arg_stopSteps = arg_int0("s","StopSteps","<#steps>",
 					    "steps >= value");
 
+  struct arg_int  *arg_stopTime = arg_int0(NULL,"StopTime","<minutes>","stop after this many (wall clock) minutes");
+
   struct arg_rem  *arg_bl4 = arg_rem("","");
   struct arg_rem  *arg_fileopts = arg_rem("","File Output Options");
   struct arg_rem  *arg_bl5 = arg_rem("","");
@@ -127,7 +129,7 @@ main( int argc, char* argv[] )
 		      arg_autoscale,arg_resolution,arg_eqit,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
-		      arg_stop20,arg_stopRes,arg_stopSteps,
+		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
 		      arg_suppressfiles, arg_maxlogsize, 
@@ -161,7 +163,7 @@ main( int argc, char* argv[] )
 
   char		fname[1024];
   double	maxStep = -1;
-  long		maxItrs = 1;
+  long		maxItrs = 10000000;
   double	correctionStepSize = 0.25;
   double	minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
   int           i;
@@ -274,6 +276,12 @@ main( int argc, char* argv[] )
   state.maxItrs = maxItrs;  
   state.residualThreshold = residualThreshold;
   
+  if (arg_stopTime->count > 0) {
+
+    state.stopTime = 60*arg_stopTime->ival[0]; // The argument is in minutes, the var in secs
+
+  }
+  
   state.correctionStepDefault = correctionStepSize;
   state.movie = movie;
   state.moviefactor = 1.0;
@@ -383,8 +391,8 @@ main( int argc, char* argv[] )
 
   fprintf(gLogfile,"\n");
 
-  fprintf(gLogfile,"Stopping criteria: Max # of steps %ld, Min residual %g, Stop20 %g.\n",
-	  state.maxItrs,state.residualThreshold,state.stop20);
+  fprintf(gLogfile,"Stopping criteria: Max # of steps %ld, Min residual %g, Stop20 %g, stopTime %d (sec).\n",
+	  state.maxItrs,state.residualThreshold,state.stop20,state.stopTime);
   
   fprintf(gLogfile,"------------------------------------------------\n");
   
