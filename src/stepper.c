@@ -172,7 +172,12 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
 	(inState->minrad < gLambda*inState->tube_radius*(1-inState->minradOverstepTol))) {
 
-      correct_thickness(*inLink,inState);
+      if (!correct_thickness(*inLink,inState)) {
+
+	plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	logprintf("Correction stepper failed. Rescaled manually.\n");
+
+      }
 
     }        
   
@@ -854,7 +859,7 @@ double l2norm(double *V, int N)
 
 }
 
-void correct_thickness(plCurve *inLink,search_state *inState) 
+int correct_thickness(plCurve *inLink,search_state *inState) 
 
      /* Newton's method correction algorithm for thickness. */
      
@@ -865,6 +870,8 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 	May take most of runtime if the number of verts is large,
 	since we use the (slow) Stanford LSQR code to compute
 	direction for Newton steps. */
+
+     /* If the Newton code fails, will return FALSE. */
      
 {
   double stepSize = 1.0;
@@ -1088,13 +1095,26 @@ void correct_thickness(plCurve *inLink,search_state *inState)
 	      "so\n"
 	      "newError vs (1 - alpha*stepSize)*currentError is\n"
 	      "%g vs %g.\n"
-	      "\nTerminating run here, which this link dumped to %s\n",
+	      "\nDumping this link to %s\n",
 	      maxsplits,newError,alpha,stepSize,currentError,
 	      newError,(1 - alpha*stepSize)*currentError,
 	      dumpname);
       
-      FatalError(errmsg, __FILE__ , __LINE__ );
+      NonFatalError(errmsg, __FILE__ , __LINE__ );
+
+      /* The original link has not yet been modified, so it's ok to just return. */
       
+      free(C);
+      free(ofv);
+      free(ofv_vect);
+      
+      taucs_ccs_free(sparseA);
+      taucs_ccs_free(sparseAT);
+
+      plc_free(workerLink);
+
+      return 0;
+ 
     }
 
     /* This "sufficient decrease" condition comes from Kelley,
@@ -1182,6 +1202,9 @@ void correct_thickness(plCurve *inLink,search_state *inState)
   }
 
   inState->last_cstep_attempts = gCorrectionAttempts; 
+  plc_free(workerLink);
+
+  return 1; /* We have succeeded. */
 
 }
   

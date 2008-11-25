@@ -258,7 +258,7 @@ void bsearch_stepper( plCurve** inLink, search_state* inState );
  *
  */
 
-void correct_thickness(plCurve *inLink,search_state *inState);
+int correct_thickness(plCurve *inLink,search_state *inState);
 /* Newton's method thickness correction algorithm */
 
 taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState);
@@ -341,6 +341,7 @@ plCurve *vectorfield_to_plCurve(plc_vector *vf, plCurve *inLink);
 /* Error Handling Routines. */
 
 void FatalError(char *debugmsg,const char *file,int line);
+void NonFatalError(char *debugmsg,const char *file,int line);
 
 void dumpAxb_full( search_state *inState, 
 		   double* A, int rows, int cols, 
