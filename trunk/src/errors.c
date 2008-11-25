@@ -91,6 +91,50 @@ void FatalError(char *debugmsg,const char *file,int line)
   
 }
 
+void NonFatalError(char *debugmsg,const char *file,int line)
+
+     /* Write the error message to the global logfile
+	and to stderr, then return. */
+
+{
+  /* We may not have lived long enough to open gLogfile. */
+
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,"ridgerunner: Error in file %s, line %d.\n",file,line);
+    fprintf(gLogfile,"%s",debugmsg);
+
+  }
+  
+  fprintf(stderr,"ridgerunner: Error in file %s, line %d.\n",file,line);
+  fprintf(stderr,"%s",debugmsg);
+
+#ifdef HAVE_ASCTIME
+#ifdef HAVE_LOCALTIME
+#ifdef HAVE_TIME
+  
+  time_t end_time;
+  end_time = time(NULL);
+  
+  if (gLogfile != NULL) {
+
+    fprintf(gLogfile,
+	    "Error logged: %s.\n",
+	    asctime(localtime(&end_time)));
+    
+  }
+
+  fprintf(stderr,
+	  "Error logged: %s.\n",
+	  asctime(localtime(&end_time)));
+  
+  
+#endif
+#endif
+#endif
+  
+}
+
 FILE *fopen_or_die(const char *filename,const char *mode,
 		   const char *file,const int line) 
 

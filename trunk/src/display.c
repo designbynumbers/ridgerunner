@@ -66,10 +66,9 @@ FILE *gclpipe = NULL;
 void init_runtime_display(search_state *inState)
 {
 
-  char errmsg[1024];
-
 #ifdef CURSES_DISPLAY
 
+  char errmsg[1024];
   char plc_ver[1024],octrope_ver[1024],tsnnls_ver[1024];
   char disp[1024];
 
