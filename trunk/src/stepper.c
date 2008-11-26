@@ -1218,7 +1218,10 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 	    inState->shortest, inState->minrad, inState->ofvNorm,
 	    stepSize);
 
-    FatalError(errmsg, __FILE__ , __LINE__ );
+    NonFatalError(errmsg, __FILE__ , __LINE__ );
+    plc_free(workerLink);
+
+    return 0;
 
   }
 
