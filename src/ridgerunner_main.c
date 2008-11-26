@@ -280,6 +280,10 @@ main( int argc, char* argv[] )
 
     state.stopTime = 60*arg_stopTime->ival[0]; // The argument is in minutes, the var in secs
 
+  } else {
+
+    state.stopTime = 60*60*24*7; // One week.
+
   }
   
   state.correctionStepDefault = correctionStepSize;
