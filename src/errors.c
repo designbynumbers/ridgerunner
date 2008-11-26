@@ -86,7 +86,17 @@ void FatalError(char *debugmsg,const char *file,int line)
 #endif
 #endif
 #endif
-  
+
+  fflush(stdout);
+  fflush(stderr);
+
+  if (gLogfile != NULL) {
+
+    fflush(gLogfile);
+    fclose(gLogfile);
+
+  }
+
   exit(1);
   
 }
