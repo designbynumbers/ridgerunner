@@ -264,7 +264,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
   if (!(rop_20_itrs_ago - inState->ropelength > inState->stop20)) {
 
-    logprintf("ridgerunner: change in rop over last 20 iterations %g > stop20 = %g.\n",
+    logprintf("ridgerunner: change in rop over last 20 iterations %g < stop20 = %g.\n",
 	      rop_20_itrs_ago - inState->ropelength, inState->stop20);
 
   }
@@ -732,21 +732,22 @@ stanford_lsqr( search_state *inState,
 double *thicknessError(plCurve *inLink,
 		       int strutCount, octrope_strut *strutList,
 		       int minradCount, octrope_mrloc *mrList,
-		       search_state *inState) 
+		       search_state *inState,int *errorSize) 
 
      /* We use the strutList and mrList passed in the header, ignoring
 	the versions stored in inState, which may not apply to this link. */
 
 {
   int constraintCount = plCurve_score_constraints(inLink);
-  double* C = (double*)(malloc((strutCount+minradCount+constraintCount)*sizeof(double)));
-  
+  double* C = (double*)(calloc((strutCount+minradCount+constraintCount),sizeof(double)));
+  *errorSize = strutCount+minradCount+constraintCount;
+
   /* We now create the C (corrections) vector giving the desired adjustment 
      to each strut and minrad length. */
   
   int sItr;
   
-  for( sItr=0; sItr < inState->lastStepStrutCount ; sItr++) {
+  for( sItr=0; sItr < strutCount ; sItr++) {  /* Changed from instate->lastStepStrutCount */
     
     double secondGreenZone = 
       2*inState->tube_radius*(1 - inState->overstepTol*.25);
@@ -902,9 +903,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
   double mrgreenZone = 
     gLambda*inState->tube_radius*(1-0.5*inState->minradOverstepTol);
   int Csize = inState->lastStepStrutCount+inState->lastStepMinradStrutCount+
-    plCurve_score_constraints(inLink);
+    plCurve_score_constraints(inLink),workerCsize;
  
-
   /* The "green zone" is half of the error allowed by the overstepTol
      variables. We initiate correction if we are less than the
      overstepTol amount, but terminate correction if we are less than
@@ -955,7 +955,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     C = thicknessError(inLink,
 		       inState->lastStepStrutCount,inState->lastStepStruts,
 		       inState->lastStepMinradStrutCount,inState->lastStepMRlist,
-		       inState);
+		       inState,&Csize);
 
     currentError = l2norm(C,Csize);
 
@@ -1091,14 +1091,16 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 
       /* Now we can compute the new error. */
 
-      if (workerC != NULL) { free(workerC); }
-
-      workerC = thicknessError(workerLink,
+      workerC = thicknessError(workerLink,          /* This is new memory, allocated by thickErr */
 			       strutCount,strutSet,
 			       minradCount,minradSet,
-			       inState);
+			       inState,&workerCsize);
 
-      newError = l2norm(workerC,Csize);
+      newError = l2norm(workerC,workerCsize);
+
+      free(workerC); /* We free it here to keep things tidy. */
+      workerC = NULL;
+      workerCsize = 0;
 
     } while (newError > (1 - alpha*stepSize)*currentError && splits < maxsplits);
 
@@ -1128,6 +1130,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
       free(C);
       free(ofv);
       free(ofv_vect);
+      free(strutSet);
+      free(minradSet);
       
       taucs_ccs_free(sparseA);
       taucs_ccs_free(sparseAT);
@@ -1188,6 +1192,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     free(C);
     free(ofv);
     free(ofv_vect);
+    if (workerC != NULL) { free(workerC); workerC = NULL; }
 
     taucs_ccs_free(sparseA);
     taucs_ccs_free(sparseAT);
@@ -1207,7 +1212,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 	    "             Current iterate dumped to %s. At this point\n"
 	    "\n"
 	    "             shortest strut has length %g \n"
-	    "             minrad values is %g \n"
+	    "             minrad value for current link is %g \n"
 	    "\n"
 	    "             last ofvnorm was %g \n"
 	    "             stepsize is %g \n"
@@ -1220,6 +1225,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 
     NonFatalError(errmsg, __FILE__ , __LINE__ );
     plc_free(workerLink);
+    free(strutSet);
+    free(minradSet);
 
     return 0;
 
@@ -1227,6 +1234,9 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 
   inState->last_cstep_attempts = gCorrectionAttempts; 
   plc_free(workerLink);
+
+  free(strutSet);
+  free(minradSet);
 
   return 1; /* We have succeeded. */
 
