@@ -2322,6 +2322,7 @@ plc_vector
 		       Copy dl to dvdt and quit. */		
     
     for(vItr = 0;vItr < inState->totalVerts;vItr++) { dVdt[vItr] = dl[vItr]; }
+    inState->residual = 1.0;
     
   } else { 			/* There is some linear algebra to do. */
 
@@ -2343,6 +2344,8 @@ plc_vector
     
     minusDL = (double*)malloc((3*inState->totalVerts)*sizeof(double));
     fatalifnull_(minusDL);
+
+    double minusDLnorm = 0;
     
     for( dlItr=0; dlItr<inState->totalVerts; dlItr++ ) {
       
@@ -2350,7 +2353,11 @@ plc_vector
       minusDL[dlItr*3+1] = -dl[dlItr].c[1];
       minusDL[dlItr*3+2] = -dl[dlItr].c[2];
       
+      minusDLnorm += plc_M_dot(dl[dlItr],dl[dlItr]);  // Hitch a ride on the loop to compute norm
+      
     }
+    
+    minusDLnorm = sqrt(minusDLnorm);
     
     // solve AX = -dl, x is strut compressions. We set inRelErrTolerance to 2
     // to make sure that we don't try to do a final lsqr step inside t_snnls
@@ -2361,8 +2368,10 @@ plc_vector
     // which causes the code to time out after some number of minutes. 
 
     if (VERBOSITY >= 10) { logprintf("\tCalling t_snnls..."); }
-    
-    compressions = t_snnls_fallback(A, minusDL, &inState->residual, 2, 1);
+ 
+    double l2ResidualNorm;
+    compressions = t_snnls_fallback(A, minusDL, &l2ResidualNorm, 2, 1);
+    inState->residual = l2ResidualNorm/minusDLnorm;
     
     if (VERBOSITY >= 10) { logprintf("ok\n"); }
     
