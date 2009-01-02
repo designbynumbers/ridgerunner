@@ -111,23 +111,23 @@ plCurve_fixresolution( plCurve* inLink, double newres)
      vertices per unit ropelength. Uses the global gLambda to compute the 
      thickness of the curve. 
 
-     The procedure is nondestructive to the original curve. */
+     The procedure is nondestructive to the original curve. Rewritten to 
+     use plc_double_verts instead of plc splines. */
 
-  plCurve*   newver;
-  plc_spline *splinever;
-  bool       ok = true;
-  int        i,*nv = malloc(sizeof(int)*inLink->nc);
+  plCurve*   newVer;
+
+  bool       ok = false;
+  int        i;
   double     thickness;
+
   double     *length = malloc(sizeof(double)*inLink->nc);
+  int        *nv = malloc(sizeof(int)*inLink->nc);
+  assert(nv != NULL);
+  assert(length != NULL);
 
-  splinever = plc_convert_to_spline(inLink,&ok);
-
-  if (!ok) { /* Die if we can't complete the spline process */
-    
-    error_write(inLink);
-    fatal_(kSplineProblem);
-
-  }
+  /* First, copy the old curve. */
+  
+  newVer = plc_copy(inLink);
 
   /* Now compute the number of vertices needed for the new curve. */
 
@@ -137,14 +137,37 @@ plCurve_fixresolution( plCurve* inLink, double newres)
 
   /* Generate the new curve */
 
-  newver = plc_convert_from_spline(splinever,nv);
+  int failsafe = 0;
 
-  /* Free memory and return. */
+  /* First, check to see if we need to do anything. */
+  
+  for(i=0;i<inLink->nc;i++) {
+
+      if (newVer->cp[i].nv < nv[i]) { ok = false; }
+
+  }
+
+  /* If so, go ahead and start doubling. */
+
+  for (failsafe=0;!ok;failsafe++) {
+
+    plc_double_verts(newVer);
+    ok = true;
+
+    for(i=0;i<inLink->nc;i++) {
+
+      if (newVer->cp[i].nv < nv[i]) { ok = false; }
+
+    }
+
+  }
+
+  /* Now free memory and return. */
 
   free(nv);
   free(length);
-  plc_spline_free(splinever);
-  return newver;
+
+  return newVer;
 
 }
 
