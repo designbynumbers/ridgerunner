@@ -114,7 +114,7 @@ plCurve_fixresolution( plCurve* inLink, double newres)
      The procedure is nondestructive to the original curve. Rewritten to 
      use plc_double_verts instead of plc splines. */
 
-  plCurve*   newVer;
+  plCurve    *newVer, *swapVer;
 
   bool       ok = false;
   int        i;
@@ -125,8 +125,6 @@ plCurve_fixresolution( plCurve* inLink, double newres)
   assert(nv != NULL);
   assert(length != NULL);
 
-  /* First, copy the old curve. */
-  
   newVer = plc_copy(inLink);
 
   /* Now compute the number of vertices needed for the new curve. */
@@ -151,7 +149,10 @@ plCurve_fixresolution( plCurve* inLink, double newres)
 
   for (failsafe=0;!ok;failsafe++) {
 
-    plc_double_verts(newVer);
+    swapVer = plc_double_verts(newVer);
+    plc_free(newVer);
+    newVer = swapVer;
+
     ok = true;
 
     for(i=0;i<inLink->nc;i++) {

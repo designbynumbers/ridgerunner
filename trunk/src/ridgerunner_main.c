@@ -479,12 +479,15 @@ main( int argc, char* argv[] )
   
   if (arg_resolution->count > 0) {
     
+    logprintf("Original curve has %d verts, %g verts/rop.\n",plc_num_verts(link),
+	      plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL));
+
     tempLink = plCurve_fixresolution(link,arg_resolution->dval[0]);
     plc_free(link);
     link = tempLink;
     
-    logprintf("Splined to resolution of %g verts/rop. New curve has %d verts.\n",
-	   arg_resolution->dval[0],plc_num_verts(link));
+    logprintf("Splined to resolution at least %g verts/rop. \nNew curve has %d verts, %g verts/rop.\n",
+	   arg_resolution->dval[0],plc_num_verts(link),plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL));
         
   }
   
