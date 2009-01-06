@@ -510,7 +510,7 @@ main( int argc, char* argv[] )
   thickness = octrope_thickness(link,NULL,0,gLambda);
   double t_margin = 0.0001;
   
-  if( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin) {
+  if(( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin ) && link->cst == NULL) {  /* If we have constraints, we can't scale. */
   
     logprintf("Curve has thickness %g. Scaling to thickness %g.\n",
 	   thickness,state.tube_radius + t_margin);
