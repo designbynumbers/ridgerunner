@@ -157,7 +157,7 @@ main( int argc, char* argv[] )
   /*double	checkThreshold = 0.05;
     double	checkDelta = 1; */
 
-  double        stop20 = -1;        /* For this to fail, ropelength would have to climb! */
+  double        stop20 = -1000;        /* For this to fail, ropelength would have to climb! */
   double        eqMult = 2.0;
 
 

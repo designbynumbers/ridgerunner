@@ -192,6 +192,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     /************************************************************************/
     
     *inLink = bsearch_step(*inLink, inState);
+    correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
     
     /************************************************************************/
     
@@ -737,8 +738,10 @@ double *thicknessError(plCurve *inLink,
      /* We use the strutList and mrList passed in the header, ignoring
 	the versions stored in inState, which may not apply to this link. */
 
+     // We don't score constraint error here... it's handled elsewhere.
+
 {
-  int constraintCount = plCurve_score_constraints(inLink);
+  int constraintCount = 0; //plCurve_score_constraints(inLink);
   double* C = (double*)(calloc((strutCount+minradCount+constraintCount),sizeof(double)));
   *errorSize = strutCount+minradCount+constraintCount;
 
@@ -816,52 +819,52 @@ double *thicknessError(plCurve *inLink,
      supposed to be set have to be deduced on the fly from the
      constraint data structure in the plCurve inState. */
   
-  plc_constraint *thisCst;
-  int vItr;
-  plc_vector errVect;
-  char errmsg[1024];
+  /* plc_constraint *thisCst; */
+/*   int vItr; */
+/*   plc_vector errVect; */
+/*   char errmsg[1024]; */
   
-  for( sItr = strutCount + minradCount,
-	 thisCst = inLink->cst;
-       thisCst != NULL;
-       thisCst = thisCst->next ) {
+/*   for( sItr = strutCount + minradCount, */
+/* 	 thisCst = inLink->cst; */
+/*        thisCst != NULL; */
+/*        thisCst = thisCst->next ) { */
     
-    for (vItr = thisCst->vert; vItr < thisCst->vert+thisCst->num_verts; vItr++) {
+/*     for (vItr = thisCst->vert; vItr < thisCst->vert+thisCst->num_verts; vItr++) { */
       
-      if (thisCst->kind == unconstrained) {
+/*       if (thisCst->kind == unconstrained) { */
 	
-      } else if (thisCst->kind == fixed) {
+/*       } else if (thisCst->kind == fixed) { */
 	
-	errVect = plc_vect_diff(inLink->cp[thisCst->cmp].vt[vItr],thisCst->vect[0]);
+/* 	errVect = plc_vect_diff(inLink->cp[thisCst->cmp].vt[vItr],thisCst->vect[0]); */
 	
-	C[sItr++] = -errVect.c[0];
-	C[sItr++] = -errVect.c[1];
-	C[sItr++] = -errVect.c[2];
+/* 	C[sItr++] = -errVect.c[0]; */
+/* 	C[sItr++] = -errVect.c[1]; */
+/* 	C[sItr++] = -errVect.c[2]; */
 	
-      } else if (thisCst->kind == plane) {
+/*       } else if (thisCst->kind == plane) { */
 	
-	C[sItr++] = -(plc_dot_prod(inLink->cp[thisCst->cmp].vt[vItr],thisCst->vect[0]) - 
-		      plc_dot_prod(thisCst->vect[1],thisCst->vect[0]));
+/* 	C[sItr++] = -(plc_dot_prod(inLink->cp[thisCst->cmp].vt[vItr],thisCst->vect[0]) -  */
+/* 		      plc_dot_prod(thisCst->vect[1],thisCst->vect[0])); */
 	
-      } else if (thisCst->kind == line) {
+/*       } else if (thisCst->kind == line) { */
 
-	sprintf(errmsg,
-		"ridgerunner: line constraints are not implemented,"
-		"              and should have been detected before now.");
-	FatalError(errmsg, __FILE__ , __LINE__ );
+/* 	sprintf(errmsg, */
+/* 		"ridgerunner: line constraints are not implemented," */
+/* 		"              and should have been detected before now."); */
+/* 	FatalError(errmsg, __FILE__ , __LINE__ ); */
 	
-      } else {
+/*       } else { */
 	
-	sprintf(errmsg,
-		"ridgerunner: Unknown constraint type %d in inLink.\n",
-		thisCst->kind);
-	FatalError(errmsg, __FILE__ , __LINE__ );
+/* 	sprintf(errmsg, */
+/* 		"ridgerunner: Unknown constraint type %d in inLink.\n", */
+/* 		thisCst->kind); */
+/* 	FatalError(errmsg, __FILE__ , __LINE__ ); */
 	
-      }
+/*       } */
       
-    }
+/*     } */
     
-  }
+/*   } */
 
   return C;
 
@@ -881,6 +884,166 @@ double l2norm(double *V, int N)
 
 }
 
+void correct_constraints(plCurve *inLink,search_state *inState) 
+
+     /* Make sure that the curve inLink obeys constraints, if any. */
+
+{
+
+  plc_constraint *thisCst;
+  int vt,i;
+
+  if (inLink->cst == NULL) { return; } // We can save some time if there are no constraints.
+
+  for(thisCst = inLink->cst;thisCst != NULL;thisCst=thisCst->next) {
+
+    for(vt=thisCst->vert,i=0;i<thisCst->num_verts;vt++,i++) {
+
+      if (thisCst->kind == fixed) {
+
+	inLink->cp[thisCst->cmp].vt[vt] = thisCst->vect[0]; /* Just move it back. */
+
+      } else if (thisCst->kind == line) {
+
+	plc_vector T,P,*ilv;
+	bool ok;
+
+	T = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
+	P = plc_vect_diff(thisCst->vect[1],plc_scale_vect(plc_dot_prod(thisCst->vect[1],T),T));
+	/* Make the tangent a unit vector T and the point P in the plane normal to T. */
+
+	ilv = &(inLink->cp[thisCst->cmp].vt[vt]);
+
+	*ilv = plc_vect_sum(plc_scale_vect(plc_dot_prod(*ilv,T),T),P);
+	/* The closest point on the line through P in direction T to *ilv. */
+
+      } else if (thisCst->kind == plane) {
+
+	plc_vector N,*ilv;
+	bool ok;
+
+	N = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
+	ilv = &(inLink->cp[thisCst->cmp].vt[vt]);
+
+	*ilv = plc_vect_diff(*ilv,plc_scale_vect(plc_dot_prod(*ilv,N),N));
+	/* We have now projected *ilv into the plane through origin normal to N */
+	*ilv = plc_vect_sum(*ilv,plc_scale_vect(thisCst->vect[1].c[0],N));
+	/* This lifts *ilv to the correct plane. */
+
+      } else {
+
+	char errmsg[1024];
+
+	sprintf(errmsg,"correct_constraints: Fatal error. Unknown constraint type detected in inLink.\n");
+	FatalError(errmsg,__FILE__,__LINE__);
+
+      }
+
+    }
+
+  }
+
+  plc_fix_wrap(inLink); /* This is critical!!!! */
+
+  /* We have now modified the link. We have several responsibilities to discharge. */
+  /* Basically, we have to update inState to match the new length/strutSet/etc.... */
+
+  int      strutCount;
+  int      minradCount;
+  
+  octrope_strut *strutSet = NULL;
+  octrope_mrloc *minradSet = NULL;
+  
+  int strutStorageSize = 6*inState->totalVerts;
+  int minradStorageSize = inState->totalVerts;
+
+  strutSet = (octrope_strut *)(malloc(sizeof(octrope_strut)*strutStorageSize));
+  minradSet = (octrope_mrloc *)(malloc(sizeof(octrope_mrloc)*minradStorageSize));
+  
+  fatalifnull_(strutSet); 
+  fatalifnull_(minradSet);
+
+  octrope(inLink, 
+	      
+	  &inState->ropelength,
+	  &inState->thickness,		
+	  
+	  &inState->length,		
+	  &inState->minrad,
+	  &inState->shortest,
+	  
+	  // minrad struts
+	  gLambda*inState->tube_radius,  /* Cutoff reports all mrlocs less than this */
+	  0,                             /* This value will be ignored. */
+	  minradSet, 
+	  minradStorageSize,
+	  &minradCount,
+	  
+	  // strut info
+	  2*inState->tube_radius, /* Cutoff reports struts shorter than this. */
+	  0,                      /* This epsilon value also ignored. */
+	  strutSet,
+	  strutStorageSize,
+	  &strutCount,
+	  
+	  NULL, 0,                /* Let octrope allocate its' own memory. */
+	  
+	  gLambda);               /* The global "stiffness" parameter. */  
+
+  /* We now need to make sure that we didn't exceed the size of the strut
+     and/or minrad buffers. */
+  
+  if (strutCount >= strutStorageSize || minradCount >= minradStorageSize ||
+      strutCount < 0 || minradCount < 0) {
+    
+    char dumpname[1024];
+    char errmsg[1024];
+    
+    dumpLink(inLink,inState,dumpname);
+    sprintf(errmsg,
+	    "correct_thickness: octrope found %d struts and %d mrlocs on\n"
+	    "                   the %d vertex link (dumped to %s), too close to\n"
+	    "                   minradStorageSize of %d or strutStorageSize %d.\n",
+	    strutCount,minradCount,inState->totalVerts,dumpname,
+	    minradStorageSize,strutStorageSize);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+    
+  }
+  
+  /* Now we come up with new buffers for the strutSet and mrLocSet and copy over */
+  
+  assert(inState->lastStepStruts != NULL && inState->lastStepMRlist != NULL);
+   
+  free(inState->lastStepStruts);
+  free(inState->lastStepMRlist);
+  
+  inState->lastStepStruts = (octrope_strut *)(malloc(strutCount*sizeof(octrope_strut)));
+  inState->lastStepMRlist = (octrope_mrloc *)(malloc(minradCount*sizeof(octrope_mrloc)));
+
+  fatalifnull_(inState->lastStepStruts);
+  fatalifnull_(inState->lastStepMRlist);
+
+  int sItr;
+  
+  for(sItr=0;sItr<strutCount;sItr++) { 
+    
+    inState->lastStepStruts[sItr] = strutSet[sItr];
+    
+  }
+  
+  for(sItr=0;sItr<minradCount;sItr++) {
+    
+    inState->lastStepMRlist[sItr] = minradSet[sItr];
+    
+  }
+  
+  free(strutSet);
+  free(minradSet);
+  
+}
+
+
+
 int correct_thickness(plCurve *inLink,search_state *inState) 
 
      /* Newton's method correction algorithm for thickness. */
@@ -894,6 +1057,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 	direction for Newton steps. */
 
      /* If the Newton code fails, will return FALSE. */
+
+     // We take out the constraint handling code here. 
      
 {
   double stepSize = 1.0;
@@ -902,8 +1067,9 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     2*inState->tube_radius*(1 - 0.5*inState->overstepTol);
   double mrgreenZone = 
     gLambda*inState->tube_radius*(1-0.5*inState->minradOverstepTol);
-  int Csize = inState->lastStepStrutCount+inState->lastStepMinradStrutCount+
-    plCurve_score_constraints(inLink),workerCsize;
+  int Csize = inState->lastStepStrutCount+inState->lastStepMinradStrutCount
+    /*+plCurve_score_constraints(inLink)*/;
+  int workerCsize;
  
   /* The "green zone" is half of the error allowed by the overstepTol
      variables. We initiate correction if we are less than the
@@ -1301,6 +1467,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   dlenForce(dLen,inLink,inState);
   eqForce(dLen,inLink,inState);
   specialForce(dLen,inLink,inState);
+  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
 
   dVdt = resolveForce(dLen,inLink,inState); 
   /* Built from the bones of firstVariation. */
@@ -2044,8 +2211,11 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
    * component of the unit vector pointing _out_ from that strut's
    * endpoint at the edge incident to the given vertex.
    */
+
+  // At the moment, we handle constraints outside the linear algebraic 
+  // formalism to simplify things. Thus, we don't add constraints ever.
 				 	
-  constraintCount = plCurve_score_constraints(inLink);
+  constraintCount = 0; // plCurve_score_constraints(inLink);
   int nnz = 12*strutCount + 9*minradLocs + 3*constraintCount; // we KNOW this
   taucs_ccs_matrix *cleanA;
   
@@ -2095,7 +2265,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   placeContactStruts( cleanA, inLink, strutSet, strutCount, inState );
   placeMinradStruts( cleanA, inLink, minradSet, minradLocs, strutCount, inState );
-  placeConstraintStruts( cleanA, inLink, strutCount+minradLocs, inState );
+  //placeConstraintStruts( cleanA, inLink, strutCount+minradLocs, inState );
 
   taucs_enforce_ccs_sort(cleanA);
 
@@ -2210,6 +2380,77 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 	gravity or something). */
 
 { 
+
+}
+
+int dlenPos(plCurve *inLink,int cmp,int vt) 
+
+     /* Converts a Link, cmp, vert triple to a position on the dlen vector. */
+
+{
+  int dlp=0,cmpItr;
+
+  for(cmpItr=0;cmpItr<cmp;cmpItr++) {
+
+    dlp += inLink->cp[cmpItr].nv;
+
+  }
+
+  dlp += vt;
+
+  return dlp;
+
+}
+
+void
+constraintForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+
+     /* Make sure that the force obeys any active constraints. */
+
+{ 
+  plc_constraint *thisCst;
+  int vt,i;
+
+  for(thisCst = inLink->cst;thisCst != NULL;thisCst=thisCst->next) {
+
+    for(vt=thisCst->vert,i=0;i<thisCst->num_verts;vt++,i++) {
+
+      if (thisCst->kind == fixed) {
+
+	dlen[dlenPos(inLink,thisCst->cmp,vt)] = plc_build_vect(0,0,0);
+
+      } else if (thisCst->kind == line) {
+
+	plc_vector T,*dlv;
+	bool ok;
+
+	T = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
+	dlv = &(dlen[dlenPos(inLink,thisCst->cmp,vt)]);
+
+	*dlv = plc_scale_vect(plc_dot_prod(*dlv,T),T);
+
+      } else if (thisCst->kind == plane) {
+
+	plc_vector N,*dlv;
+	bool ok;
+
+	N = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
+	dlv = &(dlen[dlenPos(inLink,thisCst->cmp,vt)]);
+
+	*dlv = plc_vect_diff(*dlv,plc_scale_vect(plc_dot_prod(*dlv,N),N));
+
+      } else {
+
+	char errmsg[1024];
+
+	sprintf(errmsg,"constraintForce: Fatal error. Unknown constraint type detected in inLink.\n");
+	FatalError(errmsg,__FILE__,__LINE__);
+
+      }
+
+    }
+
+  }
 
 }
 
