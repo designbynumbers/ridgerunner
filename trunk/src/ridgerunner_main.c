@@ -47,8 +47,8 @@ main( int argc, char* argv[] )
   struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
 					    "to thickness 1.001");
 
-  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
-					     "spline curve to this resolution");
+  /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
+      "spline curve to this resolution"); */
 
   struct arg_lit  *arg_eqit = arg_lit0("e","eq","equilateralize curve"); 
 
@@ -126,7 +126,7 @@ main( int argc, char* argv[] )
   
   void *argtable[] = {arg_infile,arg_lambda,
 		      arg_bl0,arg_curveopts,arg_bl1,
-		      arg_autoscale,arg_resolution,arg_eqit,
+		      arg_autoscale,/* arg_resolution, */arg_eqit,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
@@ -149,7 +149,7 @@ main( int argc, char* argv[] )
   FILE*		linkFile = NULL;
   search_state	state;
   short		autoscale = 0, movie = 0;
-  double	refineUntil = -1;  /* Used to be an int */
+  /*  double	refineUntil = -1; *//*  Used to be an int */
   
   double	overstepTol=0.0001; /* Should this only be for tube_radius = 1? */
   double	residualThreshold = 0; /* Don't stop on residual by default. */
@@ -236,7 +236,7 @@ main( int argc, char* argv[] )
 
   if (arg_stop20->count > 0) { stop20 = arg_stop20->dval[0]; }
 
-  if (arg_resolution->count > 0) { refineUntil = arg_resolution->dval[0]; }
+  /*   if (arg_resolution->count > 0) { refineUntil = arg_resolution->dval[0]; } */
  
   if (arg_stopRes->count > 0) { residualThreshold = arg_stopRes->dval[0]; }
 
@@ -476,21 +476,22 @@ main( int argc, char* argv[] )
   /* Now perform initial operations. */
   
   plCurve *tempLink;
-  
-  if (arg_resolution->count > 0) {
-    
-    logprintf("Original curve has %d verts, %g verts/rop.\n",plc_num_verts(link),
-	      plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL));
 
-    tempLink = plCurve_fixresolution(link,arg_resolution->dval[0]);
-    plc_free(link);
-    link = tempLink;
-    
-    logprintf("Splined to resolution at least %g verts/rop. \nNew curve has %d verts, %g verts/rop.\n",
-	   arg_resolution->dval[0],plc_num_verts(link),plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL));
-        
-  }
   
+/*   if (arg_resolution->count > 0) { */
+    
+/*     logprintf("Original curve has %d verts, %g verts/rop.\n",plc_num_verts(link), */
+/* 	      plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL)); */
+
+/*     tempLink = plCurve_fixresolution(link,arg_resolution->dval[0]); */
+/*     plc_free(link); */
+/*     link = tempLink; */
+    
+/*     logprintf("Splined to resolution at least %g verts/rop. \nNew curve has %d verts, %g verts/rop.\n", */
+/* 	   arg_resolution->dval[0],plc_num_verts(link),plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL)); */
+        
+/* 	   }  */
+
   if( arg_eqit->count > 0 ) {
     
     for(i=0;i<3;i++) {

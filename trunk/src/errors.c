@@ -342,9 +342,12 @@ void logprintf(char *format, ... )
 /* For this function we flush as soon as we write if VERBOSITY >= 10
    since we're trying to detect crashes of the system then. */
 
+/* In any case, we flush after every 5 writes. */
+
 {
   va_list args;
   char msgbuf[2048];
+  static int nwrites=0;
   
   va_start(args,format);
   vsprintf(msgbuf,format,args);
@@ -365,8 +368,10 @@ void logprintf(char *format, ... )
   if (gLogfile != NULL) {
 
     fprintf(gLogfile,"%s",msgbuf);
-    if (VERBOSITY >= 10) {fflush(gLogfile);}
+    if (VERBOSITY >= 10 || nwrites%5 == 0) {fflush(gLogfile);}
   }
+
+  nwrites++;
 }
 
 void
