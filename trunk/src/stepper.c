@@ -890,60 +890,9 @@ void correct_constraints(plCurve *inLink,search_state *inState)
 
 {
 
-  plc_constraint *thisCst;
-  int vt,i;
-
   if (inLink->cst == NULL) { return; } // We can save some time if there are no constraints.
 
-  for(thisCst = inLink->cst;thisCst != NULL;thisCst=thisCst->next) {
-
-    for(vt=thisCst->vert,i=0;i<thisCst->num_verts;vt++,i++) {
-
-      if (thisCst->kind == fixed) {
-
-	inLink->cp[thisCst->cmp].vt[vt] = thisCst->vect[0]; /* Just move it back. */
-
-      } else if (thisCst->kind == line) {
-
-	plc_vector T,P,*ilv;
-	bool ok;
-
-	T = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
-	P = plc_vect_diff(thisCst->vect[1],plc_scale_vect(plc_dot_prod(thisCst->vect[1],T),T));
-	/* Make the tangent a unit vector T and the point P in the plane normal to T. */
-
-	ilv = &(inLink->cp[thisCst->cmp].vt[vt]);
-
-	*ilv = plc_vect_sum(plc_scale_vect(plc_dot_prod(*ilv,T),T),P);
-	/* The closest point on the line through P in direction T to *ilv. */
-
-      } else if (thisCst->kind == plane) {
-
-	plc_vector N,*ilv;
-	bool ok;
-
-	N = plc_normalize_vect(thisCst->vect[0],&ok); assert(ok);
-	ilv = &(inLink->cp[thisCst->cmp].vt[vt]);
-
-	*ilv = plc_vect_diff(*ilv,plc_scale_vect(plc_dot_prod(*ilv,N),N));
-	/* We have now projected *ilv into the plane through origin normal to N */
-	*ilv = plc_vect_sum(*ilv,plc_scale_vect(thisCst->vect[1].c[0],N));
-	/* This lifts *ilv to the correct plane. */
-
-      } else {
-
-	char errmsg[1024];
-
-	sprintf(errmsg,"correct_constraints: Fatal error. Unknown constraint type detected in inLink.\n");
-	FatalError(errmsg,__FILE__,__LINE__);
-
-      }
-
-    }
-
-  }
-
-  plc_fix_wrap(inLink); /* This is critical!!!! */
+  plc_fix_cst(inLink);
 
   /* We have now modified the link. We have several responsibilities to discharge. */
   /* Basically, we have to update inState to match the new length/strutSet/etc.... */
@@ -1559,6 +1508,21 @@ bsearch_step( plCurve* inLink, search_state* inState )
   } while( ((curr_error > ERROR_BOUND ) || (mr_error > MR_ERROR_BOUND)) &&
 	   inState->stepSize < inState->maxStepSize 
 	   && inState->stepSize > kMinStepSize );
+
+  if (curr_error > 100*ERROR_BOUND) {
+
+    char dumpName[1024];
+
+    dumpLink(workerLink,inState,dumpName);
+
+    logprintf("bsearch_step: Couldn't reduce error (%g) to < 100 * ERROR_BOUND (%g), even at \n"
+	      "              stepsize %g. Dumping workerLink to %s.\n",
+	      curr_error,ERROR_BOUND,inState->stepSize,dumpName);
+
+    dumpDvdt(dVdt,inLink,inState);
+    exit(1);
+
+  }
 
   /* Notice that this loop condition restricts the maximum stepsize,
      even if the error is small, and causes us to accept a step which
