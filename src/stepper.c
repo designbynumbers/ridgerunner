@@ -295,20 +295,24 @@ void update_vect_directory(plCurve * const inLink, search_state *inState)
   char tmpfilename[1024];
   FILE *outfile;
   static int frames_written_since_compression = 0;
-  
-  sprintf(tmpfilename,"%s.%07d.vect",
-	  inState->vectprefix,inState->steps);
-  outfile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
-  plc_write(outfile,inLink);
-  fclose(outfile);
-  
-  frames_written_since_compression++;
 
-  if (frames_written_since_compression == inState->maxmovieframes/2) { 
-
-    compress_vectdir(inState);
-    frames_written_since_compression = 0;
-    inState->moviefactor *= 2;
+  if (!gSuppressOutput) {
+  
+    sprintf(tmpfilename,"%s.%07d.vect",
+	    inState->vectprefix,inState->steps);
+    outfile = fopen_or_die(tmpfilename,"w", __FILE__ , __LINE__ );
+    plc_write(outfile,inLink);
+    fclose(outfile);
+    
+    frames_written_since_compression++;
+    
+    if (frames_written_since_compression == inState->maxmovieframes/2) { 
+      
+      compress_vectdir(inState);
+      frames_written_since_compression = 0;
+      inState->moviefactor *= 2;
+      
+    }
 
   }
       
