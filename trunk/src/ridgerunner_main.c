@@ -47,6 +47,8 @@ main( int argc, char* argv[] )
   struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
 					    "to thickness 1.001");
 
+  struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode. No initial rescaling of curve.");
+
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
@@ -126,7 +128,7 @@ main( int argc, char* argv[] )
   
   void *argtable[] = {arg_infile,arg_lambda,
 		      arg_bl0,arg_curveopts,arg_bl1,
-		      arg_autoscale,/* arg_resolution, */arg_eqit,
+		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
@@ -510,31 +512,35 @@ main( int argc, char* argv[] )
   double thickness;
   thickness = octrope_thickness(link,NULL,0,gLambda);
   double t_margin = 0.0001;
-  
-  if(( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin )) {  
-  
-    logprintf("Curve has thickness %g. Scaling to thickness %g.\n",
-	   thickness,state.tube_radius + t_margin);
-    
-    plc_scale(link,(state.tube_radius + t_margin)/thickness);
-    thickness = octrope_thickness(link,NULL,0,gLambda);
-    
-    logprintf("Scaled curve has thickness %g.\n",thickness);
-       
-    if (fabs(thickness - (state.tube_radius + t_margin) > 1e-12)) {
+
+  if (arg_continue->count == 0) {
+
+    if(( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin)) {  
       
-      sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
-	      "             Aborting run.\n",fname,state.tube_radius + t_margin);
-      FatalError(errmsg, __FILE__ , __LINE__ );
+      logprintf("Curve has thickness %g. Scaling to thickness %g.\n",
+		thickness,state.tube_radius + t_margin);
       
-    } else {
+      plc_scale(link,(state.tube_radius + t_margin)/thickness);
+      thickness = octrope_thickness(link,NULL,0,gLambda);
       
-      printf(" Autoscale selftest ok.\n");
+      logprintf("Scaled curve has thickness %g.\n",thickness);
+      
+      if (fabs(thickness - (state.tube_radius + t_margin) > 1e-12)) {
+	
+	sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
+		"             Aborting run.\n",fname,state.tube_radius + t_margin);
+	FatalError(errmsg, __FILE__ , __LINE__ );
+	
+      } else {
+	
+	printf(" Autoscale selftest ok.\n");
+	
+      }
       
     }
     
   }
-
+  
   plc_constraint *thisCst;
   
   for(thisCst = link->cst; 
