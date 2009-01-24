@@ -25,6 +25,8 @@ foreach $myfile (@files) {
 	 && $myfile !~ m/(\.dVdt.vect)$/ && $myfile !~ m/(\.dlen.vect)$/ ) {
 
 	$rlcount++;
+
+	print "Computing ropelength for $myfile.\n";
     
 	open(ROPELENGTH,"ropelength $myfile |");
 	while (<ROPELENGTH>) {
