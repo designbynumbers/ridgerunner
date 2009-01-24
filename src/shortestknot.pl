@@ -12,6 +12,13 @@ my $ropelength;
 my $rbest = 10000000;
 my $fbest = "";
 
+if ($#ARGV == -1) {
+
+    print("Usage: shortestknot <vectfiles>\n");
+    exit(1);
+
+}
+
 print "Checking $#ARGV files...";
 
 foreach $myfile (@ARGV) {
