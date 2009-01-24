@@ -11,19 +11,15 @@ my $myfile;
 my $ropelength;
 my $rbest = 10000000;
 my $fbest = "";
+my @files;
 
-if ($#ARGV == -1) {
+@files = <*.vect>;
 
-    print("Usage: shortestknot <vectfiles>\n");
-    exit(1);
-
-}
-
-print "Checking $#ARGV files...";
+print "Checking $#files files...";
 
 my $rlcount = 0;
 
-foreach $myfile (@ARGV) {
+foreach $myfile (@files) {
     
     if ( $myfile =~ m/(\.vect)$/ && $myfile !~ m/(\.best\.vect)$/ 
 	 && $myfile !~ m/(\.dVdt.vect)$/ && $myfile !~ m/(\.dlen.vect)$/ ) {
