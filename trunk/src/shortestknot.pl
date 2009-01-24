@@ -22,12 +22,11 @@ my $rlcount = 0;
 foreach $myfile (@files) {
     
     if ( $myfile =~ m/(\.vect)$/ && $myfile !~ m/(\.best\.vect)$/ 
-	 && $myfile !~ m/(\.dVdt.vect)$/ && $myfile !~ m/(\.dlen.vect)$/ ) {
+	 && $myfile !~ m/(\.dVdt\.vect)$/ && $myfile !~ m/(\.dlen\.vect)$/ &&
+	 $myfile !~ m/(\.struts\.vect)$/ ) {
 
 	$rlcount++;
 
-	print "Computing ropelength for $myfile.\n";
-    
 	open(ROPELENGTH,"ropelength $myfile |");
 	while (<ROPELENGTH>) {
 	    if (/Ropelength:\s*(\S+)/) { 
