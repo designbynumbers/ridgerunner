@@ -21,30 +21,36 @@ if ($#ARGV == -1) {
 
 print "Checking $#ARGV files...";
 
+my $rlcount = 0;
+
 foreach $myfile (@ARGV) {
     
-    if ( $myfile =~ m/(\.vect)$/ && $myfile !~ m/(\.best\.vect)$/ ) {
+    if ( $myfile =~ m/(\.vect)$/ && $myfile !~ m/(\.best\.vect)$/ 
+	 && $myfile !~ m/(\.dVdt.vect)$/ && $myfile !~ m/(\.dlen.vect)$/ ) {
+
+	$rlcount++;
     
-    open(ROPELENGTH,"ropelength $myfile |");
-    while (<ROPELENGTH>) {
-	if (/Ropelength:\s*(\S+)/) { 
-	    $ropelength = $1;
+	open(ROPELENGTH,"ropelength $myfile |");
+	while (<ROPELENGTH>) {
+	    if (/Ropelength:\s*(\S+)/) { 
+		$ropelength = $1;
+	    }
 	}
-    }
-    close ROPELENGTH;
-
-    if ($ropelength < $rbest) {
-
-	$rbest = $ropelength;
-	$fbest = $myfile;
-
-    }
+	close ROPELENGTH;
+	
+	if ($ropelength < $rbest) {
+	    
+	    $rbest = $ropelength;
+	    $fbest = $myfile;
+	    
+	}
     
-}
+    }
 
 }
 
 print "done.\n";
+print "Computed ropelength for $rlcount files.\n";
 print "Best ropelength value is $rbest for file $fbest.\n";
 
 my $bestname = "";
