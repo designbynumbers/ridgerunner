@@ -23,7 +23,7 @@ my $firsttocheck = 0;
 if ($#ARGV > -1) {
 
     $firsttocheck = $ARGV[0];
-    print "Will discard files with number < $firsttocheck.\n";
+    print "will discard files with number < $firsttocheck...";
 
 }
 
@@ -48,7 +48,7 @@ foreach $myfile (@files) {
 
 	open(ROPELENGTH,"ropelength $myfile |");
 	while (<ROPELENGTH>) {
-	    if (/Ropelength:\s*(\S+)/) { 
+	    if (/:Ropelength:\s*(\S+)/) { 
 		$ropelength = $1;
 	    }
 	}
