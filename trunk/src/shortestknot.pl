@@ -37,7 +37,7 @@ foreach $myfile (@files) {
 
 	    if ($1 < $firsttocheck) {
 
-		continue;
+		next;
 
 	    }
 
