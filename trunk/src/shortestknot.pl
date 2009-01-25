@@ -20,7 +20,7 @@ print "Checking $#files files...";
 my $rlcount = 0;
 my $firsttocheck = 0;
 
-if ($#ARGV > 0) {
+if ($#ARGV > -1) {
 
     $firsttocheck = $ARGV[0];
     print "Will discard files with number < $firsttocheck.\n";
