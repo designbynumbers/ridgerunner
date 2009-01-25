@@ -23,6 +23,7 @@ my $firsttocheck = 0;
 if ($#ARGV > 0) {
 
     $firsttocheck = $ARGV[0];
+    print "Will discard files with number < $firsttocheck.\n";
 
 }
 
