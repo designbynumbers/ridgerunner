@@ -18,12 +18,30 @@ my @files;
 print "Checking $#files files...";
 
 my $rlcount = 0;
+my $firsttocheck = 0;
+
+if ($#ARGV > 0) {
+
+    $firsttocheck = $ARGV[0];
+
+}
 
 foreach $myfile (@files) {
     
     if ( $myfile =~ m/(\.vect)$/ && $myfile !~ m/(\.best\.vect)$/ 
 	 && $myfile !~ m/(\.dVdt\.vect)$/ && $myfile !~ m/(\.dlen\.vect)$/ &&
 	 $myfile !~ m/(\.struts\.vect)$/ ) {
+
+
+	if ( $myfile =~ m/(\d+)(\.vect)$/ ) {
+
+	    if ($1 < $firsttocheck) {
+
+		continue;
+
+	    }
+
+	}
 
 	$rlcount++;
 
