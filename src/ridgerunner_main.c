@@ -45,7 +45,7 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_bl1 = arg_rem("","");
 
   struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
-					    "to thickness 1.001");
+					    "to thickness .501");
 
   struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode. No initial rescaling of curve.");
 
@@ -254,6 +254,8 @@ main( int argc, char* argv[] )
   if (arg_verbose->count > 0) { VERBOSITY = 5; }
 
   if (arg_vverbose->count > 0) { VERBOSITY = 10; }
+
+  if (arg_lambda->count > 0) { gLambda = arg_lambda->dval[0]; }
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
