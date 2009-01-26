@@ -2133,6 +2133,17 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
 	  gLambda);               /* The global "stiffness" parameter. */  
 
+  /* We now need to correct if stiffness == 0, because in this case, we want to throw 
+     out the minradlocs buffer whatever its contents are.  */
+
+  if (gLambda == 0) {
+
+    free(minradSet);
+    minradSet = NULL;
+    minradLocs = 0;
+
+  }
+
   inState->octrope_calls++;
 
   /* We now need to make sure that we didn't exceed the size of the strut
