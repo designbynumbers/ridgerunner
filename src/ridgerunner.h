@@ -50,6 +50,7 @@ extern int gQuiet;
 extern double gLambda;                  /* lambda-stiffness of rope */
 extern int gMaxCorrectionAttempts;
 extern int gNoRcond;  /* Used to suppress rcond calls on systems with buggy ATLAS. */
+extern int gLsqrLogging; /* Used to enable lsqr output logging. */
 
 #ifdef CURSES_DISPLAY
 
