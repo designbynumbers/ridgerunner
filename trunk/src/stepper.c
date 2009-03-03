@@ -645,7 +645,7 @@ stanford_lsqr( search_state *inState,
   lsqr_func    *lsqr_func;
   int bItr;
   double*		result;
-  char errmsg[1024];
+  char errmsg[1024],logfilename[4096];
   
   alloc_lsqr_mem( &lsqr_in, &lsqr_out, &lsqr_work, &lsqr_func, sparseA->m, sparseA->n );
   
@@ -657,7 +657,26 @@ stanford_lsqr( search_state *inState,
   lsqr_in->rel_rhs_err = 0;
   lsqr_in->cond_lim = 1/(10*sqrt(DBL_EPSILON));
   lsqr_in->max_iter = 4*lsqr_in->num_cols;  /* Suggested by lsqr docs */
-  lsqr_in->lsqr_fp_out = inState->logfiles[klsqrlog];	
+
+  /* We only want to store the last output in the log. So we need to close and 
+     reopen the lsqr logfile here. */
+
+  if (gLsqrLogging) {
+
+    sprintf(logfilename,"./%s.rr/logfiles/%s.dat",
+	    inState->basename,
+	    inState->logfilenames[klsqrlog]);
+
+    fclose(inState->logfiles[klsqrlog]);
+    inState->logfiles[klsqrlog] = fopen_or_die(logfilename,"w",__FILE__,__LINE__);
+    
+    lsqr_in->lsqr_fp_out = inState->logfiles[klsqrlog];	
+
+  } else {
+
+    lsqr_in->lsqr_fp_out = NULL;
+
+  }
 
   for( bItr=0; bItr<sparseA->m; bItr++ ) {
 

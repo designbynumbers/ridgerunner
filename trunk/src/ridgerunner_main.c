@@ -19,6 +19,7 @@ int gQuiet = 0;
 double gLambda = 1.0;   /* lambda-stiffness of rope */
 int gMaxCorrectionAttempts = 25;
 int gNoRcond = 0;
+int gLsqrLogging = 1;
 
 void usage();
 void reload_handler( int sig );
@@ -78,6 +79,8 @@ main( int argc, char* argv[] )
   struct arg_lit  *arg_suppressfiles = arg_lit0(NULL,"NoOutputFiles",
 		      "don't save intermediate files during run");
 
+  struct arg_lit  *arg_nolsqrlog = arg_lit0(NULL,"NoLsqrLog","don't log output from lsqr");
+
   struct arg_str  *arg_maxlogsize = arg_str0(NULL,"MaxLogSize","<100K>",
 					     "maximum log file size in bytes, K, or M");
 
@@ -134,7 +137,7 @@ main( int argc, char* argv[] )
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
-		      arg_suppressfiles, arg_maxlogsize, 
+		      arg_suppressfiles, arg_nolsqrlog, arg_maxlogsize, 
 		      arg_maxvectdirsize, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
@@ -231,6 +234,8 @@ main( int argc, char* argv[] )
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 
   if (arg_suppressfiles->count > 0) { gSuppressOutput = 1; }
+
+  if (arg_nolsqrlog->count > 0) { gLsqrLogging = 0; }
 
   if (arg_overstep->count > 0) { overstepTol = arg_overstep->dval[0]; }
 
