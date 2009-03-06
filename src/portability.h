@@ -84,3 +84,6 @@ which need to be provided if system libraries are lacking.
   #include <dmalloc.h>
 #endif
 
+#ifdef HAVE_MALLOC_H
+  #include <malloc.h>
+#endif

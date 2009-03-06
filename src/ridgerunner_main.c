@@ -406,6 +406,12 @@ main( int argc, char* argv[] )
 
   fprintf(gLogfile,"Stopping criteria: Max # of steps %ld, Min residual %g, Stop20 %g, stopTime %d (sec).\n",
 	  state.maxItrs,state.residualThreshold,state.stop20,state.stopTime);
+
+#ifdef HAVE_GETPID
+
+  fprintf(gLogfile,"Process ID: %d.\n",(int)(getpid()));
+
+#endif
   
   fprintf(gLogfile,"------------------------------------------------\n");
   
@@ -714,7 +720,7 @@ initializeState( search_state* state )
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
     "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance",
-    "lsqroutput"
+    "lsqroutput","memused"
   }; 
 
   search_state *zerostate;

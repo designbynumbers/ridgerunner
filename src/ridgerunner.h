@@ -81,6 +81,7 @@ enum GraphTypes
   kCorrectionStepsNeeded, // the number of correction steps required to converge,
   kEQVariance,	// the variance of the set of (edge lengths - the average)
   klsqrlog,
+  kMemused,  // total amount of memory allocated
   
   kTotalLogTypes
 };

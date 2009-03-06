@@ -501,6 +501,14 @@ void update_runtime_logs(search_state *state)
   fprintf(state->logfiles[kMaxOverMin],"%d %g \n",state->steps,state->lastMaxMin);
   fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
 
+#ifdef HAVE_MALLINFO
+  struct mallinfo m;
+  m = mallinfo();
+  fprintf(state->logfiles[kMemused],"%d %d",state->steps,m.uordblks); // Total mem alloc'd by malloc
+#else
+  fprintf(state->logfiles[kMemused],"%d (this system does not have mallinfo)\n",state->steps);
+#endif
+
   log_entries_since_compression++;
 
 #ifdef HAVE_TIME
