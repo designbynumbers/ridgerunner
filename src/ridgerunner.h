@@ -267,6 +267,13 @@ int correct_thickness(plCurve *inLink,search_state *inState);
 void correct_constraints(plCurve *inLink,search_state *inState);
 /* Correct the position of the link so that constraints are obeyed. */
 
+plCurve*  straighten_free_edges( plCurve* inLink, search_state* inState );
+/* A separate stepper for free edges */
+
+int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt);
+/* Fills the buffers cp and vt, expected to be at least plc_num_verts(inLink) with 
+   component, vertex number pairs for all vertices without struts. */
+
 taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState);
 /* Creates rigidity matrix corresponding to current set of struts, kinks, constraints. */
 
