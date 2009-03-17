@@ -193,6 +193,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     
     *inLink = bsearch_step(*inLink, inState);
     correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
+
+    *inLink = straighten_free_edges(*inLink,inState); // This is really a second stepper
     
     /************************************************************************/
     

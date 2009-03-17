@@ -87,6 +87,12 @@ main( int argc, char* argv[] )
   struct arg_str  *arg_maxvectdirsize = arg_str0(NULL,"MaxVectDirSize","<100M>",
 					      "maximum size of movie dir in bytes, K, or M");
 
+  struct arg_lit  *arg_nocolor = arg_lit0(NULL,"NoColor", "don't color curves at all");
+
+  struct arg_lit  *arg_nofreecolor = arg_lit0(NULL,"NoFreeColor", "don't color strut-free vertices of curves");
+
+  struct arg_lit  *arg_nokinkcolor = arg_lit0(NULL,"NoKinkColor", "don't color kinked vertices of curves");
+
   // struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
   //					  "</home/../outdir/>",
   //					  0,"path for output files");
@@ -451,6 +457,10 @@ main( int argc, char* argv[] )
   fclose(savefile);
   
   logprintf("Saved copy of %s to %s.\n",state.fname,filename);
+
+  /* We now handle adding color to the curve if needed. */
+
+  
  
   /* Now complete state initializations which depend on the curve. */
 
