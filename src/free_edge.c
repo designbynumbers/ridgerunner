@@ -23,26 +23,28 @@ typedef struct vertex_record_type {
 
 } vertex_record;
 
-int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt)
+int strut_free_vertices( plCurve* inLink, double tube_radius, int *cpBuf, int *vtBuf)
 
 /* Returns two int buffers giving component and vertex numbers for all
    vertices which are known to be free of struts on adjacent
    edges. The list is sorted in dictionary order on (cp,vt) pairs. 
    The buffers cp and vt are required to be at least as large as 
-   plc_num_verts(inLink). */
+   plc_num_verts(inLink). We require a run of strut-free vertices to 
+   be at least 4 vertices long before we report it. */
 
 {
 
-  int strutStorageSize, strutCount, nVerts;
+  int strutStorageSize, strutCount;
   octrope_strut *strutSet;
   double shortest;
   plCurve *scratchcurve;
   octrope_strut *st;
+  int vRadius = 4;
   
   if (VERBOSITY >= 10) { logprintf("\tstrut_free_vertices..."); }
   
   strutStorageSize = 6*plc_num_verts(inLink);
-  strutSet = malloc_or_die(sizeof(octrope_strut)*strutStorageSize);
+  strutSet = malloc_or_die(sizeof(octrope_strut)*strutStorageSize, __FILE__ , __LINE__ );
   strutCount = octrope_struts(inLink, 2*tube_radius, 0, strutSet, strutStorageSize, &shortest, NULL, 0);
   assert(strutCount < strutStorageSize);
 
@@ -66,35 +68,47 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt)
 
   /* Now we read the strut list and update the dummy vertex information. */
   
+  int lv,end,cp;
+
   for(i=0;i<strutCount;i++) {
 
     st = &(strutSet[i]);
 
-    scratchcurve->cp[st->component[0]].vt[st->lead_vert[0]].c[0] = 1.0;
-    scratchcurve->cp[st->component[1]].vt[st->lead_vert[1]].c[0] = 1.0;
- 
-    /* Unfortunately, the last vertex on a closed curve is a special case. */
-   
-    if (!scratchcurve->cp[st->component[0]].open && st->lead_vert[0] == scratchcurve->cp[st->component[0]].nv-1) {
-      
-      scratchcurve->cp[st->component[0]].vt[0].c[0] = 1.0;
+    for(end=0;end<2;end++) {
 
-    } else {
-      
-      scratchcurve->cp[st->component[0]].vt[st->lead_vert[0]+1].c[0] = 1.0;
-  
-    }
+      cp = st->component[end];
+
+      if (!scratchcurve->cp[cp].open) { /* We need to wrap addressing */
 	
-    if (!scratchcurve->cp[st->component[1]].open && st->lead_vert[1] == scratchcurve->cp[st->component[1]].nv-1) {
-       
-      scratchcurve->cp[st->component[1]].vt[0].c[0] = 1.0;
-
-    } else {
+	lv = st->lead_vert[end] + scratchcurve->cp[cp].nv; // Added to make modular arithmetic come out right
       
-      scratchcurve->cp[st->component[1]].vt[st->lead_vert[1]+1].c[0] = 1.0;
-  
+	for(j=0;j<vRadius;j++) {
+
+	  scratchcurve->cp[cp].vt[(lv + j) % scratchcurve->cp[cp].nv].c[0] = 1.0;
+	  scratchcurve->cp[cp].vt[(lv - j) % scratchcurve->cp[cp].nv].c[0] = 1.0;
+	  
+	}
+
+      } else { /* Instead, we need to cut off addressing at ends of curve */
+
+	lv = st->lead_vert[end];
+	
+	for(j=0;j<vRadius && (lv + j) <scratchcurve->cp[cp].nv;j++) {
+
+	   scratchcurve->cp[cp].vt[(lv + j)].c[0] = 1.0;
+	  
+	}
+
+	for(j=0;j<vRadius && (lv - j) >= 0;j++) {
+
+	  scratchcurve->cp[cp].vt[(lv - j)].c[0] = 1.0;
+	  
+	}
+
+      }
+
     }
-    
+
   }
   
   /* Now we go ahead and read out the results onto the cp and vt buffers. */
@@ -107,7 +121,7 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt)
 
       if (scratchcurve->cp[i].vt[j].c[0] < 0.5) { 
 
-	cp[nStrutFree] = i; vt[nStrutFree] = j; nStrutFree++; 
+	cpBuf[nStrutFree] = i; vtBuf[nStrutFree] = j; nStrutFree++; 
 
       }
 
@@ -120,7 +134,65 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt)
   plc_free(scratchcurve);
   free(strutSet);
 
-  return nFree;
+  return nStrutFree;
 
 }
 
+void highlight_curve(plCurve *L, search_state *state)
+
+/* Highlight straight segments, kinks, and other "understood" portions of a link. */
+
+{
+  int cp;
+
+  /* First, double check that the number of colors is set large enough for every component. */
+
+  for(cp=0;cp<L->nc;cp++) {
+
+    if (L->cp[cp].cc != L->cp[cp].nv) { 
+
+      FatalError("Not enough colors in a component of the final link.", __FILE__ , __LINE__ );
+
+    }
+
+  }
+
+  /* Straight segments. */
+
+  int *cpBuf,*vtBuf, nStrutFree;
+
+  cpBuf = malloc_or_die(sizeof(int)*plc_num_verts(L), __FILE__ , __LINE__ );
+  vtBuf = malloc_or_die(sizeof(int)*plc_num_verts(L), __FILE__ , __LINE__ );
+
+  nStrutFree = strut_free_vertices(L,state->tube_radius,cpBuf,vtBuf);
+
+  int i;
+
+  for(i=0;i<nStrutFree;i++) {
+
+    L->cp[cpBuf[i]].clr[vtBuf[i]] = gStraightSegColor;
+
+  }
+
+  free(cpBuf); free(vtBuf);
+
+  /* Kinked regions */
+
+  octrope_mrloc *mrBuf;
+  int nKinkVerts;
+
+  mrBuf = malloc_or_die(sizeof(octrope_mrloc)*plc_num_verts(L), __FILE__ , __LINE__ );
+  octrope_minrad(L,gLambda*state->tube_radius,0,mrBuf,plc_num_verts(L),&nKinkVerts);
+
+  for(i=0;i<nKinkVerts;i++) {
+
+    L->cp[mrBuf[i].component].clr[mrBuf[i].vert] = gKinkColor;
+
+  }
+
+  free(mrBuf);
+
+}
+      
+  
+  
