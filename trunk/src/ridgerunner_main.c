@@ -21,6 +21,25 @@ int gMaxCorrectionAttempts = 25;
 int gNoRcond = 0;
 int gLsqrLogging = 1;
 
+int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
+
+plc_color gTubeColors[5] = { \
+  {0.9647,0.9098,0.7647},  /* cream */ \
+  {0.00392,0.4,0.3686},    /* dkbrown */ \
+  {0.5490,0.3176,0.0392},  /* dkgreen */ \
+  {0.8470,0.7019,0.3960},  /* ltbrown */ \
+  {0.78039,0.9176,0.8980}  /* ltgreen */ \
+};
+
+plc_color gStraightSegColor = 
+    {128.0/255.0,177.0/255.0,211.0/255.0,1.0}; /* Blue */
+
+plc_color gKinkColor = 
+    {251.0/255.0,128.0/255.0,114.0/255.0,1.0}; /* Red */
+
+plc_color gHelixColor = 
+    {141.0/255.0,211.0/255.0,199.0/255.0,1.0}; /* Gray-greeny blue */
+
 void usage();
 void reload_handler( int sig );
 void initializeState( search_state* state );
@@ -89,10 +108,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_nocolor = arg_lit0(NULL,"NoColor", "don't color curves at all");
 
-  struct arg_lit  *arg_nofreecolor = arg_lit0(NULL,"NoFreeColor", "don't color strut-free vertices of curves");
-
-  struct arg_lit  *arg_nokinkcolor = arg_lit0(NULL,"NoKinkColor", "don't color kinked vertices of curves");
-
+  struct arg_lit  *arg_nohighlight = arg_lit0(NULL,"NoHighlight", "don't highlight straight or kinked portions of curve"); 
+  
   // struct arg_rex  *arg_outpath = arg_rex0(NULL,"OutPath","/*/",
   //					  "</home/../outdir/>",
   //					  0,"path for output files");
@@ -177,7 +194,7 @@ main( int argc, char* argv[] )
   long		maxItrs = 10000000;
   double	correctionStepSize = 0.25;
   double	minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
-  int           i;
+  int           i,j;
   
   srand(time(NULL));
 
@@ -460,7 +477,21 @@ main( int argc, char* argv[] )
 
   /* We now handle adding color to the curve if needed. */
 
-  
+  if (arg_nocolor->count == 0) {  /* The nocolor flag is not on, so we will color the curve, stomping existing colors. */
+
+    for(i=0;i<link->nc;i++) {
+
+      plc_resize_colorbuf(link,i,link->cp[i].nv);
+
+      for(j=0;j<link->cp[i].nv;j++) {
+
+	link->cp[i].clr[j] = gTubeColors[i % gNumTubeColors ];
+
+      }
+
+    }
+
+  }
  
   /* Now complete state initializations which depend on the curve. */
 
@@ -676,6 +707,14 @@ main( int argc, char* argv[] )
   #endif
   #endif
   #endif
+
+  /* We now color the straight segments, kinks, helices and so forth for final visualization purposes. */
+
+  if (arg_nohighlight->count == 0) { 
+
+    highlight_curve(link,&state);
+
+  }
 
   /* Now write the concluding file to the appropriate directory. */
 

@@ -16,7 +16,8 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/errors.h \
 	src/display.c \
 	src/ridgerunner.h \
-	src/portability.h
+	src/portability.h \
+	src/free_edge.c 
 
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
