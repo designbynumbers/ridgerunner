@@ -117,9 +117,24 @@ AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename ope
 AC_CHECK_LIB(m,sqrt)
 AC_CHECK_LIB(plCurve,plc_new,[],AC_MSG_ERROR([ridgerunner requires the plCurve library]))
 AC_CHECK_LIB(octrope,octrope,[],AC_MSG_ERROR([ridgerunner requires the octrope library]))
-AC_CHECK_LIB(argtable2,arg_parse,[have_argtable2=true],[have_argtable2=false])
+AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_ERROR([ridgerunner requires the argtable2 library]))
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
 AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
+
+#Checks for programs
+AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
+if test "$HAVE_TUBE" == true; then
+   AC_DEFINE([HAVE_TUBE],[1],[we have the tube vecttools program])
+else 
+   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner])
+fi   
+
+AC_CHECK_PROG([HAVE_GNUPLOT],[gnuplot],[true],[false])
+if test "$HAVE_GNUPLOT" == true; then
+   AC_DEFINE([HAVE_GNUPLOT],[1],[we have the gnuplot on this system])
+else 
+   AC_MSG_WARN([it is recommended that you install gnuplot with ridgerunner])
+fi   
 
 # Checks for header files.
 AC_HEADER_STDC
