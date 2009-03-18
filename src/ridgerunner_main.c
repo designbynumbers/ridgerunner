@@ -161,7 +161,7 @@ main( int argc, char* argv[] )
 
 		      arg_bl4,arg_fileopts,arg_bl5,
 		      arg_suppressfiles, arg_nolsqrlog, arg_maxlogsize, 
-		      arg_maxvectdirsize, /* arg_outpath, */
+		      arg_maxvectdirsize, arg_nocolor, arg_nohighlight, /* arg_outpath, */
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
@@ -740,6 +740,19 @@ main( int argc, char* argv[] )
 			  savefile);
 
   fclose(savefile);
+
+  /* If we have tube installed on this system, go ahead and provide a tube of the final configuration. */
+
+#ifdef HAVE_TUBE
+
+  char tmpcommand[8096];
+
+  sprintf(tmpcommand,"cd ./%s.rr; tube -r %g %s.final.vect",
+	  state.basename,state.tube_radius,state.basename);  
+
+  system(tmpcommand);
+
+#endif
 
   /* Now clean up allocated memory and close files. */
 
