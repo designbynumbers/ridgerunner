@@ -131,10 +131,25 @@ fi
 
 AC_CHECK_PROG([HAVE_GNUPLOT],[gnuplot],[true],[false])
 if test "$HAVE_GNUPLOT" == true; then
-   AC_DEFINE([HAVE_GNUPLOT],[1],[we have the gnuplot on this system])
+   AC_DEFINE([HAVE_GNUPLOT],[1],[we have gnuplot on this system])
 else 
    AC_MSG_WARN([it is recommended that you install gnuplot with ridgerunner])
 fi   
+
+AC_CHECK_PROG([HAVE_POVSNAP],[povsnap],[true],[false])
+if test "$HAVE_POVSNAP" == true; then
+   AC_DEFINE([HAVE_POVSNAP],[1],[we have povsnap and the povrayutils library on this system])
+else 
+   AC_MSG_WARN([it is recommended that you install povrayutils with ridgerunner])
+fi   
+
+AC_CHECK_PROG([HAVE_POVRAY],[povray],[true],[false])
+if test "$HAVE_POVRAY" == true; then
+   AC_DEFINE([HAVE_POVRAY],[1],[we have povray on this system])
+else 
+   AC_MSG_WARN([it is recommended that you install povray with ridgerunner])
+fi   
+
 
 # Checks for header files.
 AC_HEADER_STDC

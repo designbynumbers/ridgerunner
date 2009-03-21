@@ -25,10 +25,11 @@ int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColor
 
 plc_color gTubeColors[5] = { \
   {0.9647,0.9098,0.7647},  /* cream */ \
+  {0.8470,0.7019,0.3960},  /* ltbrown */ \
+  {0.78039,0.9176,0.8980},  /* ltgreen */	\
   {0.00392,0.4,0.3686},    /* dkbrown */ \
   {0.5490,0.3176,0.0392},  /* dkgreen */ \
-  {0.8470,0.7019,0.3960},  /* ltbrown */ \
-  {0.78039,0.9176,0.8980}  /* ltgreen */ \
+
 };
 
 plc_color gStraightSegColor = 
@@ -751,6 +752,17 @@ main( int argc, char* argv[] )
 	  state.basename,state.tube_radius,state.basename);  
 
   system(tmpcommand);
+
+#ifdef HAVE_POVRAY 
+
+#ifdef HAVE_POVSNAP 
+
+  sprintf(tmpcommand,"cd ./%s.rr; povsnap -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename);
+  system(tmpcommand);
+
+#endif
+
+#endif
 
 #endif
 

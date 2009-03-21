@@ -50,7 +50,8 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, int *cpBuf, int *v
 
   /* Now we can parse the results. We do this in a funny way, using a
      dummy copy of the curve as a way to index the vertices of the
-     curve. */
+     curve. This sounds odd, but it's a convenient way to tag vertices. 
+     Eventually, we should add tags to the plCurve structure. */
 
   int i,j;
 
@@ -61,7 +62,9 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, int *cpBuf, int *v
     for(j=0;j<scratchcurve->cp[i].nv;j++) {
 
       scratchcurve->cp[i].vt[j].c[0] = 0;  /* We will store 0 for no struts, 1 for struts. */
-
+      scratchcurve->cp[i].vt[j].c[1] = 0;  /* c[1] and c[2] are zeroed just to make debugging easier. */
+      scratchcurve->cp[i].vt[j].c[2] = 0;  
+      
     }
     
   }
