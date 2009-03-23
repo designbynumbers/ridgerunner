@@ -51,6 +51,7 @@ extern double gLambda;                  /* lambda-stiffness of rope */
 extern int gMaxCorrectionAttempts;
 extern int gNoRcond;  /* Used to suppress rcond calls on systems with buggy ATLAS. */
 extern int gLsqrLogging; /* Used to enable lsqr output logging. */
+extern int gNoTimeWarp; /* If true, turns off "timewarp" acceleration of free vertices */
 
 #ifdef CURSES_DISPLAY
 
@@ -399,11 +400,15 @@ void  logprintf(char *format, ... );
 
 /* Code for handling "free" regions of the curve */
 
-int strut_free_vertices( plCurve* inLink, double tube_radius, int *cp, int *vt);
-/* Fills the buffers cp and vt, expected to be at least plc_num_verts(inLink) with 
-   component, vertex number pairs for all vertices without struts. */
+int strut_free_vertices( plCurve* inLink, double tube_radius, bool *freeFlag);
+/* Fills a "flat" buffer freeFlag, expected to be plc_num_verts(inLink) in size, 
+   with "true" if the vertex is no closer than 4 vertices to a strut and "false" otherwise.
+   The buffer refers to vertices on the plCurve inlink in dictionary order on (cp,vt). */
 
 void highlight_curve( plCurve *L, search_state *state );
 /* Highlight straight segments, kinks, and other understood regions of the curve. */
+
+void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *inState);
+/* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
 
 #endif

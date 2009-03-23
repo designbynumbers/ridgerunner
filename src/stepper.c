@@ -1445,6 +1445,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
   eqForce(dLen,inLink,inState);
   specialForce(dLen,inLink,inState);
   constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
