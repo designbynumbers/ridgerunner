@@ -20,6 +20,7 @@ double gLambda = 1.0;   /* lambda-stiffness of rope */
 int gMaxCorrectionAttempts = 25;
 int gNoRcond = 0;
 int gLsqrLogging = 1;
+int gNoTimeWarp = 0;
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 
@@ -68,7 +69,9 @@ main( int argc, char* argv[] )
   struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
 					    "to thickness .501");
 
-  struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode. No initial rescaling of curve.");
+  struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode -- no initial rescaling of curve");
+
+  struct arg_lit  *arg_notimewarp = arg_lit0(NULL,"NoTimewarp","disable fast shrinking of free sections of curve");
 
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
@@ -155,7 +158,7 @@ main( int argc, char* argv[] )
   
   void *argtable[] = {arg_infile,arg_lambda,
 		      arg_bl0,arg_curveopts,arg_bl1,
-		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,
+		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,arg_notimewarp,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
@@ -285,6 +288,8 @@ main( int argc, char* argv[] )
   if (arg_vverbose->count > 0) { VERBOSITY = 10; }
 
   if (arg_lambda->count > 0) { gLambda = arg_lambda->dval[0]; }
+
+  if (arg_notimewarp->count > 0) { gNoTimeWarp = 1; }
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
@@ -742,7 +747,7 @@ main( int argc, char* argv[] )
 
   fclose(savefile);
 
-  /* If we have tube installed on this system, go ahead and provide a tube of the final configuration. */
+  /* We can provide some convenient post-processing of the results if we have various utilities on this system. */
 
 #ifdef HAVE_TUBE
 
