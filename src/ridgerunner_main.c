@@ -20,7 +20,7 @@ double gLambda = 1.0;   /* lambda-stiffness of rope */
 int gMaxCorrectionAttempts = 25;
 int gNoRcond = 0;
 int gLsqrLogging = 1;
-int gNoTimeWarp = 0;
+int gNoTimeWarp = 1;  /* By Default, we turn timewarp OFF */
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 
@@ -71,7 +71,7 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode -- no initial rescaling of curve");
 
-  struct arg_lit  *arg_notimewarp = arg_lit0(NULL,"NoTimewarp","disable fast shrinking of free sections of curve");
+  struct arg_lit  *arg_timewarp = arg_lit0(NULL,"Timewarp","accelerate shrinking of strut-free sections of curve");
 
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
@@ -158,7 +158,7 @@ main( int argc, char* argv[] )
   
   void *argtable[] = {arg_infile,arg_lambda,
 		      arg_bl0,arg_curveopts,arg_bl1,
-		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,arg_notimewarp,
+		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,arg_timewarp,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
@@ -289,7 +289,7 @@ main( int argc, char* argv[] )
 
   if (arg_lambda->count > 0) { gLambda = arg_lambda->dval[0]; }
 
-  if (arg_notimewarp->count > 0) { gNoTimeWarp = 1; }
+  if (arg_timewarp->count > 0) { gNoTimeWarp = 0; }
   
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
