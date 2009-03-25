@@ -4,26 +4,6 @@
 
 #include "ridgerunner.h"
 
-void plc_color_curve( plCurve *inLink, plc_color inColor )
-
-     /* Colors the curve one solid color. */
-
-{
-
-  int cItr,colItr;
-
-  for(cItr=0;cItr<inLink->nc;cItr++) {
-
-    for(colItr=0;colItr<inLink->cp[cItr].cc;colItr++) {
-
-      inLink->cp[cItr].clr[colItr] = inColor;
-
-    }
-
-  }
-
-}
-
 double
 plCurve_torsion( plCurve* inLink, FILE* outPlot )
      

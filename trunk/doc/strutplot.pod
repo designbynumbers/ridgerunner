@@ -1,0 +1,236 @@
+
+=head1 NAME
+
+B<strutplot> - plot self-contacts of tube with Geomview VECT core as PostScript
+
+=head1 SYNOPSIS
+
+B<strutplot> [options] <input file> 
+
+=head1 DESCRIPTION
+
+B<strutplot> is a flexible tool for visualizing the self-contacts of a
+tube in 3-space as a two-dimensional plot. Each contact is represented
+by a pair of arclength values along the input curve (s,t) with s > t,
+and a box is placed at the corresponding position on a triangular
+plot (or at two points on a square plot, with the B<--whole> option).  For
+links, the components are taken in the order they are
+presented in the VECT file, and arclength is cumulative from component
+to component. So if the first and second components of a link have
+total arclength 2 and 4, respectively, then points on the first
+component are plotted with arclength values in [0,2) and points on the
+second component are plotted with arclength values in [0,4).
+
+To find "contacts", the program does the following: If the function
+d(x,y) gives the space distance between two points I<x> and I<y> on a
+polygonal curve in 3-space, then B<strutplot> plots all local minima
+of d(x,y) (excluding distances in the form d(x,x)=0) whose distance
+values are within I<eps> of the closest such pair. Half of this
+distance represents the radius of the largest embedded tube around the
+core curve and is called the I<thickness> of the core curve. The local
+minimum pairs plotted are known as I<struts>.
+
+The default visualization style for the plot includes automatic
+identification and highlighting of regions of the curve with no
+contacts, which should be "straight segments" in a tight polygonal
+knot, and regions with radius of curvature equal to the tube radius,
+which are called "kinks", as well as a plot of the discrete curvature
+(MinRad) of the polygonal core curve, and a (hopefully) helpful key to
+the plot. These additional features, and many others, can be turned
+off with the command-line options given below.
+
+B<strutplot> accepts up to 10,000 input files at a time. By default,
+it will process them individually, leaving plots in the current
+directory, but the I<--combine> option will cause it to generate a
+multi-page PS document combining the plots for all input files.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--help>
+
+Displays a help message showing the options for B<strutplot>.
+
+=item B<-e> I<eps>, B<--epsilon>=I<eps>
+
+B<strutplot> will display all pairs of points on the curve which are
+local minima for the self-distance function whose distance is within
+I<eps> of the closest such pair. I<eps> defaults to 0.01.
+
+=item B<-l> I<levels>, B<--levels>=I<levels>
+
+B<strutplot> efficiently identifies pairs of points of interest using
+an octree-based clustering algorithm called B<octrope>. The number
+of levels in the octree affects the resolution at which edges are
+clustered-- a higher number of levels allows more pairs of edges to
+be eliminated from B<struts>' search before the code begins checking
+pairs of edges against one another. But this speedup must be balanced
+against the overhead incurred in building a larger tree. 
+
+The user can fine-tune this tradeoff by setting B<levels>. Setting
+I<levels> = 1 reduces the algorithm to checking all pairs of edges
+(very slow), while for an I<n> edge link the default is I<levels> =
+0.75*log2(n).
+
+=item B<-v> I<verblevel>, B<--verbosity> I<verblevel>
+
+The user can print debugging information by setting I<verblevel> from 0
+(lowest) to 9 (highest). Usually useful only for library maintainers.
+
+=item B<-k>, B<--nokinks>
+
+Disables automatic highlighting of "kinks" where the radius of
+curvature is equal to the thickness.
+
+=item B<-g>, B<--nogrid>
+
+Disables plotting of a background grid.
+
+=item B<-s>, B<--nostraight>
+
+Disables automatic highlighting of "straight segments" where there are
+no struts touching a certain region of the curve.
+
+=item B<-c>, B<--nokappa>
+
+Turns off the subplot of the plot of the curvature of the core curve
+at the bottom of the plot.
+
+=item B<-t> I<n>, B<--ticks> I<n>
+
+By default, B<strutplot> places 10 equally-spaced tick marks on the
+sides of the plot. This number can be adjusted with the B<-t> option.
+
+=item B<-w> I<x>, B<--width> I<x>
+
+This option sets the width of the plot (in inches). The default is 5.0.
+This is mostly a matter of user convenience, since the PostScript output
+from the program can be arbitrarily scaled anyway.
+
+=item B<-M> I<n>, B<--maxstruts> I<n>
+
+By default strutplot limits the number of struts found to 20 times the number
+of edges in the file.  In most cases this is more than sufficient, but in 
+the rare case where more struts need to be handled, this option allows the
+size of the strut list to be set.
+
+=item B<-o> I<file>, B<--outfile> I<file>
+
+This option sets the output filename, overriding any default behavior for the
+program.
+
+=item I<file>
+
+The input file, expected to be in Geomview VECT format. If the
+filename is F<infile.vect>, the output file is named
+F<infile.stplot.ps> or F<infile.stplot.eps>, unless this behavior is
+overridden by the B<-o> command-line option or multiple input files
+are given, in which case the output appears in
+F<combined_plots.ps>. This argument is not optional.
+
+=item B<--strutfile> I<filename>
+
+The B<liboctrope> library function C<octrope_strutfile_write> can
+write a list of struts to disk from a user application, to be read by
+the corresponding procedure C<octrope_strutfile_read>. If the
+B<--strutfile> option is given with a valid file in this format,
+B<strutplot> will load and display this list of struts, instead of
+calculating its own. This is the only way for C<ridgerunner> users to
+display "compression" data for struts.
+
+=item B<--combine>
+
+Combines the plots from all input files into one multipage PS
+document.  The resulting file should be fully Adobe DSC compliant, but
+has problems with certain previewers for reasons we don't yet fully
+understand. (Comments welcome from PostScript gurus!) We have had good
+luck with the C<gv> PostScript viewer, however.
+
+=item B<--nokey>
+
+Disables display of the key for each plot.
+
+=item B<--nocompressions>
+
+If a strut file was loaded with B<--strutfile>, the struts can be
+colored by "compression". This option turns off compression coloring.
+The color scheme for compressions is likely to change in future versions
+of B<strutplot>.
+
+=item B<--strutsize> I<x>
+
+The size of the box used to indicate a strut, as a multiple of the
+average edgelength of the input polygon.
+
+=item B<-sl>, B<-sh>, B<-tl>, B<-th>, B<--s_clip_low>, B<--s_clip_high>,B<--t_clip_low>, B<--t_clip_high>
+
+These options, each of which should come with an argument in [0,1],
+clip the displayed struts to a rectangle in the st plane. The argument
+is a fraction of the total arclength of the displayed curve. 
+
+=item B<--nobackground>
+
+Disables display of the colored background for the plot.
+
+=item B<--nodsc>
+
+Outputs "raw" PostScript instead of following the Adobe Document
+Structuring conventions. This can cause some PostScript previewers to
+crash, and others to suddenly function, so toggling this option may
+help if you have difficulty working with the output from B<strutplot>.
+
+=item B<--whole>
+
+As the s,t plane is symmetric across the diagonal, B<strutplot> only shows the
+lower half by default.  The B<--whole> tell strutplot to show the entire
+square.
+
+=item B<--make-eps> 
+
+Attempts to generate output in EPS format. This option is currently
+not entirely stable, and we recommend that users generate PostScript
+(PS) output and then add convert to EPS with C<epstool>.
+
+=item B<--psc>
+
+This adds comments to the Postscript code to make it more human-readable.
+
+=back
+
+=head1 EXAMPLES
+
+Plot (in PostScript) all nontrivial local minima of the self-distance function
+with length within 0.01 (the default) of minimum length for the file
+F<3_1.vect>:
+
+ strutplot 3_1.vect
+
+Plot nontrivial local minima with length within 0.0001 of minimum:
+
+ strutplot -e 0.0001 3_1.vect
+
+Plot only struts whose arclength coordinates are in the middle third of the
+curve
+
+ strutplot -sl 0.33 -sh 0.67 -tl 0.33 -th 0.67 3_1.vect
+
+Write the plot to the file F<myplot.ps>:
+
+ strutplot 3_1.vect -o myplot.vect
+
+=head1 SEE ALSO
+
+B<liboctrope>, L<http://www.geomview.org>
+
+=head1 AUTHORS
+
+Ted Ashton and Jason Cantarella
+
+=head1 LICENSE RESTRICTIONS
+
+This program is covered by the GNU General Public License for free
+software, modified as follows: Any publication of plots made by
+B<strutplot> must acknowledge the software and include a citation of
+the paper I<A Fast Octree-Based Algorithm for Computing Ropelength>
+(arXiv:math.DG/0409416).

@@ -5,7 +5,7 @@
 AM_CFLAGS = -g -finline-functions -Wall
 AM_CPPFLAGS = -I$(srcdir)/src/
 
-bin_PROGRAMS = src/ridgerunner
+bin_PROGRAMS = src/ridgerunner src/strutplot
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
 	src/linklib_additions.c \
@@ -17,8 +17,17 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/display.c \
 	src/ridgerunner.h \
 	src/portability.h \
-	src/free_edge.c 
+	src/free_edge.c \
+	src/globals.c
 
+src_strutplot_SOURCES = src/strutplot.c \
+	src/free_edge.c \
+	src/globals.c \
+	src/ordie.c 
+
+src_strutplot_LDADD = -lplCurve -largtable2 -loctrope
+
+man1_MANS = doc/strutplot.1
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 

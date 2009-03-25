@@ -28,8 +28,6 @@ int strut_free_vertices( plCurve* L, double tube_radius, bool *freeFlag)
   double shortest;
   int vRadius = 4,tVerts,nStrutFree;
   
-  if (VERBOSITY >= 10) { logprintf("\tstrut_free_vertices..."); }
-  
   tVerts = plc_num_verts(L);
 
   strutStorageSize = 6*tVerts;
