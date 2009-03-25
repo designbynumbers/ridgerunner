@@ -284,6 +284,14 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
   }
 
+  /* If needed, we now make a final log entry, reflecting the condition when we quit. */
+
+  if ( inState->steps%inState->loginterval != 0 ) {
+
+    update_runtime_logs(inState);
+    
+  }
+
 }
 
 

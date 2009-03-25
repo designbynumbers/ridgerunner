@@ -782,7 +782,8 @@ main( int argc, char* argv[] )
 
 #ifdef HAVE_POVSNAP 
 
-  sprintf(tmpcommand,"cd ./%s.rr; povsnap -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename);
+  printf("Running povsnap to generate image of final configuration.\n");
+  sprintf(tmpcommand,"cd ./%s.rr; povsnap -q -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename);
   system(tmpcommand);
 
 #endif
