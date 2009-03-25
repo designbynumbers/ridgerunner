@@ -562,7 +562,7 @@ dumpDvdt( plc_vector* dvdt, plCurve *inLink, search_state *inState )
 
   dVdTcurve = vectorfield_to_plCurve(dvdt,inLink);
   blue = plc_build_color(0,0,1,1);
-  plc_color_curve(dVdTcurve,blue);
+  plc_set_color(dVdTcurve,blue);
 
   plc_write(fp,dVdTcurve);
   plc_free(dVdTcurve);
@@ -585,7 +585,7 @@ dumpdLen( plc_vector* dLen, plCurve *inLink, search_state *inState )
 
   dLencurve = vectorfield_to_plCurve(dLen,inLink);
   red = plc_build_color(1,0,0,1);
-  plc_color_curve(dLencurve,red);
+  plc_set_color(dLencurve,red);
 
   plc_write(fp,dLencurve);
   plc_free(dLencurve);
@@ -633,7 +633,7 @@ void snapshot( plCurve *inLink,
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   VFcurve = vectorfield_to_plCurve(dlen,inLink);
   col = plc_build_color(0,0,1,1);
-  plc_color_curve(VFcurve,col);
+  plc_set_color(VFcurve,col);
   plc_write(fp,VFcurve);
   plc_free(VFcurve);
   fclose(fp);
@@ -643,7 +643,7 @@ void snapshot( plCurve *inLink,
   fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ );
   VFcurve = vectorfield_to_plCurve(dVdt,inLink);
   col = plc_build_color(1,0,0,1);
-  plc_color_curve(VFcurve,col);
+  plc_set_color(VFcurve,col);
   plc_write(fp,VFcurve);
   plc_free(VFcurve);
   fclose(fp);
