@@ -150,6 +150,7 @@ else
    AC_MSG_WARN([it is recommended that you install povray with ridgerunner])
 fi   
 
+AC_DEFINE_UNQUOTED([SVNVERSION],["][`svnversion`]["],[the svn revision number (or "exported" if this was not built from svn)])
 
 # Checks for header files.
 AC_HEADER_STDC
