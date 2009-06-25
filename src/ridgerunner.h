@@ -185,11 +185,11 @@ typedef struct
                           // the given component's edges as bars 
                           // in the rigidity matrix
   
-  octrope_strut* lastStepStruts; // the struts from the last successful step, 
+  octrope_strut* lastStepStruts; // the struts from the last successful step or cstep, 
                                  // or null at start
   int		lastStepStrutCount;
 
-  octrope_mrloc* lastStepMRlist; // minrad locs from last completed step
+  octrope_mrloc* lastStepMRlist; // minrad locs from last completed step or cstep
   int		lastStepMinradStrutCount;
   
   int		totalVerts;
