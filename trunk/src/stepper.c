@@ -1308,32 +1308,83 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     step(inLink,stepSize,ofv_vect,inState); 
     /* Trust me-- this was better than copying. */
 
-    /* Now we update inState. */
+    /* We now update the lastStepStrut and MRstrut information to  */
+    /* reflect the fact that we've changed the link. Rather than calling */
+    /* octrope again, we depend on the fact that the 
 
-    assert(inState->lastStepStruts != NULL && inState->lastStepMRlist != NULL);
-   
-    free(inState->lastStepStruts);
-    free(inState->lastStepMRlist);
+       strutCount, strutSet
+
+       and
+
+       minradCount, minradSet
+
+       buffers were computed from the same step on the same initial 
+       configuration, so we can copy them into the lastStep buffers in 
+       inState. 
+
+       Of course, the first step is to free the buffers if (and only if)
+       they were actually allocated in the first place. */
+
+    if (inState->lastStepStruts != NULL) {
+
+      free(inState->lastStepStruts);
+      inState->lastStepStruts = NULL;
+      inState->lastStepStrutCount = 0;
+
+    }
+
+    if (inState->lastStepMRlist != NULL) {
+
+      free(inState->lastStepMRlist);
+      inState->lastStepMRlist = NULL;
+      inState->lastStepMinradStrutCount = 0;
+
+    }
     
-    inState->lastStepStruts = (octrope_strut *)(malloc(strutCount*sizeof(octrope_strut)));
-    inState->lastStepMRlist = (octrope_mrloc *)(malloc(minradCount*sizeof(octrope_mrloc)));
+    /* We don't know whether either buffer actually contains entries. So we 
+       won't try to allocate and work with the pointers unless we are allocating
+       a nonzero buffer. (In principle, if malloc is POSIX-compliant, we should
+       be ok even if called with a size of 0, but for portability reasons, we 
+       don't want to depend on this.) */
 
-    fatalifnull_(inState->lastStepStruts);
-    fatalifnull_(inState->lastStepMRlist);
+    if (strutCount > 0) { 
 
-    int sItr;
+      inState->lastStepStruts = 
+	(octrope_strut *)(malloc_or_die(strutCount*sizeof(octrope_strut),
+					__FILE__, __LINE__ ));
 
-    for(sItr=0;sItr<strutCount;sItr++) { 
+      int sItr;
+
+      for(sItr=0;sItr<strutCount;sItr++) { 
+	
+	inState->lastStepStruts[sItr] = strutSet[sItr];
+
+      }
+
+    } 
+
+    inState->lastStepStrutCount = strutCount;
+
+    /* Now handle MRlist similarly */
+
+    if (minradCount > 0) {
+
+      inState->lastStepMRlist 
+	= (octrope_mrloc *)(malloc_or_die(minradCount*sizeof(octrope_mrloc),
+					  __FILE__ , __LINE__ ));
+      int mrItr;
       
-      inState->lastStepStruts[sItr] = strutSet[sItr];
+      for(mrItr=0;mrItr<minradCount;mrItr++) {
+	
+	inState->lastStepMRlist[mrItr] = minradSet[mrItr];
+	
+      }
 
     }
 
-    for(sItr=0;sItr<minradCount;sItr++) {
+    inState->lastStepMinradStrutCount = minradCount;
 
-      inState->lastStepMRlist[sItr] = minradSet[sItr];
-
-    }
+    /* Now update the rest of the geometric information in inState. */
     
     inState->length = len;
     inState->thickness = thi;

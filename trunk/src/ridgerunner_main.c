@@ -45,7 +45,7 @@ main( int argc, char* argv[] )
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
-  struct arg_lit  *arg_eqit = arg_lit0("e","eq","equilateralize curve"); 
+  struct arg_lit  *arg_eqit = arg_lit0("e","eq","equilateralize curve at start of run"); 
 
   struct arg_rem  *arg_bl2 = arg_rem("","");
   struct arg_rem  *arg_stopopts = arg_rem("","Stopping Criteria (stop when)");
@@ -102,6 +102,8 @@ main( int argc, char* argv[] )
   
   struct arg_dbl  *arg_eqmult = arg_dbl0(NULL,"EqMultiplier","<scalar>","increase to "
 					 "make 'equilateralization force' stronger");
+
+  struct arg_lit  *arg_noeq = arg_lit0(NULL,"NoEq","turn off equilateralization");
   
   struct arg_dbl  *arg_overstep = arg_dbl0("o","OverstepTol","<x>",
 					   "start correction step if "
@@ -139,7 +141,7 @@ main( int argc, char* argv[] )
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_cstep_size,arg_maxcorr,
-		      arg_eqmult,arg_overstep,arg_mroverstep,
+		      arg_eqmult,arg_noeq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
 		      arg_norcond,
 		      end};
@@ -254,6 +256,8 @@ main( int argc, char* argv[] )
   if (arg_stopRes->count > 0) { residualThreshold = arg_stopRes->dval[0]; }
 
   if (arg_eqmult->count > 0) { eqMult = arg_eqmult->dval[0]; }
+
+  if (arg_noeq->count > 0) { eqMult = 0.0; }
 
   /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
