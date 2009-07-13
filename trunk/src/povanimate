@@ -6,17 +6,18 @@
 
 use warnings;
 use File::Copy;
+use File::Path;
 use Term::ProgressBar;
 use Getopt::Std;
 
-getops('svpt:');
+getopts('svpt:');
 
 my $nsec;
 $nsec = 20;
 if (defined $opt_t) { $nsec = $opt_t; }
 
 my $nframes;
-$nframes = $opt_t*24; # 20 seconds at 24 fps
+$nframes = $nsec*24; # 20 seconds at 24 fps
 
 my @vectfiles;
 @vectfiles = <*.vect>;
@@ -43,9 +44,13 @@ $framecount = 1;
 if (-d "../movie/") { rmtree("../movie/"); }
 mkdir("../movie/");
 
+print "Tubing files...\n";
+
 my $progress;
-$progress = Term::ProgressBar->new( {count => $nframes, ETA => linear,} );
+$progress = Term::ProgressBar->new( {count => $nframes, ETA => "linear",} );
 $progress->max_update_rate(1);
+
+my @offs;
 
 foreach $file ( @vectfiles ) {
 
@@ -57,20 +62,9 @@ foreach $file ( @vectfiles ) {
     
     $tubename = $file;
     $tubename =~ s/vect/tube\.off/g;
-    
-    `orient -a 2 $tubename`;
 
-    if ($opt_s) { `povsnap -s $tubename 2>1 1>/dev/null`; }
-    else if ($opt_v) {  `povsnap -v $tubename 2>1 1>/dev/null`; }
-    else if ($opt_p) {  `povsnap -p $tubename 2>1 1>/dev/null`; }
-    else {  `povsnap -v $tubename 2>1 1>/dev/null`; }
-   
-    $pngname = $tubename;
-    $pngname =~ s/off/png/g;
-    
-    move($pngname,"../movie/$pngname");
-    unlink($tubename);
-
+    push(@offs,$tubename);
+ 
     $skipcount = 0;
     $framecount++;
 
@@ -82,5 +76,33 @@ foreach $file ( @vectfiles ) {
 
 }
  
+print "\nOrienting the entire collection of surfaces (could take some time)\n";
+
+`orient -a 2 @offs`;
+
+print "Rendering the frames\n";
+
+$progress = Term::ProgressBar->new( {count => scalar @offs, ETA => "linear",} );
+$progress->max_update_rate(1);
+
+my $offcount;
+$offcount = 0;
+
+foreach $tubename (@offs) {
+
+  if ($opt_s) { `povsnap -s $tubename 2>1 1>/dev/null`; }
+  elsif ($opt_v) {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+  elsif ($opt_p) {  `povsnap -p $tubename 2>1 1>/dev/null`; }
+  else {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+  
+  $pngname = $tubename;
+  $pngname =~ s/off/png/g;
+  
+  move($pngname,"../movie/$pngname");
+  unlink($tubename);
+
+  $progress->update($offcount++);
+  
+}
  
   
