@@ -112,4 +112,4 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 
 #install the shortest knot detecting PERL script in $(bindir)
 
-dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate.pl
+dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate
