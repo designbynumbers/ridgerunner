@@ -7,9 +7,16 @@
 use warnings;
 use File::Copy;
 use Term::ProgressBar;
+use Getopt::Std;
+
+getops('svpt:');
+
+my $nsec;
+$nsec = 20;
+if (defined $opt_t) { $nsec = $opt_t; }
 
 my $nframes;
-$nframes = 20*24; # 20 seconds at 24 fps
+$nframes = $opt_t*24; # 20 seconds at 24 fps
 
 my @vectfiles;
 @vectfiles = <*.vect>;
@@ -33,6 +40,7 @@ my $framecount;
 $skipcount = 0;
 $framecount = 1;
 
+if (-d "../movie/") { rmtree("../movie/"); }
 mkdir("../movie/");
 
 my $progress;
@@ -51,8 +59,12 @@ foreach $file ( @vectfiles ) {
     $tubename =~ s/vect/tube\.off/g;
     
     `orient -a 2 $tubename`;
-    `povsnap -v $tubename 2>1 1>/dev/null`;
-    
+
+    if ($opt_s) { `povsnap -s $tubename 2>1 1>/dev/null`; }
+    else if ($opt_v) {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+    else if ($opt_p) {  `povsnap -p $tubename 2>1 1>/dev/null`; }
+    else {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+   
     $pngname = $tubename;
     $pngname =~ s/off/png/g;
     
