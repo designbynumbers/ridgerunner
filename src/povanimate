@@ -10,7 +10,7 @@ use File::Path;
 use Term::ProgressBar;
 use Getopt::Std;
 
-getopts('svpt:');
+getopts('svpt:S:');
 
 my $nsec;
 $nsec = 20;
@@ -105,4 +105,38 @@ foreach $tubename (@offs) {
   
 }
  
-  
+my $spinFrames;
+if (defined $opt_S) {
+
+    $spinFrames = $opt_S*24;  # Spin at 24 fps 
+	
+    print "Now generating spin frames...\n";
+    `orient -a 2 -s $spinFrames $offs[-1]`;
+
+    my @spinOffs;
+
+    @spinOffs = <spin*off>;
+
+    $progress = Term::ProgressBar->new( {count => scalar @spinOffs, ETA => "linear",} );
+    $progress->max_update_rate(1);
+    $offcount = 0;
+    
+    foreach $tubename (@spinOffs) {
+
+	if ($opt_s) { `povsnap -s $tubename 2>1 1>/dev/null`; }
+	elsif ($opt_v) {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+	elsif ($opt_p) {  `povsnap -p $tubename 2>1 1>/dev/null`; }
+	else {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+	
+	$pngname = $tubename;
+	$pngname =~ s/off/png/g;
+	$pngname =~ s/spin/zzzz/g;
+	
+	move($pngname,"../movie/$pngname");
+	unlink($tubename);
+	
+	$progress->update($offcount++);
+
+    }
+
+}
