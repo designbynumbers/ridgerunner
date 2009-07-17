@@ -87,6 +87,7 @@ $progress->max_update_rate(1);
 
 my $offcount;
 $offcount = 0;
+my $snapdirname;
 
 foreach $tubename (@offs) {
 
@@ -100,6 +101,11 @@ foreach $tubename (@offs) {
   
   move($pngname,"../movie/$pngname");
   unlink($tubename);
+
+  $snapdirname = $tubename;
+  $snapdirname =~ s/off//g;
+
+  rmtree($snapdirname);
 
   $progress->update($offcount++);
   
