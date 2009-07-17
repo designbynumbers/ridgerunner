@@ -653,6 +653,10 @@ extern void sparse_lsqr_mult( long mode, dvec* x, dvec* y, void* prod );
 double*
 stanford_lsqr( search_state *inState, 
 	       taucs_ccs_matrix* sparseA, double* minusDL)
+
+/* Try calling lsqr on this data. If it doesn't work, throw a warning, log things,
+   and return NULL. */
+
 {
   /* if there are no constrained struts, t_snnls won't actually work, so use SOL LSQR */
   lsqr_input   *lsqr_in;
@@ -669,7 +673,7 @@ stanford_lsqr( search_state *inState,
   lsqr_in->num_rows = sparseA->m;
   lsqr_in->num_cols = sparseA->n;
   lsqr_in->damp_val = 0;
-  lsqr_in->rel_mat_err = kZeroThreshold;
+  lsqr_in->rel_mat_err = 0; // was kZeroThreshold
   lsqr_in->rel_rhs_err = 0;
   lsqr_in->cond_lim = 1/(10*sqrt(DBL_EPSILON));
   lsqr_in->max_iter = 4*lsqr_in->num_cols;  /* Suggested by lsqr docs */
@@ -734,7 +738,8 @@ stanford_lsqr( search_state *inState,
 	    "\n"
 	    "             Check the log file 'lsqroutput' for more output.\n",
 	    sparseA->m,sparseA->n,lsqr_in->cond_lim);
-    FatalError(errmsg, __FILE__ , __LINE__ );
+    NonFatalError(errmsg, __FILE__ , __LINE__ );
+    return NULL;
 
   }
 
@@ -749,8 +754,8 @@ stanford_lsqr( search_state *inState,
 	    "\n"
 	    "             Check the log file 'lsqroutput' for more output.\n" ,
 	    sparseA->m,sparseA->n,lsqr_in->max_iter);
-    FatalError(errmsg, __FILE__ , __LINE__ );
-
+    NonFatalError(errmsg, __FILE__ , __LINE__ );
+    return NULL;
   }
   
   result = (double*)malloc(sizeof(double)*sparseA->n);
@@ -1150,6 +1155,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     if (VERBOSITY >= 10) { logprintf("\tCalling stanford_lsqr..."); }
 
     ofv = stanford_lsqr(inState,sparseAT,C); 
+
+    if (ofv == NULL) { logprintf("stanford_lsqr failed.\n"); return FALSE;}
 
     if (VERBOSITY >= 10) { logprintf("ok\n"); }
 
