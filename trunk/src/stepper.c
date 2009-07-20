@@ -1156,7 +1156,12 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 
     ofv = stanford_lsqr(inState,sparseAT,C); 
 
-    if (ofv == NULL) { logprintf("stanford_lsqr failed.\n"); return FALSE;}
+    if (ofv == NULL) { 
+      
+      char dumpname[1024];
+      dumpLink(inLink,inState,dumpname);
+      logprintf("stanford_lsqr failed.\n File dumped to: %s.\n",dumpname); 
+      return FALSE;}
 
     if (VERBOSITY >= 10) { logprintf("ok\n"); }
 

@@ -20,12 +20,13 @@ struct arg_dbl  *target_thickness;
 struct arg_dbl  *arg_lambda;
 struct arg_dbl  *arg_cstep_size;
 struct arg_dbl  *arg_maxstep;
+struct arg_dbl  *arg_overstep;
 struct arg_dbl  *arg_mroverstep;
 struct arg_int  *arg_maxcorr;
 
 
 struct arg_lit  *verbose;
-struct arg_file *corefile;
+struct arg_file *arg_infile;
 struct arg_lit  *help;
 
 struct arg_lit  *quiet;
@@ -33,7 +34,6 @@ struct arg_lit  *quiet;
 struct arg_end *end;
 struct arg_end *helpend;
 
-plCurve *core;
 FILE    *infile_fptr,*outfile_fptr;
 
 int    QUIET=0;
@@ -42,7 +42,10 @@ int main(int argc,char *argv[])
 {
   int       infilenum,i,nerrors;
   plCurve   *link;
-
+  bool      allpass = true;
+  
+  double    overstepTol=0.0001; /* Should this only be for tube_radius = 1? */
+  
   void *argtable[] = 
     {
 
@@ -50,12 +53,15 @@ int main(int argc,char *argv[])
      arg_lambda = arg_dbl0("l","lambda","<double>",
 			   "minimum radius of curvature for unit rope"),
      verbose = arg_lit0("v","verbose","print debugging information"),
-     corefile  = arg_filen(NULL,NULL,"<file>",1,100000,"input files"),
+     arg_infile  = arg_filen(NULL,NULL,"<file>",1,100000,"input files"),
      arg_cstep_size = arg_dbl0("k","CorrectionStepSize","<fraction>",
 			       "initial size of Newton correction step"),
      arg_mroverstep   = arg_dbl0(NULL,"MinRadOverstepTol","<x>",
 				 "start correction step if "
 				 "minrad < lambda*(1 - x)"),
+     arg_overstep = arg_dbl0("o","OverstepTol","<x>",
+			     "start correction step if "
+			     "thickness < tuberad*(1 - x)"),
      arg_maxstep = arg_dbl0(NULL,"MaxStep","<scalar>","maximum stepsize "
 			    "for a length-reduction step"),
      arg_maxcorr = arg_int0(NULL,"MaxCorrectionAttempts","<n>",
@@ -71,7 +77,7 @@ int main(int argc,char *argv[])
   fprintf(stderr,"csteptest (" PACKAGE_STRING ") compiled " __DATE__ " " __TIME__ "\n");
 
   if (arg_nullcheck(argtable) != 0)
-    printf("csteptestt: Insufficient memory to allocate argument table.\n");
+    printf("csteptest: Insufficient memory to allocate argument table.\n");
 
   nerrors = arg_parse(argc,argv,argtable);
 
@@ -111,6 +117,8 @@ int main(int argc,char *argv[])
   
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 
+  if (arg_overstep->count > 0) { overstepTol = arg_overstep->dval[0]; }
+
   /* We now need to fake an inState to pretend that we're in the middle
      of a ridgerunnner run. */
 
@@ -130,7 +138,7 @@ int main(int argc,char *argv[])
   state.fancyPipe = 0;
 
   state.correctionStepDefault = correctionStepSize;
-  state.movie = movie;
+  state.movie = 0;
   state.moviefactor = 1.0;
 
   state.tube_radius = 0.5;
@@ -158,20 +166,23 @@ int main(int argc,char *argv[])
 #endif
 #endif
 
-  int infilenum;
+  printf("Filename                         Verts Initial Thi Iter Final Thi (Poca,MR)       Result\n");
+  printf("----------------------------------------------------------------------------------------\n");
 
-  for(infilenum = 0;infilenum < corefile->count;infilenum++) {
+  for(infilenum = 0;infilenum < arg_infile->count;infilenum++) {
+
+    printf("%-32s ",arg_infile->basename[infilenum]);
 
     /* We start by loading the tube from core. */
 
     FILE *infile_fptr;
 
-    infile_fptr = fopen(corefile->filename[infilenum],"r");
+    infile_fptr = fopen(arg_infile->filename[infilenum],"r");
   
     if (infile_fptr == NULL) {
       
       fprintf(stderr,"csteptest: Couldn't open file %s.\n",
-	      corefile->filename[infilenum]);
+	      arg_infile->filename[infilenum]);
        continue;  /* Try the next file */
        
     }
@@ -193,8 +204,50 @@ int main(int argc,char *argv[])
     
     fclose(infile_fptr);
 
+    /* Report to user */
+
+    printf("%5d %11g",plc_num_verts(link),octrope_thickness(link,NULL,0,gLambda)); 
+
     /* Now we set the state information as needed. */
+
+    char *extptr;
     
+    strncpy(state.basename,arg_infile->basename[0],sizeof(state.basename));
+    extptr = strstr(state.basename,arg_infile->extension[0]);
+    *extptr = 0; /* This chops the extension off of basename. */
+
+    strncpy(state.fname,arg_infile->filename[0],sizeof(state.fname));
+    sprintf(state.workingfilename,"./%s.cstest/%s.working.vect",
+	    state.basename,state.basename);
+    sprintf(state.workingstrutname,"./%s.cstest/%s.working.struts",
+	    state.basename,state.basename);
+    sprintf(state.vectprefix,"./%s.cstest/vectfiles/%s",
+	    state.basename,state.basename);
+    sprintf(state.snapprefix,"./%s.cstest/snapshots/%s",
+	    state.basename,state.basename);
+    sprintf(state.logfilename,"./%s.cstest/%s.log",
+	    state.basename,state.basename);
+    sprintf(state.fprefix,"./%s.cstest/",state.basename);
+
+    /* We now open the local directory for storing output. */
+    
+    char cmdline[1024];
+    
+    sprintf(cmdline,"rm -fr %s.cstest",state.basename);
+    system_or_die(cmdline, __FILE__ , __LINE__ );
+    
+    sprintf(cmdline,"mkdir %s.cstest",state.basename);
+    system_or_die(cmdline, __FILE__ , __LINE__ );
+    
+    sprintf(cmdline,"mkdir %s.cstest/logfiles",state.basename);
+    system_or_die(cmdline, __FILE__ , __LINE__ );
+    
+    //sprintf(cmdline,"mkdir %s.cstest/vectfiles",state.basename);
+    //system_or_die(cmdline, __FILE__ , __LINE__ );
+    
+    sprintf(cmdline,"mkdir %s.cstest/snapshots",state.basename);
+    system_or_die(cmdline, __FILE__ , __LINE__ );
+
     state.maxStepSize = 0.1*plCurve_short_edge(link);
     state.minrad = octrope_minradval(link);
     state.totalVerts = plc_num_verts(link);
@@ -207,7 +260,7 @@ int main(int argc,char *argv[])
     
     if( state.maxStepSize > 1e-3 ) { state.maxStepSize = 1e-3; }
     
-    if( maxStep > 0 ) { state.maxStepSize = maxStep; }  
+    if( arg_maxstep->count > 0 ) { state.maxStepSize = arg_maxstep->dval[0]; }  
     state.stepSize = min(state.stepSize, state.maxStepSize);
     
     state.compOffsets = malloc(sizeof(int)*(link->nc));
@@ -241,4 +294,121 @@ int main(int argc,char *argv[])
       state.minminrad ); */
     
     
+    /* We now initialize the log with a lot of (hopefully) helpful information
+       about the run. */
     
+    gLogfile = fopen(state.logfilename,"w");
+    if (gLogfile == NULL) { 
+      fprintf(stderr,"csteptest: Couldn't open logfile %s.\n",state.logfilename);
+      exit(1);
+    }
+    
+    fprintf(gLogfile,"csteptest logfile.\n");
+    
+    fprintf(gLogfile,"csteptest %s\n",PACKAGE_VERSION);
+    
+    char svntag[1024];
+
+    sprintf(svntag,"%s",SVNVERSION);
+    if (!strstr("exported",svntag)) {  /* We were built from svn */
+      fprintf(gLogfile,"svn version %s\n",SVNVERSION);
+    }
+    
+    fprintf(gLogfile,"Built %s, %s.\n", __DATE__ , __TIME__ );
+    
+#ifdef HAVE_ASCTIME
+#ifdef HAVE_LOCALTIME
+#ifdef HAVE_TIME
+    
+    time_t start_time;
+    state.start_time = start_time = time(NULL);
+    
+    fprintf(gLogfile,"Run began: %s",asctime(localtime(&start_time)));
+    
+#else
+    
+    fprintf(gLogfile,
+	    "Warning: system doesn't have 'time' function.\n"
+	    "         data logs won't include time information.\n");
+    
+#endif
+#else
+    
+    fprintf(gLogfile,
+	    "Warning: system doesn't have 'localtime' function.\n"
+	    "         data logs won't include time information.\n");
+    
+#endif
+#else
+  
+    fprintf(gLogfile,
+	    "Warning: system doesn't have 'asctime' function.\n"
+	    "         data logs won't include time information");
+#endif
+    
+    fprintf(gLogfile,"Initial filename: %s.\n",
+	    state.fname);
+    
+    fprintf(gLogfile,"Command line: ");
+    
+    for(i=0;i<argc;i++) {
+      
+      fprintf(gLogfile,"%s ",argv[i]);
+      
+    } 
+    
+    fprintf(gLogfile,"\n");
+    
+#ifdef HAVE_GETPID
+    
+    fprintf(gLogfile,"Process ID: %d.\n",(int)(getpid()));
+    
+#endif
+    
+    /* We are now prepared to run the correction stepper. */
+
+    bool pass = true;
+
+    if (!correct_thickness(link,&state)) {
+
+      pass = false;
+
+    }
+
+    /* Now we report the results. */
+
+    double newThi,newPoca,newMR;
+   
+    newThi = octrope_thickness(link,NULL,0,gLambda);
+    newPoca = octrope_poca(link,NULL,0);
+    newMR = octrope_minradval(link)/gLambda;
+
+    if (newPoca < state.tube_radius - state.overstepTol) {
+
+      pass = false;
+    
+    }
+
+    if (newMR < state.tube_radius - state.minradOverstepTol) {
+
+      pass = false;
+
+    }
+
+    printf("%5d %8g(%7g,%7g)  ",state.last_cstep_attempts,newThi,newPoca,newMR);
+    if (pass) { printf("pass\n"); } else { printf("FAIL\n"); allpass = false; }
+
+    outfile_fptr = fmangle(state.basename,".vect",".corrected.vect");
+
+    plc_write(outfile_fptr,link);
+    plc_free(link);
+
+  }
+
+  printf("\nFinal Result: ");
+  if (allpass) { printf("PASS\n"); exit(0); } else { printf("FAIL\n"); exit(1); }
+  
+}
+    
+
+
