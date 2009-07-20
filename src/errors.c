@@ -667,7 +667,7 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
 {
   FILE *dumpfile;
   
-  sprintf(dumpname,"%s%s.vect",inState->fprefix,inState->basename);
+  sprintf(dumpname,"%s%s.dump.vect",inState->fprefix,inState->basename);
   dumpfile = fopen_or_die(dumpname,"w", __FILE__ , __LINE__ );
   plc_write(dumpfile,inLink);
   fclose(dumpfile);

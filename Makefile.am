@@ -113,3 +113,26 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 #install the shortest knot detecting PERL script in $(bindir)
 
 dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate
+
+# Now include some testing stuff
+
+TESTS = src/csteptest
+noinst_PROGRAMS = src/csteptest
+
+src_csteptest_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	src/csteptest.c 
+
+src_csteptest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
