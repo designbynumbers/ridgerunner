@@ -234,7 +234,9 @@ main( int argc, char* argv[] )
 
   if (arg_maxstep->count > 0) { maxStep = arg_maxstep->dval[0]; }
 
-  /* Note: there used to be a way to turn on "gSurfaceBuilding" and "gVerboseFiling" */
+  /* Note: there used to be a way to turn on "gSurfaceBuilding" 
+     and "gVerboseFiling" */
+
   if (arg_snapinterval->count > 0) {snapinterval = arg_snapinterval->ival[0];}
 
   if (arg_norcond->count > 0) { gNoRcond = 1; }
