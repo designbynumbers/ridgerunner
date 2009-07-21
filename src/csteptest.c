@@ -150,6 +150,12 @@ int main(int argc,char *argv[])
   state.minradOverstepTol = minradOverstepTol;
   state.minminrad = gLambda*state.tube_radius*(1 - minradOverstepTol);
 
+  state.lastStepStrutCount = 0;
+  state.lastStepStruts = NULL;
+  
+  state.lastStepMinradStrutCount = 0;
+  state.lastStepMRlist = NULL;
+
   state.last_cstep_attempts = 0;
   state.cstep_count = 0;
 
@@ -166,8 +172,10 @@ int main(int argc,char *argv[])
 #endif
 #endif
 
-  printf("Filename                         Verts Initial Thi Iter Final Thi (Poca,MR)       Result\n");
-  printf("----------------------------------------------------------------------------------------\n");
+  gLsqrLogging = false;
+
+  printf("Filename                         Verts Initial Thi Iter Final Thi (Poca,MR)         Result\n");
+  printf("------------------------------------------------------------------------------------------\n");
 
   for(infilenum = 0;infilenum < arg_infile->count;infilenum++) {
 
@@ -283,8 +291,8 @@ int main(int argc,char *argv[])
     state.minrad = octrope_minradval(link);
     state.thickness = octrope_thickness(link,NULL,0,gLambda);
     state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
-    state.residual = DBL_MAX;
-    state.shortest = state.thickness+1.0;
+    state.residual = 1.0;
+    state.shortest = octrope_poca(link,NULL,0);
     
     state.totalVerts = plc_num_verts(link);
     
