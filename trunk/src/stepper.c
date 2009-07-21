@@ -1100,7 +1100,8 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 
   for(gCorrectionAttempts=0;  
       ((inState->shortest < greenZone) ||
-	(inState->minrad < mrgreenZone)) && gCorrectionAttempts < gMaxCorrectionAttempts;
+	(inState->minrad < mrgreenZone)) && 
+	gCorrectionAttempts < gMaxCorrectionAttempts;
       gCorrectionAttempts++) {
 
     taucs_ccs_matrix *sparseA = NULL;
