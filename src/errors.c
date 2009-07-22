@@ -652,12 +652,6 @@ void snapshot( plCurve *inLink,
   fclose(gfp);
 }
   
-  
-  
-  
-  
-  
-
 void dumpLink( plCurve *inLink, search_state *inState, char *dumpname) 
 
      /* Writes a copy of the link to the current error directory. */
@@ -673,6 +667,23 @@ void dumpLink( plCurve *inLink, search_state *inState, char *dumpname)
   fclose(dumpfile);
 
 }
+
+void dumpNamedLink( plCurve *inLink, search_state *inState, char *tag, char *dumpname)
+
+/* Writes a copy of the link to the current error directory. */
+/* Sets dumpname to the (full) filename of the dumped curve. */
+/* We expect dumpname to be large enough to hold the filename. */
+  
+{
+  FILE *dumpfile;
+  
+  sprintf(dumpname,"%s%s.%s.vect",inState->fprefix,inState->basename,tag);
+  dumpfile = fopen_or_die(dumpname,"w", __FILE__ , __LINE__ );
+  plc_write(dumpfile,inLink);
+  fclose(dumpfile);
+
+}
+
 
 // this is debugging code which is not used in a standard build
 double

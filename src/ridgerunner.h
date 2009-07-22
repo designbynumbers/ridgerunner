@@ -372,6 +372,7 @@ void dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A,
 void dumpVertsStruts(plCurve* link, octrope_strut* strutSet, int strutCount);
 
 void dumpLink( plCurve *inLink, search_state *inState, char *dumpname);
+void dumpNamedLink( plCurve *inLink, search_state *inState, char *tag, char *dumpname);
 void dumpStruts( plCurve *inLink, search_state *inState, char *dumpname);
 void dumpDvdt( plc_vector* dvdt, plCurve *inLink, search_state *inState );
 void dumpdLen( plc_vector* dLen, plCurve *inLink, search_state *inState );
