@@ -994,9 +994,9 @@ void correct_constraints(plCurve *inLink,search_state *inState)
     
     dumpLink(inLink,inState,dumpname);
     sprintf(errmsg,
-	    "correct_thickness: octrope found %d struts and %d mrlocs on\n"
-	    "                   the %d vertex link (dumped to %s), too close to\n"
-	    "                   minradStorageSize of %d or strutStorageSize %d.\n",
+	    "correct_constraints: octrope found %d struts and %d mrlocs on\n"
+	    "                     the %d vertex link (dumped to %s), too close to\n"
+	    "                     minradStorageSize of %d or strutStorageSize %d.\n",
 	    strutCount,minradCount,inState->totalVerts,dumpname,
 	    minradStorageSize,strutStorageSize);
     FatalError(errmsg, __FILE__ , __LINE__ );
@@ -1506,6 +1506,9 @@ bsearch_step( plCurve* inLink, search_state* inState )
   plc_vector  *dVdt;
   plc_vector  *dLen; 
 
+  double maxDvDtnorm = 0;
+  int i;
+
   if (VERBOSITY >= 5) {  /* Verbose or higher */ 
 
     logprintf("Bsearch step %d.\n",inState->steps);
@@ -1524,8 +1527,11 @@ bsearch_step( plCurve* inLink, search_state* inState )
 
   dVdt = resolveForce(dLen,inLink,inState); 
   /* Built from the bones of firstVariation. */
-
   free(dLen);
+
+  /* We compute the maximum size of a vector in dVdt to help with debugging code. */
+
+  for(i=0;i<inState->totalVerts;i++) { if (plc_norm(dVdt[i]) > maxDvDtnorm) { maxDvDtnorm = plc_norm(dVdt[i]); } }
 
   /* Now we loop to find largest stepsize which doesn't violate constraints. */
 
@@ -1587,6 +1593,27 @@ bsearch_step( plCurve* inLink, search_state* inState )
     
     curr_error = (newpoca < 2*inState->tube_radius) ? max(lastDCSD-newpoca,0) : 0;
     mr_error = (newmr < gLambda*inState->tube_radius) ? max(lastMR-newmr,0) : 0;
+
+    /* Now in principle, we just moved the vertices of the curve by no more than maxDvDtnorm*inState->stepSize. 
+       So the error in thickness should be no more than twice that. If that's wrong, then one of workerLink and
+       inLink has a poca that's being computed incorrectly. */
+
+    if (curr_error > 5*maxDvDtnorm*inState->stepSize) {
+
+      char dname[1024];
+
+      logprintf("bsearch_step: Detected a possible error (in octrope?) at step %d.\n",inState->steps);
+      logprintf("              5 * maxDvDtnorm (%g) * inState->stepSize (%g) = %g < curr_error (%g).\n",
+		maxDvDtnorm, inState->stepSize, 5*maxDvDtnorm*inState->stepSize, curr_error);
+
+      logprintf("              Dumping pair of links involved to filenames ",inState->steps);
+      dumpNamedLink(inLink,inState,"a",dname);
+      logprintf("%s and ",dname);
+      dumpNamedLink(workerLink,inState,"b",dname);
+      logprintf("%s.\n",dname);   
+
+    }
+	    
 
     /**********************************************************************************/
 	
