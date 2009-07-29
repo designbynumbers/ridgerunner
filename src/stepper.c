@@ -1690,13 +1690,20 @@ bsearch_step( plCurve* inLink, search_state* inState )
   }
   inState->avgDvdtMag /= inState->totalVerts;
   
-  // we should make sure stepsize isn't > avgDvdt^2 as that's the minrad control bound
+  /* IF we have minrad struts, then we need to make sure that we
+     should make sure stepsize isn't > avgDvdt^2 as that's the minrad
+     control bound. However, we don't want to do this if we don't
+     currently have minrad struts because it makes everything very
+     slow. We don't just check minrad, because stiffness will impact
+     things as well. */
+
   if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && 
-      inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize) 
-    /* last this keeps us from zeroing in dVdt is really small */
+      inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize && 
+      inState->lastStepMinradStrutCount > 0) 
+    /* last this keeps us from zeroing if dVdt is really small */
     {
       
-    inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+      inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
     
     }
 
