@@ -25,7 +25,7 @@ src_strutplot_SOURCES = src/strutplot.c \
 	src/globals.c \
 	src/ordie.c 
 
-src_strutplot_LDADD = -lplCurve -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
+src_strutplot_LDADD = -lplCurve -largtable2 -loctrope -ltsnnls $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
 man1_MANS = doc/strutplot.1
 
