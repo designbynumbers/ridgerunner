@@ -12,8 +12,7 @@
 /* Function prototypes */
 
 plCurve*  bsearch_step( plCurve* inLink, search_state* inState );
-void	  step( plCurve* inLink, double stepSize, plc_vector* dVdt, 
-		search_state* inState );
+void	  step( plCurve* inLink, double stepSize, plc_vector* dVdt );
 void	  firstVariation( plc_vector* inOutDvdt, plCurve* inLink, search_state* inState,
 			  octrope_strut** outStruts, int* outStrutsCount, int dlenStep);
 void	  computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
@@ -508,6 +507,8 @@ void update_runtime_logs(search_state *state)
   fprintf(state->logfiles[kResidual],"%d %g \n",state->steps,state->residual);
   fprintf(state->logfiles[kMaxOverMin],"%d %g \n",state->steps,state->lastMaxMin);
   fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
+  fprintf(state->logfiles[kEffectiveness],"%d %g %g\n",state->steps,
+	  state->lastStepPocaEffectiveness,state->lastStepMREffectiveness);
 
 #ifdef HAVE_MALLINFO
   struct mallinfo m;
@@ -579,7 +580,7 @@ void update_runtime_logs(search_state *state)
 /********************************************************************/
 
 void
-step( plCurve* inLink, double stepSize, plc_vector* dVdt, search_state* inState )
+step( plCurve* inLink, double stepSize, plc_vector* dVdt )
 {
   int cItr, vItr, dVdtItr;
 
@@ -928,6 +929,17 @@ double l2norm(double *V, int N)
 
 }
 
+double plc_l2norm(plc_vector *V,int n)
+/* Computes the l^2 norm of an array of vectors of size n */
+{
+  double sum=0;
+  int i;
+
+  for(i=0;i<n;i++) { sum += plc_M_dot(V[i],V[i]); }
+  return sqrt(sum);
+}
+
+
 void correct_constraints(plCurve *inLink,search_state *inState) 
 
      /* Make sure that the curve inLink obeys constraints, if any. */
@@ -1203,7 +1215,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
       if (workerLink != NULL) plc_free(workerLink);
       workerLink = plc_copy(inLink);
       
-      step(workerLink,stepSize,ofv_vect,inState);
+      step(workerLink,stepSize,ofv_vect);
 
       /* We now have to compute the error in the proposed configuration. */
 
@@ -1318,7 +1330,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
        workerLink (and friends) to current data in inLink and
        inState. */
 
-    step(inLink,stepSize,ofv_vect,inState); 
+    step(inLink,stepSize,ofv_vect); 
     /* Trust me-- this was better than copying. */
 
     /* We now update the lastStepStrut and MRstrut information to  */
@@ -1491,6 +1503,41 @@ normalizeVects( plc_vector* dvdt, int size )
 
 }
 
+void stepError( plCurve *inLink, search_state *inState, 
+		plc_vector *stepDir, double stepSize, 
+		double *mr_error,double *curr_error) 
+{
+  /* Procedure computes the error involved in stepping in 
+     the direction stepDir for size stepSize. The procedure
+     is nondestructive to inLink, and frees all the memory
+     that it allocates in the computation. */
+
+  /* This is essentially debugging code which is used in 
+     computing a measure of step effectiveness. */
+
+  /* This procedure should not change inState, aside from 
+     incrementing octrope_calls. */
+
+  plCurve *workerLink;
+  double newrop, newthi, newlen, newmr, newpoca;
+
+  workerLink = plc_copy(inLink); 
+
+  step(workerLink, stepSize, stepDir);
+
+  octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	  gOctmem,gOctmem_size,gLambda);
+
+  inState->octrope_calls++;
+    
+  *curr_error = (newpoca < 2*inState->tube_radius) ? max(inState->shortest-newpoca,0) : 0;
+  *mr_error = (newmr < gLambda*inState->tube_radius) ? max(inState->minrad-newmr,0) : 0;
+
+  plc_free(workerLink);
+  
+}
+
 plCurve*
 bsearch_step( plCurve* inLink, search_state* inState )
 {	
@@ -1526,13 +1573,19 @@ bsearch_step( plCurve* inLink, search_state* inState )
   constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
 
   dVdt = resolveForce(dLen,inLink,inState); 
-  /* Built from the bones of firstVariation. */
-  free(dLen);
+  /* Built from the bones of firstVariation. */ 
 
   /* We compute the maximum size of a vector in dVdt to help with debugging code. */
 
-  for(i=0;i<inState->totalVerts;i++) { if (plc_norm(dVdt[i]) > maxDvDtnorm) { maxDvDtnorm = plc_norm(dVdt[i]); } }
+  for(i=0;i<inState->totalVerts;i++) 
+    { if (plc_norm(dVdt[i]) > maxDvDtnorm) { maxDvDtnorm = plc_norm(dVdt[i]); } }
 
+  double dVdtNorm; 
+  dVdtNorm = plc_l2norm(dVdt,inState->totalVerts);
+
+  double dLenNorm;
+  dLenNorm = plc_l2norm(dLen,inState->totalVerts);
+  
   /* Now we loop to find largest stepsize which doesn't violate constraints. */
 
   if( inState->shortest > 2*inState->tube_radius )
@@ -1557,6 +1610,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
      We will use the globals "gOctmem" and "gOctmem_size" for memory. */
     
   double newthi,newrop,newlen;
+  double stepTaken;
 
   do {			
     
@@ -1567,7 +1621,8 @@ bsearch_step( plCurve* inLink, search_state* inState )
     if( workerLink != NULL ) plc_free(workerLink);
     workerLink = plc_copy(inLink); 
 
-    step(workerLink, inState->stepSize, dVdt, inState);
+    step(workerLink, inState->stepSize, dVdt);
+    stepTaken = inState->stepSize; // Record the step actually taken this time.
 
     /* We now compute the error in minRad and poca.  Since we need to
        update inState later if we're accepting this configuration, we
@@ -1594,9 +1649,11 @@ bsearch_step( plCurve* inLink, search_state* inState )
     curr_error = (newpoca < 2*inState->tube_radius) ? max(lastDCSD-newpoca,0) : 0;
     mr_error = (newmr < gLambda*inState->tube_radius) ? max(lastMR-newmr,0) : 0;
 
-    /* Now in principle, we just moved the vertices of the curve by no more than maxDvDtnorm*inState->stepSize. 
-       So the error in thickness should be no more than twice that. If that's wrong, then one of workerLink and
-       inLink has a poca that's being computed incorrectly. */
+    /* Now in principle, we just moved the vertices of the curve by no
+       more than maxDvDtnorm*inState->stepSize.  So the error in
+       thickness should be no more than twice that. If that's wrong,
+       then one of workerLink and inLink has a poca that's being
+       computed incorrectly. */
 
     if (curr_error > 5*maxDvDtnorm*inState->stepSize) {
 
@@ -1613,7 +1670,67 @@ bsearch_step( plCurve* inLink, search_state* inState )
       logprintf("%s.\n",dname);   
 
     }
-	    
+
+    if (gLambda > 0 && mr_error > 0) {
+    
+      /* We can also compute the expected change in minrad from a
+	 motion of this size. This is a little more complicated. We
+	 summarize the computation as follows. If E is the minimum
+	 edge length at vertex i,
+	 
+	 minrad = E/2 tan(theta/2), or 2 minrad = E/tan(theta/2), or tan(theta/2) = E/2minrad, or 
+	 
+      */
+      
+      double mintheta,edgelen;
+      
+      edgelen = newlen/plc_num_edges(workerLink);
+      mintheta = 2*atan(edgelen/(2*gLambda*inState->tube_radius));
+      
+      /*
+	
+	where theta is the turning angle at i. Now the derivative of
+	this function is
+	
+	d/d(theta) minrad = E/(2 cos theta - 2).
+	
+	This is an increasing and negative function, at least on 0
+	.. pi. So how much can minrad drop on a given angle step?
+	Well, at the minimum turning angle of minturn, the derivative
+	of minrad should be pretty close to
+	
+      */
+      
+      double dminrad;
+      dminrad = edgelen/(2*cos(mintheta) - 2);
+      
+      /* Now what's the maximum change in angle that we expect from
+	 this much motion of the edges?  A computation reveals that
+	 each edge should change direction by at most */
+      
+      double maxDeltaAngle;
+      maxDeltaAngle = asin(maxDvDtnorm*inState->stepSize/(edgelen/2.0));
+      
+      /* So the total change in minrad should be no more than twice
+	 this times the dminrad bound...  we allow up to 300% of this
+	 error just to be on the safe side. We get */
+      
+      if (mr_error > fabs(3*dminrad*2*maxDeltaAngle)) {
+	
+	char dname[1024];
+	
+	logprintf("bsearch_step: Detected a possible error in minrad-controlled stepping at step %d.\n",inState->steps);
+	logprintf("              fabs(3*dminrad (%g) * 2 * maxDeltaAngle (%g)) = %g < mr_error (%g).\n",
+		  dminrad, maxDeltaAngle, fabs(3*dminrad*2*maxDeltaAngle), mr_error);
+	logprintf("              Dumping pair of links involved to filenames ",inState->steps);
+	dumpNamedLink(inLink,inState,"a",dname);
+	logprintf("%s and ",dname);
+	dumpNamedLink(workerLink,inState,"b",dname);
+	logprintf("%s.\n",dname);   
+
+      }
+    
+    }
 
     /**********************************************************************************/
 	
@@ -1640,6 +1757,34 @@ bsearch_step( plCurve* inLink, search_state* inState )
 	   inState->stepSize < inState->maxStepSize 
 	   && inState->stepSize > kMinStepSize );
 
+  /* At this point, we have settled on an acceptable step size. */
+  /* We now check the effectiveness of our step direction scheme by
+       comparing the error resulting from this step to the error that
+       would have resulting if we had just stepped in the dLen
+       direction. We have to choose the comparison step size
+       carefully, since dLen and dVdt have different norms. */
+  
+  double comp_curr_error, comp_mr_error;
+
+  stepError(inLink,inState,dLen,(dVdtNorm/dLenNorm)*stepTaken,
+	    &comp_mr_error,&comp_curr_error);
+  
+  /* Now we compute effectiveness in terms of mr_error and curr_err. */
+
+  if (comp_curr_error < 1e-15) { 
+    inState->lastStepPocaEffectiveness = (curr_error > 0) ? -1 : 1;
+  } else {
+   inState->lastStepPocaEffectiveness = 1 - curr_error/comp_curr_error;
+  }
+
+  if (comp_mr_error < 1e-15) { 
+    inState->lastStepMREffectiveness = (mr_error > 0) ? -1 : 1;
+  } else {
+    inState->lastStepMREffectiveness = 1 - mr_error/comp_mr_error;
+  }
+
+  free(dLen); /* We are now done with dLen, so let's get rid of it before we forget to do so. */
+  
   if (curr_error > 100*ERROR_BOUND) {
 
     char dumpName[1024];
@@ -1689,7 +1834,10 @@ bsearch_step( plCurve* inLink, search_state* inState )
   
   }
   inState->avgDvdtMag /= inState->totalVerts;
-  
+ 
+  /* Experimental Version of RR, July 31, 2009. We're trying to run stuff
+     without this dvdt bound. This may or may not work. */
+ 
   /* IF we have minrad struts, then we need to make sure that we
      should make sure stepsize isn't > avgDvdt^2 as that's the minrad
      control bound. However, we don't want to do this if we don't
@@ -1697,15 +1845,15 @@ bsearch_step( plCurve* inLink, search_state* inState )
      slow. We don't just check minrad, because stiffness will impact
      things as well. */
 
-  if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag && 
-      inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize && 
-      inState->lastStepMinradStrutCount > 0) 
-    /* last this keeps us from zeroing if dVdt is really small */
-    {
+ /*  if( inState->stepSize > inState->avgDvdtMag*inState->avgDvdtMag &&  */
+/*       inState->avgDvdtMag*inState->avgDvdtMag > kMinStepSize &&  */
+/*       inState->lastStepMinradStrutCount > 0)  */
+/*     /\* last this keeps us from zeroing if dVdt is really small *\/ */
+/*     { */
       
-      inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag;
+/*       inState->stepSize = inState->avgDvdtMag*inState->avgDvdtMag; */
     
-    }
+/*     } */
 
   // also shouldn't be > 10% of edgelength
   if( inState->stepSize > inState->length/inState->totalVerts*.1 )
@@ -1873,6 +2021,154 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
   free(strutDirections);
 }
 
+void compute_minrad_gradient(plCurve *inLink,octrope_mrloc mrloc,plc_vector *AAs,plc_vector *BBs,plc_vector *CCs)
+
+/* Returns the gradient of minrad corresponding to mrloc. This gradient has three vectors which 
+   describe the motion of the vertex before the target (As), the target (Bs), and the vertex after the
+   target (Cs). */
+
+{
+  plc_vector B, A, cross, As, Bs, Cs;
+  double bmag, amag;
+  double angle;
+  double kappa, prevLen, thisLen;
+  plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
+ 		
+  prevSide = plc_vect_diff(inLink->cp[mrloc.component].vt[mrloc.vert],inLink->cp[mrloc.component].vt[mrloc.vert-1]);
+  thisSide = plc_vect_diff(inLink->cp[mrloc.component].vt[mrloc.vert+1],inLink->cp[mrloc.component].vt[mrloc.vert]);
+  
+  /* dot = plc_M_dot(prevSide, thisSide); */
+  
+  prevLen = plc_M_norm(prevSide);
+  thisLen = plc_M_norm(thisSide);
+  
+  // B = b-v = thisSide. 
+  
+  B = thisSide;
+  A = plc_scale_vect(-1,prevSide);
+  
+  bmag = plc_M_norm(B);
+  amag = plc_M_norm(A);
+  
+  /* value = dot/(prevLen*thisLen); */
+  bool ok = true;
+  angle = plc_angle(prevSide,thisSide,&ok);
+  
+  if (!ok) {
+    
+    char errmsg[1024];
+    sprintf(errmsg,
+	    "ridgerunner: Couldn't compute turning angle at vertex %d of cmp %d\n"
+	    "             of polyline. \n",
+	    mrloc.vert,mrloc.component);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+    
+  }
+  
+  /* We now check that angle is high enough for the following 
+     stuff to work. */
+  
+  double PI = 3.14159265358979323846;
+  
+  if (angle < 1e-12 || angle > PI - 1e-12) {
+    
+    char errmsg[1024];
+    sprintf(errmsg,
+	    "ridgerunner: Can't compute minrad gradient when edges are\n"
+	    "             almost colinear. Angle between edges is %g.\n",
+	    angle);
+    
+    FatalError(errmsg, __FILE__ , __LINE__ );
+    
+  }
+  
+  if( mrloc.svert > mrloc.vert ) { // We are computing the gradient of "plus minrad". 
+    
+    // says... maple?
+    kappa = -bmag/(2-2*cos(angle));
+    
+    // BxA
+    
+    plc_M_cross(N,B,A);
+    N = plc_normalize_vect(N,&ok);
+    assert(ok);
+    
+    double Lconst, Mconst, Nconst;
+    
+    Lconst = (1/(2*tan(angle/2) * bmag));	
+    fancyL = plc_scale_vect(Lconst,B);
+    
+    Mconst = kappa*(1/(amag*amag));
+    // A x N
+    
+    plc_M_cross(cross,A,N);
+    fancyM = plc_scale_vect(Mconst,cross);
+    
+    Nconst = kappa*(1/(bmag*bmag));
+    // N x B
+    
+    plc_M_cross(cross,N,B);
+    fancyN = plc_scale_vect(Nconst,cross);
+    
+    As = fancyM;
+    
+    Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+    Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+    Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+    
+    /* This is really the fastest way to accomplish this operation. The plCurve */
+    /* option would be the code: */
+    
+    /* Bs = plc_scale_vect(-1,plc_vect_sum(plc_vect_sum(fancyM,fancyN),fancyL)); */
+    
+    /* which is really pretty awful. */
+    
+    Cs = plc_vect_sum(fancyN,fancyL);
+    
+  } else { // We are computing the gradient of "minus minrad". 
+    
+    // says... maple?
+    kappa = -amag/(2-2*cos(angle));
+    
+    // BxA
+    
+    plc_M_cross(N,B,A);
+    N = plc_normalize_vect(N,&ok);
+    assert(ok);
+    
+    double Lconst, Mconst, Nconst;
+    
+    Lconst = (1/(2*tan(angle/2) * amag));
+    
+    fancyL = plc_scale_vect(Lconst,A);
+    Mconst = kappa*(1/(amag*amag));
+    
+    // A x N
+    
+    plc_M_cross(cross,A,N);
+    fancyM = plc_scale_vect(Mconst,cross);
+    
+    Nconst = kappa*(1/(bmag*bmag));
+    // N x B
+    plc_M_cross(cross,N,B);
+    fancyN = plc_scale_vect(Nconst,cross);
+    
+    As = plc_vect_sum(fancyM,fancyL);
+    
+    Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
+    Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
+    Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
+    
+    /* See above. This is better than using plCurve. */
+    
+    Cs = fancyN;
+    
+  }
+
+  *AAs = As; *BBs = Bs; *CCs = Cs;
+  
+}
+  
 static void
 placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink, 
 		   octrope_mrloc* minradStruts, 
@@ -1891,151 +2187,13 @@ placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink,
 
 {
   int mItr;
-  char errmsg[1024];
-  
+    
   for( mItr=0; mItr<minradLocs; mItr++ ) {
 
-    /* For each vertex at minimum minrad radius... compute the gradient of mr */
+    plc_vector As, Bs, Cs;
+    double norm;
 
-    plc_vector B, A, cross, As, Bs, Cs;
-    double bmag, amag, norm;
-    double angle;
-    double kappa, prevLen, thisLen;
-    plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
-    
-    int vItr = minradStruts[mItr].vert;
-    int cItr = minradStruts[mItr].component;
-		
-    prevSide = plc_vect_diff(inLink->cp[cItr].vt[vItr],inLink->cp[cItr].vt[vItr-1]);
-    thisSide = plc_vect_diff(inLink->cp[cItr].vt[vItr+1],inLink->cp[cItr].vt[vItr]);
-		
-    /* dot = plc_M_dot(prevSide, thisSide); */
-
-    prevLen = plc_M_norm(prevSide);
-    thisLen = plc_M_norm(thisSide);
-
-    // B = b-v = thisSide. 
-
-    B = thisSide;
-    A = plc_scale_vect(-1,prevSide);
-
-    bmag = plc_M_norm(B);
-    amag = plc_M_norm(A);
-		
-    /* value = dot/(prevLen*thisLen); */
-    bool ok = true;
-    angle = plc_angle(prevSide,thisSide,&ok);
-
-    if (!ok) {
-
-      sprintf(errmsg,
-	      "ridgerunner: Couldn't compute turning angle at vertex %d of cmp %d\n"
-	      "             of polyline. \n",
-	      vItr,cItr);
-      FatalError(errmsg, __FILE__ , __LINE__ );
-
-    }
-
-    /* We now check that angle is high enough for the following 
-       stuff to work. */
-
-    double PI = 3.14159265358979323846;
-
-    if (angle < 1e-12 || angle > PI - 1e-12) {
-      
-      sprintf(errmsg,
-	      "ridgerunner: Can't compute minrad gradient when edges are\n"
-	      "             almost colinear. Angle between edges is %g.\n",
-	      angle);
-
-      FatalError(errmsg, __FILE__ , __LINE__ );
-
-    }
-    		
-    if( thisLen < prevLen )
-      {
-	// says... maple?
-	kappa = -bmag/(2-2*cos(angle));
-	
-	// BxA
-
-	plc_M_cross(N,B,A);
-	N = plc_normalize_vect(N,&ok);
-	assert(ok);
-	
-	double Lconst, Mconst, Nconst;
-	
-	Lconst = (1/(2*tan(angle/2) * bmag));	
-        fancyL = plc_scale_vect(Lconst,B);
-
-	Mconst = kappa*(1/(amag*amag));
-	// A x N
-
-	plc_M_cross(cross,A,N);
-	fancyM = plc_scale_vect(Mconst,cross);
-	
-	Nconst = kappa*(1/(bmag*bmag));
-	// N x B
-
-	plc_M_cross(cross,N,B);
-	fancyN = plc_scale_vect(Nconst,cross);
-	
-	As = fancyM;
-		
-	Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-	Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-	Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-
-	/* This is really the fastest way to accomplish this operation. The plCurve */
-	/* option would be the code: */
-
-	/* Bs = plc_scale_vect(-1,plc_vect_sum(plc_vect_sum(fancyM,fancyN),fancyL)); */
-
-	/* which is really pretty awful. */
-	
-	Cs = plc_vect_sum(fancyN,fancyL);
-	
-      }
-    else
-      {
-	// says... maple?
-	kappa = -amag/(2-2*cos(angle));
-	
-	// BxA
-
-	plc_M_cross(N,B,A);
-	N = plc_normalize_vect(N,&ok);
-	assert(ok);
-	
-	double Lconst, Mconst, Nconst;
-	
-	Lconst = (1/(2*tan(angle/2) * amag));
-
-	fancyL = plc_scale_vect(Lconst,A);
-	Mconst = kappa*(1/(amag*amag));
-
-	// A x N
-
-	plc_M_cross(cross,A,N);
-	fancyM = plc_scale_vect(Mconst,cross);
-	
-	Nconst = kappa*(1/(bmag*bmag));
-	// N x B
-	plc_M_cross(cross,N,B);
-	fancyN = plc_scale_vect(Nconst,cross);
-
-	As = plc_vect_sum(fancyM,fancyL);
-	
-	Bs.c[0] = -fancyM.c[0] - fancyN.c[0] - fancyL.c[0];
-	Bs.c[1] = -fancyM.c[1] - fancyN.c[1] - fancyL.c[1];
-	Bs.c[2] = -fancyM.c[2] - fancyN.c[2] - fancyL.c[2];
-
-	/* See above. This is better than using plCurve. */
-	
-	Cs = fancyN;
-
-      }
-    
+    compute_minrad_gradient(inLink,minradStruts[mItr],&As,&Bs,&Cs); 
     norm = sqrt(plc_M_dot(As,As) + plc_M_dot(Bs,Bs) + plc_M_dot(Cs,Cs));
     
     plc_M_scale_vect(1/norm,As);

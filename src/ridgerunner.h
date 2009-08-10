@@ -91,6 +91,7 @@ enum GraphTypes
   kEQVariance,	// the variance of the set of (edge lengths - the average)
   klsqrlog,
   kMemused,  // total amount of memory allocated
+  kEffectiveness, // a measure of how successful we are in avoiding error
   
   kTotalLogTypes
 };
@@ -191,7 +192,11 @@ typedef struct
 
   octrope_mrloc* lastStepMRlist; // minrad locs from last completed step or cstep
   int		lastStepMinradStrutCount;
-  
+
+  double        lastStepPocaEffectiveness;  // The error introduced in pocas by the last 
+  double        lastStepMREffectiveness;    // step, as a fraction of the error that would
+                                            // have been introduced by taking a step of the 
+                                            // same (L^2) size in the dLen direction.
   int		totalVerts;
   int		totalSides;
   
@@ -239,6 +244,9 @@ typedef struct
 
   FILE    *logfiles[128];     /* The logfiles hold the various data that can be recorded.*/
   char    *logfilenames[128]; /* These buffers hold the names of the log files. */ 
+
+  int     ndisplay;           /* Number of data items to display and data to display */
+  enum GraphTypes runtime_display[128]; 
 
 #ifdef HAVE_TIME
   time_t  start_time;
