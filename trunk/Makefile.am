@@ -115,9 +115,13 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate
 
 # Now include some testing stuff
-
+if HAVEGSL
+TESTS = src/csteptest src/mrgradtest
+else
 TESTS = src/csteptest
-noinst_PROGRAMS = src/csteptest
+endif
+
+check_PROGRAMS = src/csteptest src/mrgradtest
 
 src_csteptest_SOURCES =  src/errors.c \
 	src/dlen.c \
@@ -136,3 +140,21 @@ src_csteptest_SOURCES =  src/errors.c \
 	src/csteptest.c 
 
 src_csteptest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
+
+src_mrgradtest_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	src/mrgradtest.c 
+
+src_mrgradtest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas

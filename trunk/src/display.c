@@ -62,6 +62,82 @@ FILE *gclpipe = NULL;
 #define MAXMIN_TEXT_YX 12,40
 #define MAXMIN_FIELD_YX 12,55
 
+void parse_display_arg(search_state *inState, struct arg_str *display)
+{
+  inState->ndisplay = 3;
+  inState->runtime_display[0] = kRopelength;
+  inState->runtime_display[1] = kStrutCount;
+  inState->runtime_display[2] = kThickness;
+  
+  int n;
+
+  for(n=0;n<display->count;n++) {
+    
+    if (!strcmp(display->sval[n],"length")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kLength;
+      
+    } else if (!strcmp(display->sval[n],"ropelength")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kRopelength;
+      
+    } else if (!strcmp(display->sval[n],"strutcount")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kStrutCount;
+      
+    } else if (!strcmp(display->sval[n],"stepsize")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kStepSize;
+      
+    } else if (!strcmp(display->sval[n],"thickness")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kThickness;
+      
+    } else if (!strcmp(display->sval[n],"minrad")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kMinrad;
+      
+    } else if (!strcmp(display->sval[n],"residual")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kResidual;
+      
+    } else if (!strcmp(display->sval[n],"maxovermin")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kMaxOverMin;
+      
+    } else if (!strcmp(display->sval[n],"rcond")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kRcond;
+      
+    } else if (!strcmp(display->sval[n],"walltime")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kWallTime;
+      
+    } else if (!strcmp(display->sval[n],"maxvertforce")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kMaxVertexForce;
+      
+    } else if (!strcmp(display->sval[n],"csteps_to_converge")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kCorrectionStepsNeeded;
+      
+    } else if (!strcmp(display->sval[n],"edgelenvariance")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kEQVariance;
+      
+    } else if (!strcmp(display->sval[n],"memused")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kMemused;
+      
+    } else if (!strcmp(display->sval[n],"effectiveness")) {
+      
+      inState->runtime_display[inState->ndisplay++] = kEffectiveness;
+      
+    } 
+    
+  }
+
+}
 
 void init_runtime_display(search_state *inState)
 {
@@ -201,11 +277,31 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
 
 #else 
 
-  printf("%4d   Rop:%3.7f  Str:%3d  MrStruts:%3d  Thi:%1.7f \n",
-	 inState->steps, inState->ropelength, 
-	 inState->lastStepStrutCount,
-	 inState->lastStepMinradStrutCount,
-	 inState->thickness);
+  printf("%4d ",inState->steps);
+
+  int i;
+
+  for(i=0;i<inState->ndisplay;i++) {
+
+    switch (inState->runtime_display[i]) {
+
+    case kLength : printf("Len: %3.7f ",inState->length); break;
+    case kRopelength : printf("Rop: %3.7f ",inState->ropelength); break;
+    case kStrutCount : printf("Str: %3d MRstruts: %3d ",inState->lastStepStrutCount,inState->lastStepMinradStrutCount); break;
+    case kStepSize : printf("Step size: %1.7f ",inState->stepSize); break;
+    case kThickness : printf("Thi: %1.7f ",inState->thickness); break;
+    case kMinrad : printf("Minrad: %1.7f ", inState->minrad); break;
+    case kResidual : printf("Residual: %1.4f ",inState->residual); break;
+    case kMaxOverMin : printf("Max/min edge: %1.7f ",inState->lastMaxMin); break;
+    case kRcond : printf("Rcond: %g ",inState->rcond); break;
+    case kEffectiveness : printf("Eff: %1.4f MrEff: %1.4f ",inState->lastStepPocaEffectiveness,inState->lastStepMREffectiveness); break;
+    default: break;
+      
+    }
+
+  }
+
+  printf("\n");
 
 #endif
 

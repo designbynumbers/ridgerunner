@@ -22,6 +22,7 @@ void initializeState( search_state* state );
 #endif
 
 double parse_size(const char *sizestring);
+void parse_display_arg(search_state *inState, struct arg_str *display);
 	
 int
 main( int argc, char* argv[] )
@@ -124,6 +125,12 @@ main( int argc, char* argv[] )
 					       "of computation every <n> steps");
   
   struct arg_lit *arg_norcond = arg_lit0(NULL,"NoRcond","don't log condition number for matrices");
+
+  struct arg_rem  *arg_bl8 = arg_rem("","");
+  struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
+  struct arg_rem  *arg_bl9 = arg_rem("","");
+
+  struct arg_str  *arg_display = arg_strn("","display","ropelength/strutcount/thickness",0,128,"name of logfile to display on screen during run");
   
   struct arg_end *end = arg_end(20);
   
@@ -144,6 +151,9 @@ main( int argc, char* argv[] )
 		      arg_eqmult,arg_noeq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
 		      arg_norcond,
+
+		      arg_bl8,arg_dispopts,arg_bl9,
+		      arg_display,
 		      end};
   int nerrors;
   int snapinterval = 10000;
@@ -677,6 +687,7 @@ main( int argc, char* argv[] )
   setenv("COL_ORDERING", "amd", 0);
     
   open_runtime_logs(&state,'w');
+  parse_display_arg(&state,arg_display);
   init_runtime_display(&state);
 
   logprintf("ridgerunner: Starting run. Will stop if \n"
@@ -742,7 +753,8 @@ main( int argc, char* argv[] )
 
   fclose(savefile);
 
-  /* We can provide some convenient post-processing of the results if we have various utilities on this system. */
+  /* We can provide some convenient post-processing of the results if
+     we have various utilities on this system. */
 
 #ifdef HAVE_TUBE
 
@@ -758,7 +770,7 @@ main( int argc, char* argv[] )
 #ifdef HAVE_POVSNAP 
 
   printf("Running povsnap to generate image of final configuration.\n");
-  sprintf(tmpcommand,"cd ./%s.rr; povsnap -q -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename);
+  sprintf(tmpcommand,"cd ./%s.rr; orient -a 2 %s.final.tube.off; povsnap -q -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename,state.basename);
   system(tmpcommand);
 
 #endif
@@ -795,7 +807,7 @@ initializeState( search_state* state )
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
     "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance",
-    "lsqroutput","memused"
+    "lsqroutput","memused","effectiveness"
   }; 
 
   search_state *zerostate;

@@ -121,6 +121,8 @@ AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_ERROR([ridgerunner requires the argta
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
 AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
 
+AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 = 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 = 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library])],[-lgslcblas])
+
 #Checks for programs
 AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
 if test "$HAVE_TUBE" == true; then
