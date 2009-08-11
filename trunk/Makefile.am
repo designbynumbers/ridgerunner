@@ -159,4 +159,4 @@ src_mrgradtest_SOURCES =  src/errors.c \
 
 src_mrgradtest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
 
-dist_man_MANS = doc/strutplot.1
+
