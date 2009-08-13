@@ -1514,7 +1514,9 @@ int main(int argc,char *argv[]) {
   octrope_strut *strutlist;
   octrope_mrloc *mrloc_list;
   int num_mr_locs,mr_size;
-  double eps = 0.01;
+  double eps = 1e-5;
+  double tuberad = 0.5;
+  double lambda = 1;
   
   int nerrors;
   char outfile_name[1000];
@@ -1523,6 +1525,9 @@ int main(int argc,char *argv[]) {
   struct arg_int  *levels = arg_int0("l", "levels","<n>", "number of octree levels");
   struct arg_int  *debuglevel = arg_int0("v", "verbosity","<n>", "level of debugging information to print (0-9)");
   struct arg_dbl  *epsilon     = arg_dbl0("e","epsilon","<x>","find struts within this tolerance of minimum length");
+  struct arg_dbl  *tube_radius = arg_dbl0("r","radius","<x>","plot all struts with length < x");
+  struct arg_dbl  *arg_lambda = arg_dbl0("l","lambda","<x>","set stiffness lambda");
+
   struct arg_lit  *help        = arg_lit0("h","help","display help message");
   
   struct arg_lit  *nokinks     = arg_lit0("k","nokinks","don't highlight kinks");
@@ -1556,7 +1561,8 @@ int main(int argc,char *argv[]) {
   struct arg_file *outfile = arg_file0("o","outfile","<file>","output filename");
   struct arg_end  *end = arg_end(20);
 
-  void *argtable[] = {help, epsilon, levels, debuglevel, nokinks, nogrid, noss,
+  void *argtable[] = {help, epsilon, tube_radius, arg_lambda,levels, debuglevel, 
+		      nokinks, nogrid, noss,
                       nokappaplot, ticks, plotwidth, maxstruts, outfile,
                       infile, strutfile, combineplots, nokey, compressions,
                       strutsize, slo, shi, tlo, thi, nobg, nodsc, whole,
@@ -1612,6 +1618,18 @@ int main(int argc,char *argv[]) {
     octrope_set_levels(*(levels->ival));
     
   }
+
+  if (arg_lambda > 0) {
+
+    lambda = arg_lambda->dval[0];
+
+  }
+
+  if (tube_radius->count > 0) {
+
+    tuberad = tube_radius->dval[0];
+
+  }
   
   if (debuglevel->count > 0) {
     
@@ -1621,9 +1639,12 @@ int main(int argc,char *argv[]) {
     
   }
 
+  bool use_eps = false;
+
   if (epsilon->count > 0) {
 
     eps = *(epsilon->dval);
+    use_eps = true;
 
   }
 
@@ -1989,9 +2010,17 @@ int main(int argc,char *argv[]) {
         sl_size = 20*plc_num_edges(L);      
       }
       strutlist = (octrope_strut *)(calloc(sl_size,sizeof(octrope_strut)));
-      
-      n_struts = octrope_struts(L,0,eps,strutlist,sl_size,&shortest,NULL,0);
-      
+
+      if (use_eps) {
+
+	n_struts = octrope_struts(L,0,eps,strutlist,sl_size,&shortest,NULL,0);
+	
+      } else {
+	
+	n_struts = octrope_struts(L,2*tuberad,0,strutlist,sl_size,&shortest,NULL,0);
+
+      }
+
       if (octrope_error_num > 0) {
 	
 	fprintf(stderr,"%s\n",octrope_error_str);
@@ -2004,7 +2033,15 @@ int main(int argc,char *argv[]) {
       mr_size = 2*plc_num_edges(L);      /* We allocate an extra-large buffer. */
       mrloc_list = (octrope_mrloc *)(calloc(mr_size,sizeof(octrope_mrloc)));
       
-      octrope_minrad(L,(shortest+eps)/2.0,0,mrloc_list,mr_size,&num_mr_locs);
+      if (use_eps) {
+
+	octrope_minrad(L,(shortest+eps)/2.0,0,mrloc_list,mr_size,&num_mr_locs);
+
+      } else {
+
+	octrope_minrad(L,tuberad*lambda,0,mrloc_list,mr_size,&num_mr_locs);
+
+      }
       
       if (octrope_error_num > 0) {
 	
