@@ -1770,11 +1770,13 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   }
 
-  /* We now invoke the brent code. Again, we lift this from a web source. */
+  /* We now invoke the brent code. Again, we lift this from a web source. We're trying to converge on the best 
+     step size, so relatively high (1e-2) error is acceptable, especially since function evaluations (octrope calls) 
+     are quite expensive. */
 
-  best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-5,&best_step);
+  best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-2,&best_step);
 
-  if (best_step < 1e-4) { best_step = 1e-4; }  // We prohibit backward steps.
+  if (best_step < 1e-7) { best_step = 1e-7; }  // We prohibit backward steps.
   
   /* We now actually take the step. */
 
