@@ -286,7 +286,7 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
     switch (inState->runtime_display[i]) {
 
     case kLength : printf("Len: %3.7f ",inState->length); break;
-    case kRopelength : printf("Rop: %3.7f ",inState->ropelength); break;
+    case kRopelength : printf("Rop: %3.11f ",inState->ropelength); break;
     case kStrutCount : printf("Str: %3d MRstruts: %3d ",inState->lastStepStrutCount,inState->lastStepMinradStrutCount); break;
     case kStepSize : printf("Step size: %1.7f ",inState->stepSize); break;
     case kThickness : printf("Thi: %1.7f ",inState->thickness); break;

@@ -18,6 +18,7 @@ void	  firstVariation( plc_vector* inOutDvdt, plCurve* inLink, search_state* inS
 void	  computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
 			       octrope_mrloc* minradSet, int strutCount, 
 			       int minradLocs );
+plCurve*  steepest_descent_step( plCurve *inLink, search_state *inState);
 
 // lesser utility functions
 int    equalStruts( const octrope_strut* s1, const octrope_strut* s2 );
@@ -190,7 +191,9 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   
     /************************************************************************/
     
-    *inLink = bsearch_step(*inLink, inState);
+    //*inLink = bsearch_step(*inLink, inState);
+    *inLink = steepest_descent_step(*inLink,inState);
+
     correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
 
     /************************************************************************/
@@ -1503,11 +1506,11 @@ normalizeVects( plc_vector* dvdt, int size )
 
 }
 
-void stepError( plCurve *inLink, search_state *inState, 
-		plc_vector *stepDir, double stepSize, 
-		double *mr_error,double *curr_error) 
+double trialStep( plCurve *inLink, search_state *inState, 
+		  plc_vector *stepDir, double stepSize, 
+		  double *mr_error,double *curr_error) 
 {
-  /* Procedure computes the error involved in stepping in 
+  /* Procedure computes the ropelength involved in stepping in 
      the direction stepDir for size stepSize. The procedure
      is nondestructive to inLink, and frees all the memory
      that it allocates in the computation. */
@@ -1535,11 +1538,317 @@ void stepError( plCurve *inLink, search_state *inState,
   *mr_error = (newmr < gLambda*inState->tube_radius) ? max(inState->minrad-newmr,0) : 0;
 
   plc_free(workerLink);
+
+  return newrop;
   
 }
 
+plc_vector *stepDirection( plCurve *inLink, search_state *inState) 
+
+/* Compute the step direction by building the rigidity matrix and resolving against constraints */
+
+{
+  // create initial vector field for which we want to move along in this step
+  plc_vector  *dVdt;
+  plc_vector  *dLen; 
+  
+  dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
+  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
+  fatalifnull_(dLen);
+    
+  dlenForce(dLen,inLink,inState);
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
+  eqForce(dLen,inLink,inState);
+  specialForce(dLen,inLink,inState);
+  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+
+  dVdt = resolveForce(dLen,inLink,inState); 
+  free(dLen);
+
+  return dVdt;
+}
+
+double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, double stepSize)
+ 
+/* Scoring a step is actually a little difficult, since the score is not strictly in terms of ropelength.
+   When there are no struts, the score should simply be the length. If there _are_ struts, then the score
+   is ropelength. This isn't hard to do, but we encapsulate it in order to make the stepper code readable. */
+{ 
+  plCurve *workerLink;
+  double newrop, newthi, newlen, newmr, newpoca;
+ 
+  workerLink = plc_copy(inLink); 
+  step(workerLink, stepSize, stepDir);
+
+  octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	  gOctmem,gOctmem_size,gLambda);
+
+  inState->octrope_calls++;
+  plc_free(workerLink);
+
+  if (newmr < gLambda * inState->tube_radius || newpoca < 2*inState->tube_radius) {
+
+    return newrop;
+
+  } else {
+
+    return 2*newlen;
+
+  }
+
+}
+
+#define GOLD 1.618034
+#define GLIMIT 100.0
+#define TINY 1.0e-20
+#define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);
+#define SIGN(a,b) ((b) > 0.0 ? fabs(a) : -fabs(a))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
+#define ITMAX 100
+#define CGOLD 0.3819660
+#define ZEPS 1.0e-10
+
+double brent_step(double ax,double bx,double cx, 
+		  plCurve *inLink, search_state *inState, plc_vector *dVdt, 
+		  double tol,double *xmin)
+
+/* Given a bracketing triple of step sizes ax, bx, and cx, finds the stepsize of minimum score (between ax and cx) 
+   to within tol and returns it in xmin, returning the lowest score itself as the return value of the function. */
+
+{
+  int iter;
+  double a,b,etemp,fu,fv,fw,fx,p,q,r,tol1,tol2,u,v,w,x,xm;
+  double e=0.0;
+  double d=0;
+  
+  a=(ax < cx ? ax : cx);
+  b=(ax > cx ? ax : cx);
+  x=w=v=bx;
+
+  fw=fv=fx=stepScore(inLink,inState,dVdt,x);
+
+  for (iter=1;iter<=ITMAX;iter++) {
+    xm=0.5*(a+b);
+    tol2=2.0*(tol1=tol*fabs(x)+ZEPS);
+    if (fabs(x-xm) <= (tol2-0.5*(b-a))) {
+      *xmin=x;
+      return fx;
+    }
+    if (fabs(e) > tol1) {
+      r=(x-w)*(fx-fv);
+      q=(x-v)*(fx-fw);
+      p=(x-v)*q-(x-w)*r;
+      q=2.0*(q-r);
+      if (q > 0.0) p = -p;
+      q=fabs(q);
+      etemp=e;
+      e=d;
+      if (fabs(p) >= fabs(0.5*q*etemp) || p <= q*(a-x) || p >= q*(b-x))
+	d=CGOLD*(e=(x >= xm ? a-x : b-x));
+      else {
+	d=p/q;
+	u=x+d;
+	if (u-a < tol2 || b-u < tol2)
+	  d=SIGN(tol1,xm-x);
+      }
+    } else {
+      d=CGOLD*(e=(x >= xm ? a-x : b-x));
+    }
+    u=(fabs(d) >= tol1 ? x+d : x+SIGN(tol1,d));
+
+    fu=stepScore(inLink,inState,dVdt,u);
+
+    if (fu <= fx) {
+      if (u >= x) a=x; else b=x;
+      SHFT(v,w,x,u)
+	SHFT(fv,fw,fx,fu)
+	} else {
+      if (u < x) a=u; else b=u;
+      if (fu <= fw || w == x) {
+	v=w;
+	w=u;
+	fv=fw;
+	fw=fu;
+      } else if (fu <= fv || v == x || v == w) {
+	v=u;
+	fv=fu;
+      }
+    }
+  }
+  char ErrMsg[1024];
+  sprintf(ErrMsg,"brent_step failed to converge on a minimum after 100 iterations.\n");
+  FatalError(ErrMsg,__FILE__,__LINE__);
+
+  *xmin=x;
+  return fx;
+}
+
+void mnbrak(double *ax, double *bx, double *cx, double *fa, double *fb, double *fc,
+	    plCurve *inLink,search_state *inState,plc_vector *dVdt)
+{
+  double ulim,u,r,q,fu,dum;
+  
+  *fa=stepScore(inLink,inState,dVdt,*ax);
+  *fb=stepScore(inLink,inState,dVdt,*bx);
+  if (*fb > *fa) {
+    SHFT(dum,*ax,*bx,dum)
+      SHFT(dum,*fb,*fa,dum)
+      }
+  *cx=(*bx)+GOLD*(*bx-*ax);
+  *fc=stepScore(inLink,inState,dVdt,*cx);
+  while (*fb > *fc) {
+    r=(*bx-*ax)*(*fb-*fc);
+    q=(*bx-*cx)*(*fb-*fa);
+    u=(*bx)-((*bx-*cx)*q-(*bx-*ax)*r)/
+      (2.0*SIGN(MAX(fabs(q-r),TINY),q-r));
+    ulim=(*bx)+GLIMIT*(*cx-*bx);
+    if ((*bx-u)*(u-*cx) > 0.0) {
+      fu=stepScore(inLink,inState,dVdt,u);
+      if (fu < *fc) {
+	*ax=(*bx);
+	*bx=u;
+	*fa=(*fb);
+	*fb=fu;
+	return;
+      } else if (fu > *fb) {
+	*cx=u;
+	*fc=fu;
+	return;
+      }
+      u=(*cx)+GOLD*(*cx-*bx);
+      fu=stepScore(inLink,inState,dVdt,u);
+    } else if ((*cx-u)*(u-ulim) > 0.0) {
+      fu=stepScore(inLink,inState,dVdt,u);
+      if (fu < *fc) {
+	SHFT(*bx,*cx,u,*cx+GOLD*(*cx-*bx))
+	  SHFT(*fb,*fc,fu,stepScore(inLink,inState,dVdt,u))
+	  }
+    } else if ((u-ulim)*(ulim-*cx) >= 0.0) {
+      u=ulim;
+      fu=stepScore(inLink,inState,dVdt,u);
+    } else {
+      u=(*cx)+GOLD*(*cx-*bx);
+      fu=stepScore(inLink,inState,dVdt,u);
+    }
+    SHFT(*ax,*bx,*cx,u)
+      SHFT(*fa,*fb,*fc,fu)
+      }
+}
+
+
+plCurve* 
+steepest_descent_step( plCurve *inLink, search_state *inState)
+{
+  double best_step,best_score;
+  plc_vector *dVdt;
+  dVdt = stepDirection(inLink,inState);
+
+  /* Now we are going to loop to figure out the best step in the current direction. */
+  /* Function evaluations are octrope calls, so we try to be efficient. Essentially, this
+     is a combination of the Numerical Recipes routines mnbrak and brent. */
+
+  /* The terrifying thing about the steepest descent stepper is that there is NO UPPER BOUND
+     on stepsize. This means that this probably won't be good for moviemaking. On the other hand,
+     it may do very well in the endgame. */
+
+  double ax = 0, bx = 1.0*fabs(inState->stepSize), cx = 2.0*fabs(inState->stepSize);
+  double fa, fb, fc;
+
+  mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
+  
+  /* We have now found a bracketing triple axv, bxv, cxv with corresponding step scores fav, fbv, fcv. */
+  /* Our goal will be to pass them to brent and take this opportunity to zero in on the best possible step. */
+
+  if (fb > fa || fb > fc) {
+
+    char ErrMsg[1024];
+    sprintf(ErrMsg,"sd_step: mnbrak returned triple of step sizes (%g,%g,%g) with values (%g,%g,%g) which do not appear to bracket a min.\n",
+	    ax,bx,cx,fa,fb,fc);
+    NonFatalError(ErrMsg,__FILE__,__LINE__);
+
+  }
+
+  /* We now invoke the brent code. Again, we lift this from a web source. */
+
+  best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-5,&best_step);
+
+  if (best_step < 1e-4) { best_step = 1e-4; }  // We prohibit backward steps.
+  
+  /* We now actually take the step. */
+
+  plCurve *workerLink;
+
+  workerLink = plc_copy(inLink);
+  step(workerLink, best_step, dVdt);
+  inState->stepSize = best_step;
+
+  double newrop,newthi,newlen,newmr,newpoca;
+
+  /* We now compute the error in minRad and poca.  Since we need to
+     update inState later if we're accepting this configuration, we
+     just go ahead and make a full-on octrope call.
+     
+     This is pretty much a wash, speed-wise. I don't know whether
+     octrope computes length in order to do an octrope_poca call, so
+     there might be some speed savings in calling octrope_poca and
+     octrope_minrad separately.
+     
+     On the other hand, having done so you need to either assemble
+     these into thickness yourself after the loop (likely to be
+     buggy) or call octrope again in order to do the assembly and
+     length calculation (slow). 
+
+     I'm probably overthinking this. --Jason. */
+  
+  octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	  gOctmem,gOctmem_size,gLambda);
+  
+  inState->octrope_calls++;
+
+  plc_free(inLink);		/* Commit to the step by changing inLink */
+  inLink = workerLink;
+  
+  /* Now we update "inState" to reflect the changes in inLink. */
+  
+  inState->last_step_attempts = 0; /* This is no longer recorded, as it doesn't really make sense. */
+  inState->minrad = newmr;
+  inState->shortest = newpoca;
+  inState->length = newlen;
+  inState->ropelength = best_score; // We are actually trying to minimize _this_...
+  inState->thickness = newthi;
+  
+  inState->cstep_time += inState->stepSize;
+  inState->time += inState->stepSize;
+
+  int dvdtItr;
+  // grab average dvdt now that we have finished mungering it
+  inState->avgDvdtMag=0;
+  for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ ) {
+
+    inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
+  
+  }
+  inState->avgDvdtMag /= inState->totalVerts;
+
+  free(dVdt);
+  
+  return inLink;
+
+}
+
+
 plCurve*
 bsearch_step( plCurve* inLink, search_state* inState )
+
+/* This is the default stepper design. It attempts to increase stepsize as long the induced
+   error per step is less than the fixed constants ERROR_BOUND and MR_ERROR_BOUND. This has 
+   some interesting consequences; among them, ropelength can actually go UP in an accepted
+   step. The output is a new link. We are expected to destroy inLink during the function. 
+*/
+
 {	
   int stepAttempts = 0;
   int dvdtItr;
@@ -1766,7 +2075,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   
   double comp_curr_error, comp_mr_error;
 
-  stepError(inLink,inState,dLen,(dVdtNorm/dLenNorm)*stepTaken,
+  trialStep(inLink,inState,dLen,(dVdtNorm/dLenNorm)*stepTaken,
 	    &comp_mr_error,&comp_curr_error);
   
   /* Now we compute effectiveness in terms of mr_error and curr_err. */
@@ -1855,10 +2164,12 @@ bsearch_step( plCurve* inLink, search_state* inState )
     
 /*     } */
 
-  // also shouldn't be > 10% of edgelength
-  if( inState->stepSize > inState->length/inState->totalVerts*.1 )
-    inState->stepSize = inState->length/inState->totalVerts*.1;
-  
+  // the final motion of any vertex shouldn't be > 10% of edgelength
+
+  if( inState->stepSize*inState->avgDvdtMag > (inState->length/inState->totalVerts)*(0.1) ) {
+    inState->stepSize = ((inState->length/inState->totalVerts)*.1)/(inState->avgDvdtMag);
+  }
+
   free(dVdt);
   
   return inLink;

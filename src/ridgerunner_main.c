@@ -506,24 +506,25 @@ main( int argc, char* argv[] )
  
   /* Now complete state initializations which depend on the curve. */
 
-  state.maxStepSize = 0.1*plCurve_short_edge(link);
+  state.maxStepSize = 100; // 0.1*plCurve_short_edge(link); /* We are experimenting with large steps. */
   state.minrad = octrope_minradval(link);
   state.totalVerts = plc_num_verts(link);
-  state.stepSize = 0.5*state.maxStepSize;
+  state.stepSize = 0.01;
 
   if( ((double)1)/(double)state.totalVerts < state.stepSize )
     {
       state.stepSize = ((double)1/(double)state.totalVerts);
     }
 
-  if( state.maxStepSize > 1e-3 ) { state.maxStepSize = 1e-3; }
+  if( state.maxStepSize > 1e3 ) { state.maxStepSize = 1e3; }
 
-    if( maxStep > 0 ) {
-
-      printf("max step size: %e\n", maxStep);
-      state.maxStepSize = maxStep;
+  if( maxStep > 0 ) {
+    
+    printf("max step size: %e\n", maxStep);
+    state.maxStepSize = maxStep;
+    
+  } 
   
-  }  
   state.stepSize = min(state.stepSize, state.maxStepSize);
 
   state.compOffsets = malloc(sizeof(int)*(link->nc));
