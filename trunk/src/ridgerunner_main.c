@@ -32,6 +32,7 @@ main( int argc, char* argv[] )
 
   struct arg_dbl  *arg_lambda = arg_dbl0("l","lambda","<double>",
 					 "minimum radius of curvature for unit rope");
+  struct arg_dbl  *arg_tuberadius = arg_dbl0("t","tuberadius","<double>","radius of tube around core curve");
   struct arg_rem  *arg_bl0 = arg_rem("","");
   struct arg_rem  *arg_curveopts = arg_rem("","Operations on input curve before run");
   struct arg_rem  *arg_bl1 = arg_rem("","");
@@ -134,7 +135,7 @@ main( int argc, char* argv[] )
   
   struct arg_end *end = arg_end(20);
   
-  void *argtable[] = {arg_infile,arg_lambda,
+  void *argtable[] = {arg_infile,arg_lambda,arg_tuberadius,
 		      arg_bl0,arg_curveopts,arg_bl1,
 		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,arg_timewarp,
 
@@ -319,6 +320,16 @@ main( int argc, char* argv[] )
 
   }
   
+  if (arg_tuberadius->count > 0) {
+
+    state.tube_radius = arg_tuberadius->dval[0];
+
+  } else {
+
+    state.tube_radius = 0.5;
+
+  }
+
   state.correctionStepDefault = correctionStepSize;
   state.movie = movie;
   state.moviefactor = 1.0;
@@ -674,8 +685,8 @@ main( int argc, char* argv[] )
   state.minrad = octrope_minradval(link);
   state.thickness = octrope_thickness(link,NULL,0,gLambda);
   state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
+  state.shortest = octrope_poca(link,NULL,0);
   state.residual = DBL_MAX;
-  state.shortest = state.thickness+1.0;
 
   state.totalVerts = plc_num_verts(link);
 
@@ -818,9 +829,6 @@ initializeState( search_state* state )
   fatalifnull_(zerostate);
   *state = *zerostate;
   free(zerostate);
-
-  state->tube_radius = 0.5; // fix this for now    
-  state->shortest = 2*state->tube_radius;
 
   state->eqMultiplier = 1;
   state->factor = 1;
