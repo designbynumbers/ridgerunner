@@ -105,7 +105,7 @@ main( int argc, char* argv[] )
   struct arg_dbl  *arg_eqmult = arg_dbl0(NULL,"EqMultiplier","<scalar>","increase to "
 					 "make 'equilateralization force' stronger");
 
-  struct arg_lit  *arg_noeq = arg_lit0(NULL,"NoEq","turn off equilateralization");
+  struct arg_lit  *arg_eq = arg_lit0(NULL,"EqOn","turn on equilateralization during the run");
   
   struct arg_dbl  *arg_overstep = arg_dbl0("o","OverstepTol","<x>",
 					   "start correction step if "
@@ -131,7 +131,7 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
   struct arg_rem  *arg_bl9 = arg_rem("","");
 
-  struct arg_str  *arg_display = arg_strn("","display","ropelength/strutcount/thickness",0,128,"name of logfile to display on screen during run");
+  struct arg_str  *arg_display = arg_strn(NULL,"display","ropelength/strutcount/thickness",0,128,"name of logfile to display on screen during run");
   
   struct arg_end *end = arg_end(20);
   
@@ -149,7 +149,7 @@ main( int argc, char* argv[] )
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_cstep_size,arg_maxcorr,
-		      arg_eqmult,arg_noeq,arg_overstep,arg_mroverstep,
+		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
 		      arg_norcond,
 
@@ -270,7 +270,7 @@ main( int argc, char* argv[] )
 
   if (arg_eqmult->count > 0) { eqMult = arg_eqmult->dval[0]; }
 
-  if (arg_noeq->count > 0) { eqMult = 0.0; }
+  if (arg_eq->count > 0) { eqMult = 1.0; } else {eqMult = 0.0; }
 
   /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
