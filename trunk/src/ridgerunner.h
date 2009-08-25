@@ -52,6 +52,8 @@ extern int gMaxCorrectionAttempts;
 extern int gNoRcond;  /* Used to suppress rcond calls on systems with buggy ATLAS. */
 extern int gLsqrLogging; /* Used to enable lsqr output logging. */
 extern int gNoTimeWarp; /* If true, turns off "timewarp" acceleration of free vertices */
+extern int gEqIt; /* If true, runs the equilaterization code every time max/min > 3. */
+extern int gAnimationStepper;
 
 #ifdef CURSES_DISPLAY
 

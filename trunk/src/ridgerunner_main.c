@@ -47,7 +47,7 @@ main( int argc, char* argv[] )
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
-  struct arg_lit  *arg_eqit = arg_lit0("e","eq","equilateralize curve at start of run"); 
+  struct arg_lit  *arg_eqit = arg_lit0(NULL,"EqOn","automatically equilateralizes when max/min edge > 3. (Should not be used when running to low residual.)"); 
 
   struct arg_rem  *arg_bl2 = arg_rem("","");
   struct arg_rem  *arg_stopopts = arg_rem("","Stopping Criteria (stop when)");
@@ -99,13 +99,15 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_help = arg_lit0("h","help","print this help and exit");
 
+  struct arg_lit  *arg_animation = arg_lit0(NULL,"AnimationStepper","produce smooth, but slow, movie. won't converge to low residual");
+
   struct arg_dbl  *arg_cstep_size = arg_dbl0("k","CorrectionStepSize","<fraction>",
 					     "initial size of Newton correction step");
   
   struct arg_dbl  *arg_eqmult = arg_dbl0(NULL,"EqMultiplier","<scalar>","increase to "
 					 "make 'equilateralization force' stronger");
 
-  struct arg_lit  *arg_eq = arg_lit0(NULL,"EqOn","turn on equilateralization during the run");
+  struct arg_lit  *arg_eq = arg_lit0(NULL,"EqForceOn","turn on equilateralization force during the run (can interfere with stepper)");
   
   struct arg_dbl  *arg_overstep = arg_dbl0("o","OverstepTol","<x>",
 					   "start correction step if "
@@ -149,7 +151,7 @@ main( int argc, char* argv[] )
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_cstep_size,arg_maxcorr,
-		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
+		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
 		      arg_norcond,
 
@@ -172,7 +174,7 @@ main( int argc, char* argv[] )
     double	checkDelta = 1; */
 
   double        stop20 = -1000;        /* For this to fail, ropelength would have to climb! */
-  double        eqMult = 2.0;
+  double        eqMult = 0.0;
 
 
   char		fname[1024];
@@ -286,7 +288,11 @@ main( int argc, char* argv[] )
   if (arg_lambda->count > 0) { gLambda = arg_lambda->dval[0]; }
 
   if (arg_timewarp->count > 0) { gNoTimeWarp = 0; }
+
+  if (arg_animation->count > 0) { gAnimationStepper = 1; eqMult = 1.0; }
   
+  if (arg_eqit->count > 0) { gEqIt = 1; }
+
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
 
@@ -554,8 +560,6 @@ main( int argc, char* argv[] )
   
   /* Now perform initial operations. */
   
-  plCurve *tempLink;
-
   
 /*   if (arg_resolution->count > 0) { */
     
@@ -570,21 +574,6 @@ main( int argc, char* argv[] )
 /* 	   arg_resolution->dval[0],plc_num_verts(link),plc_num_verts(link)*octrope_thickness(link,NULL,0,gLambda)/plc_arclength(link,NULL)); */
         
 /* 	   }  */
-
-  if( arg_eqit->count > 0 ) {
-    
-    for(i=0;i<3;i++) {
-      
-      tempLink = link;
-      link = octrope_fixlength(tempLink);
-      plc_free(tempLink);
-      
-    }
-    
-    logprintf("Equilateralized curve has max edgelength/min edgelength %g.\n",
-	   plCurve_long_edge(link)/plCurve_short_edge(link));
-        
-  }
   
   double thickness;
   thickness = octrope_thickness(link,NULL,0,gLambda);
