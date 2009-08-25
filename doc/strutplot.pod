@@ -19,16 +19,21 @@ presented in the VECT file, and arclength is cumulative from component
 to component. So if the first and second components of a link have
 total arclength 2 and 4, respectively, then points on the first
 component are plotted with arclength values in [0,2) and points on the
-second component are plotted with arclength values in [0,4).
+second component are plotted with arclength values in [2,6).
 
-To find "contacts", the program does the following: If the function
-d(x,y) gives the space distance between two points I<x> and I<y> on a
-polygonal curve in 3-space, then B<strutplot> plots all local minima
+Let the function d(x,y) give the space distance between two points I<x> and I<y> on a
+polygonal curve in 3-space. 
+
+If the option I<-e eps> is used, B<strutplot> plots all local minima
 of d(x,y) (excluding distances in the form d(x,x)=0) whose distance
 values are within I<eps> of the closest such pair. Half of this
 distance represents the radius of the largest embedded tube around the
-core curve and is called the I<thickness> of the core curve. The local
-minimum pairs plotted are known as I<struts>.
+core curve and is called the I<thickness> of the core curve. 
+
+If the option I<-r rad> is used, then B<strutplot> plots all local 
+minima which have length < 2*rad. These are the struts which are seen
+by the B<ridgerunner> program, so this is usually the best option to 
+use. The local minimum pairs plotted are known as I<struts>.
 
 The default visualization style for the plot includes automatic
 identification and highlighting of regions of the curve with no

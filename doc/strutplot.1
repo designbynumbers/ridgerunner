@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "strutplot 1"
-.TH strutplot 1 "2009-03-25" "ridgerunner0.1" "strutplot"
+.TH strutplot 1 "2009-08-25" "ridgerunner2.0.0" "strutplot"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -146,16 +146,21 @@ presented in the \s-1VECT\s0 file, and arclength is cumulative from component
 to component. So if the first and second components of a link have
 total arclength 2 and 4, respectively, then points on the first
 component are plotted with arclength values in [0,2) and points on the
-second component are plotted with arclength values in [0,4).
+second component are plotted with arclength values in [2,6).
 .PP
-To find \*(L"contacts\*(R", the program does the following: If the function
-d(x,y) gives the space distance between two points \fIx\fR and \fIy\fR on a
-polygonal curve in 3\-space, then \fBstrutplot\fR plots all local minima
+Let the function d(x,y) give the space distance between two points \fIx\fR and \fIy\fR on a
+polygonal curve in 3\-space.
+.PP
+If the option \fI\-e eps\fR is used, \fBstrutplot\fR plots all local minima
 of d(x,y) (excluding distances in the form d(x,x)=0) whose distance
 values are within \fIeps\fR of the closest such pair. Half of this
 distance represents the radius of the largest embedded tube around the
-core curve and is called the \fIthickness\fR of the core curve. The local
-minimum pairs plotted are known as \fIstruts\fR.
+core curve and is called the \fIthickness\fR of the core curve.
+.PP
+If the option \fI\-r rad\fR is used, then \fBstrutplot\fR plots all local 
+minima which have length < 2*rad. These are the struts which are seen
+by the \fBridgerunner\fR program, so this is usually the best option to 
+use. The local minimum pairs plotted are known as \fIstruts\fR.
 .PP
 The default visualization style for the plot includes automatic
 identification and highlighting of regions of the curve with no
@@ -242,7 +247,7 @@ are given, in which case the output appears in
 \&\fIcombined_plots.ps\fR. This argument is not optional.
 .IP "\fB\-\-strutfile\fR \fIfilename\fR" 4
 .IX Item "--strutfile filename"
-The liboctrope library function \f(CW\*(C`octrope_strutfile_write\*(C'\fR can
+The \fBliboctrope\fR library function \f(CW\*(C`octrope_strutfile_write\*(C'\fR can
 write a list of struts to disk from a user application, to be read by
 the corresponding procedure \f(CW\*(C`octrope_strutfile_read\*(C'\fR. If the
 \&\fB\-\-strutfile\fR option is given with a valid file in this format,
@@ -326,7 +331,7 @@ Write the plot to the file \fImyplot.ps\fR:
 .Ve
 .SH "SEE ALSO"
 .IX Header "SEE ALSO"
-liboctrope, <http://www.geomview.org>
+\&\fBliboctrope\fR, <http://www.geomview.org>
 .SH "AUTHORS"
 .IX Header "AUTHORS"
 Ted Ashton and Jason Cantarella

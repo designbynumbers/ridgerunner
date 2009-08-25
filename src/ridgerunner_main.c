@@ -30,24 +30,24 @@ main( int argc, char* argv[] )
 
   struct arg_file *arg_infile = arg_file1(NULL,NULL,"<VECT file>","input file");
 
-  struct arg_dbl  *arg_lambda = arg_dbl0("l","lambda","<double>",
+  struct arg_dbl  *arg_lambda = arg_dbl0("l","Lambda","<double>",
 					 "minimum radius of curvature for unit rope");
-  struct arg_dbl  *arg_tuberadius = arg_dbl0("t","tuberadius","<double>","radius of tube around core curve");
+  struct arg_dbl  *arg_tuberadius = arg_dbl0("t","TubeRadius","<double>","radius of tube around core curve");
   struct arg_rem  *arg_bl0 = arg_rem("","");
   struct arg_rem  *arg_curveopts = arg_rem("","Operations on input curve before run");
   struct arg_rem  *arg_bl1 = arg_rem("","");
 
-  struct arg_lit  *arg_autoscale = arg_lit0("a","autoscale","scale curve "
+  struct arg_lit  *arg_autoscale = arg_lit0("a","Autoscale","always scale curve "
 					    "to thickness .501");
 
-  struct arg_lit  *arg_continue = arg_lit0("c","continue","continue mode -- no initial rescaling of curve");
+  struct arg_lit  *arg_continue = arg_lit0("c","Continue","continue mode -- no initial rescaling of curve");
 
   struct arg_lit  *arg_timewarp = arg_lit0(NULL,"Timewarp","accelerate shrinking of strut-free sections of curve");
 
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
-  struct arg_lit  *arg_eqit = arg_lit0(NULL,"EqOn","automatically equilateralizes when max/min edge > 3. (Should not be used when running to low residual.)"); 
+  struct arg_lit  *arg_eqit = arg_lit0(NULL,"EqOn","automatically equilateralizes when max/min edge > 3"); 
 
   struct arg_rem  *arg_bl2 = arg_rem("","");
   struct arg_rem  *arg_stopopts = arg_rem("","Stopping Criteria (stop when)");
@@ -71,7 +71,7 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_bl5 = arg_rem("","");
   
   struct arg_lit  *arg_suppressfiles = arg_lit0(NULL,"NoOutputFiles",
-		      "don't save intermediate files during run");
+						"don't save intermediate VECT files for animation");
 
   struct arg_lit  *arg_nolsqrlog = arg_lit0(NULL,"NoLsqrLog","don't log output from lsqr");
 
@@ -93,8 +93,8 @@ main( int argc, char* argv[] )
   struct arg_rem  *arg_progopts = arg_rem("","Program and Algorithm Options");
   struct arg_rem  *arg_bl7 = arg_rem("","");
 
-  struct arg_lit  *arg_quiet  = arg_lit0("q","quiet","quiet");
-  struct arg_lit  *arg_verbose = arg_lit0("v","verbose","verbose");
+  struct arg_lit  *arg_quiet  = arg_lit0("q","Quiet","quiet");
+  struct arg_lit  *arg_verbose = arg_lit0("v","Verbose","verbose");
   struct arg_lit  *arg_vverbose = arg_lit0(NULL,"VeryVerbose","very verbose (debugging)");
 
   struct arg_lit  *arg_help = arg_lit0("h","help","print this help and exit");
@@ -127,19 +127,29 @@ main( int argc, char* argv[] )
 					       "save a complete snapshot "
 					       "of computation every <n> steps");
   
-  struct arg_lit *arg_norcond = arg_lit0(NULL,"NoRcond","don't log condition number for matrices");
+  struct arg_lit *arg_rcond = arg_lit0(NULL,"Rcond","log condition number for matrices");
 
   struct arg_rem  *arg_bl8 = arg_rem("","");
   struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
   struct arg_rem  *arg_bl9 = arg_rem("","");
 
-  struct arg_str  *arg_display = arg_strn(NULL,"display","ropelength/strutcount/thickness",0,128,"name of logfile to display on screen during run");
+  struct arg_str  *arg_display = arg_strn(NULL,"Display","ropelength/strutcount/thickness",0,128,"name of logfile to display on screen during run");
   
   struct arg_end *end = arg_end(20);
   
   void *argtable[] = {arg_infile,arg_lambda,arg_tuberadius,
 		      arg_bl0,arg_curveopts,arg_bl1,
-		      arg_autoscale,/* arg_resolution, */arg_eqit,arg_continue,arg_timewarp,
+		      arg_autoscale,/* arg_resolution, */arg_continue,
+
+		      arg_bl6,arg_progopts,arg_bl7,
+		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
+		      arg_animation, arg_timewarp,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
+		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
+		      arg_maxstep,arg_snapinterval,
+		      arg_rcond,
+
+		      arg_bl8,arg_dispopts,arg_bl9,
+		      arg_display,
 
 		      arg_bl2,arg_stopopts,arg_bl3,
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
@@ -147,16 +157,7 @@ main( int argc, char* argv[] )
 		      arg_bl4,arg_fileopts,arg_bl5,
 		      arg_suppressfiles, arg_nolsqrlog, arg_maxlogsize, 
 		      arg_maxvectdirsize, arg_nocolor, arg_nohighlight, /* arg_outpath, */
-
-		      arg_bl6,arg_progopts,arg_bl7,
-		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
-		      arg_cstep_size,arg_maxcorr,
-		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
-		      arg_maxstep,arg_snapinterval,
-		      arg_norcond,
-
-		      arg_bl8,arg_dispopts,arg_bl9,
-		      arg_display,
+		      
 		      end};
   int nerrors;
   int snapinterval = 10000;
@@ -252,7 +253,7 @@ main( int argc, char* argv[] )
 
   if (arg_snapinterval->count > 0) {snapinterval = arg_snapinterval->ival[0];}
 
-  if (arg_norcond->count > 0) { gNoRcond = 1; }
+  if (arg_rcond->count > 0) { gNoRcond = 0; } else {gNoRcond = 1;}
 
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 

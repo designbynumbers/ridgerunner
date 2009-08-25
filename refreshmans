@@ -15,7 +15,7 @@ sub STUB_DIR () { 'man_stubs' }
 my $LibVer = '';
 if (open(CAC,'configure.ac')) {
   while (<CAC>) {
-    next unless /AC_INIT.*(\d[.0-9]+)/;
+    next unless m/AC_INIT.*(\d+\.\d+\.\d+)/;
     $LibVer = $1;
   }
 } else {
