@@ -132,7 +132,6 @@ int     gOctmem_size;
 void 
 bsearch_stepper( plCurve** inLink, search_state* inState )
 {
-  double maxmaxmin = 0;
   double minthickness = 500;
   double nextMovieOutput = 0.0;
   
@@ -174,31 +173,66 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     
     int lastSet;      
     lastSet = inState->lastStepStrutCount;
+
+    double maxmin;
+    maxmin = plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink);
+    inState->lastMaxMin = maxmin;
+   
+    if( gEqIt && maxmin > 3.0) {
+      
+      int i;
+      plCurve *tempLink;
+      
+      for(i=0;i<3;i++) {
+	
+	tempLink = *inLink;
+	*inLink = octrope_fixlength(tempLink);
+	plc_free(tempLink);
+	
+      }
+    
+      logprintf("Max edgelength/min edgelength = %g > 3. After equilateralization, max/min = %g.\n",maxmin,
+		plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink));
+      
+    }
     
     /* Decide whether to initiate thickness correction. */
     
     if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
 	(inState->minrad < gLambda*inState->tube_radius*(1-inState->minradOverstepTol))) {
 
-      if (!correct_thickness(*inLink,inState)) {
+      if (gAnimationStepper) { 
+
+	/* The correct_thickness Newton's method produces a very small correction which looks good
+	   in animation. It is _really_ slow for highres knots, and can fail completely when coupled
+	   with the steepest_descent stepper, which is too aggressive for correct_thickness to work. */
+
+	if (!correct_thickness(*inLink,inState)) {
+
+	  plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	  logprintf("Correction stepper failed. Rescaled manually.\n");
+
+	}
+
+      } else { 
 
 	plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
-	logprintf("Correction stepper failed. Rescaled manually.\n");
-
+	
       }
 
     }        
   
     /************************************************************************/
     
-    //*inLink = bsearch_step(*inLink, inState);
-    *inLink = steepest_descent_step(*inLink,inState);
+    if (gAnimationStepper) { *inLink = bsearch_step(*inLink, inState); } 
+    else { *inLink = steepest_descent_step(*inLink,inState); }
 
     correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
 
     /************************************************************************/
     
     inState->steps++;
+      
     
     /* Manage data output */
       
@@ -230,11 +264,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     inState->oldLength = inState->length;
     inState->oldLengthTime = inState->cstep_time;
 
-    double maxmin;
-    maxmin = plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink);
-    inState->lastMaxMin = maxmin;
-    if( maxmin > maxmaxmin )
-      maxmaxmin = maxmin;
+   
    
     /* And we update our list of old ropelength values. */
 

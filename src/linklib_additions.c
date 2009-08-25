@@ -152,6 +152,59 @@ plCurve_fixresolution( plCurve* inLink, double newres)
 
 }
 
+
+plCurve *octrope_fixlength( plCurve *core) 
+
+/* The following attempts to redistribute vertices are the curve in
+   as gentle a manner as possible. */
+  
+{
+  plCurve *newCurve = NULL;
+  plc_spline *spline = NULL;
+  bool ok;
+  double totlen,thi;
+  
+  double     *length = malloc_or_die(sizeof(double)*core->nc,__FILE__,__LINE__);
+  int        *nv = malloc_or_die(sizeof(int)*core->nc,__FILE__,__LINE__);
+
+  int j;
+   
+  totlen = plc_arclength(core,length);
+  
+  thi = octrope_thickness(core,NULL,0,1.0);
+  for(j=0;j<core->nc;j++) { length[j] /= thi; }
+  totlen /= thi;
+
+  /* Computes an effective resolution */
+
+  double res;
+  res = plc_num_edges(core)/totlen;
+    
+  int totvt = 0;
+  
+  for(j=0;j<core->nc-1;j++) {nv[j] = ceil(res*length[j]); totvt += nv[j];}  
+  nv[core->nc-1] = plc_num_verts(core) - totvt;
+        
+  spline = plc_convert_to_spline(core,&ok);
+
+  if (!ok) {
+
+    char errmsg[1024];
+    printf(errmsg,"octrope_fixlength: Couldn't spline the working plCurve.\n");
+    FatalError(errmsg,__FILE__,__LINE__);
+
+  }
+
+
+  newCurve = plc_convert_from_spline(spline,nv);
+  
+  plc_spline_free(spline);
+  free(nv);
+  free(length);
+  
+  return newCurve;
+}
+
 /* 
  * The following proceedure steps around the polygon redistributing
  * vertices as necessary to make things approach equilateral. This
@@ -160,7 +213,7 @@ plCurve_fixresolution( plCurve* inLink, double newres)
  * stepper. Contacts: rawdon@mathcs.duq.edu piatek@mathcs.duq.edu
  */
 plCurve*
-octrope_fixlength( plCurve* inLink )
+octrope_fixlength_old( plCurve* inLink )
 {
   plCurve* fixed;
   int cItr, vItr;
