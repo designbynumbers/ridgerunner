@@ -27,7 +27,7 @@ src_strutplot_SOURCES = src/strutplot.c \
 
 src_strutplot_LDADD = -lplCurve -largtable2 -loctrope -ltsnnls $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
-man1_MANS = doc/strutplot.1
+man1_MANS = doc/strutplot.1 doc/ridgerunner.1
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 

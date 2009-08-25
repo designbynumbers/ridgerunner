@@ -1,0 +1,314 @@
+=head1 NAME
+
+B<ridgerunner> - minimize the ropelength of a Geomview VECT file using constrained gradient descent
+
+=head1 SYNOPSIS
+
+B<ridgerunner> [-s N or other stopping criterion] <input file.vect> 
+
+=head1 DESCRIPTION
+
+B<ridgerunner> is a tool for minimizing the (polygonal) ropelength of
+a space curve. It is designed for long runs, producing very accurate
+and carefully resolved minimum ropelength configurations. The basic
+algorithm is described in the paper I<Knot Tightening By Constrained
+Gradient Descent>.
+
+B<ridgerunner> minimizes the length of a VECT file subject to a family
+of constraints which model an embedded tube around the curve. These
+constraints take the form of distance constraints on pairs of edges of
+the curve modelling self-contacts of the tube (called I<struts>) and a
+lower bound on the polygonal radius of curvature of the curve (called
+I<kinks>).
+
+The radius of the tube can be set with the B<--TubeRadius> option. The
+default is 0.5, corresponding to unit diameter tube. The stiffness of
+the tube can be changed by adjusting the B<--Lambda> option, which
+gives a minimum radius of curvature for a unit-diameter tube.
+
+A B<ridgerunner> run can be separated into four stages:
+
+=over
+
+=item I<Startup>
+
+By default, if the curve has thickness > 0.5, we move immediately to
+the next stage of the run, I<Stepping>. Until the tube contacts
+itself, this is simply a curve-shortening flow.
+
+If the curve has thickness < 0.5, or the I<--autoscale> option is given,
+the curve is scaled to thickness 0.501 before the run begins.
+
+If the I<--continue> option is given, we move immediately to
+I<Stepping> even if the thickness of the curve is < 0.5. This can be
+used to resume a run in progress. (This can be dangerous if the initial
+configuration already has a large number of struts and kinks.)
+
+=item I<Stepping>
+
+The program resolves the gradient of length of the curve (a large
+vector) against a matrix of gradients of active constraints (struts
+and kinks) at each step to deduce the direction of steepest descent
+which preserves the active constraints to first order. The size of the
+step by a line search algorithm to to minimize ropelength as much as
+possible by stepping in the given direction. Even though the final
+direction preserves the constraints to first order, it violates them
+to second order, and so the thickness of the configuration will drift
+down over time. When the thickness is too short, it is corrected by a
+Newton's method algorithm or by rescaling. There are several options
+which control the behavior of the stepper.
+
+=over
+
+=item I<--AnimationStepper>
+
+This turns on a package of changes to how the program handles
+stepping, equilateralization and correction stepping which are
+designed to produce very attractive movies of shrinking knots. This
+stepper is not as effective as the default stepper in producing
+configurations with very low ropelength and residual so the stopping
+criteria should be set accordingly (use of --StopRes with the
+animation stepper is discouraged).
+
+=item I<--Timewarp>
+
+If portions of the curve are constrained (have struts or kinks) and
+other portions are strut and kink-free, it may take a very long time
+for the free portions of the curve to reach their final (straight)
+configuration. This is particularly noticeable when running
+configurations with fixed endpoints. I<--Timewarp> accelerates this
+process by scaling up the gradient of length on free sections of the
+curve. There is a performance cost in turning this on if there are no
+such segments, so it is optional.
+
+=item I<--EqOn>
+
+If the ratio of the lengths of the longest and shortest segments of
+the curve is > 3, this will re-equilateralize the curve using a
+splining algorithm. (This will destroy the current set of
+self-contacts.) This is useful in the initial stages of a run, since
+vertices will tend to bunch up when the curve moves a long distance
+under the curve-shortening flow. However, since the minimum ropelength
+configuration is probably non-equilateral, running with this option on
+may prevent the program from ever reaching a configuration with very
+low residual. Therefore, we recommend you do not use this option with
+I<--StopRes>.
+
+=item I<--OverstepTol=X> and I<--MinRadOverstepTol=Y>
+
+The program accepts self-contacts as small as I<TubeRadius*(1-X)> and
+kinks with MinRad as small as I<Lambda*TubeRadius*(1-Y)> before it
+attempts to correct the thickness of the curve. By default, this is
+set to 1e-5. For very highly resolved configurations this can be set
+smaller. The algorithm will be considerably slower, but somewhat more
+accurate. Setting this too low may cause bad results for numerical
+reasons.
+
+=item I<--MaxStep=X>
+
+This is a simple upper bound on the maximum step size. This is only
+meaningful if I<--AnimationStepper> is turned on as well.
+
+=item I<--Rcond>
+
+This turns on one of the logfiles, which records the reciprocal
+condition number (rcond) of the matrix of active constraints at each
+step. This information is useful (to the designers of B<ridgerunner>,
+at least) but takes substantial time to record.
+
+=back
+
+=item I<Display>
+
+During the run, the following quantities are recorded in logfiles (see
+I<Output>, below):
+
+=over 
+
+=item edgelenvariance
+
+The variance of edge lengths of the polygon.
+
+=item length
+
+The length of the polygon.
+
+=item maxovermin
+
+The ratio of maximum and minimum edge lengths on the polygon.
+
+=item memused
+
+The amount of memory allocated by the program (in KB), on systems
+which support the I<mallinfo> libc function.
+
+=item minrad
+
+The minimum polygonal radius of curvature of the polygon.
+
+=item rcond
+
+The reciprocal condition number of the matrix of gradients of active
+constraints.
+
+=item residual
+
+The quotient of the norm of the gradient of the length after
+resolution against active constraints and the norm of the gradient of
+length (between 1 and 0).
+
+=item ropelength
+
+The ropelength of the polygon.
+
+=item strutcount
+
+The number of active constraints (struts and kinks).
+
+=item thickness
+
+The thickness of the polygon (note that this depends on the stiffness
+I<--Lambda> and may not be equal to the tube radius).
+
+=item walltime
+
+The amount of time since the start of the run.
+
+=back
+
+Any or all of these can be displayed on the screen during a run with
+the I<--Display=> option. To display residual and walltime, for
+instance, one would use I<--Display=residual --Display=walltime>.
+
+=item I<Stopping>
+
+The program continues to step until one of the stopping criteria is
+reached. The user can set as many stopping criteria as desired.
+
+=over 
+
+=item I<--StopRes=X>
+
+The quotient of the norms of the resolved gradient and the original
+gradient of length is called the I<residual> of the
+configuration. When residual = 0, the configuration is a constrained
+critical point. When the residual = 1, there are no active
+constraints. If the I<--StopRes=X> option is given, the program stops
+when the residual is lower than X. In practice, a run with residual <
+1e-4 is very good.
+
+=item I<--StopSteps=N>
+
+This is the simplest stopping criterion, halting the program after a
+fixed number of steps.
+
+=item I<--StopTime=N>
+
+Halts the program after N minutes of wall clock time. This is usually
+used in conjunction with another stopping criterion to make sure that
+crashed runs do not continue forever. By default, this is set to stop
+the run after one week.
+
+=item I<--Stop20=delta>
+
+Stops the program when the change in ropelength over the last 20 steps 
+is less than delta. This is rarely used in practice.
+
+=back
+
+=item I<File Output>
+
+If the input file is called I<file.vect>, B<ridgerunner> creates a
+directory called I<file.rr>. This directory stores the run logfile,
+copies of the initial and final configurations of the curve, and
+subdirectories called I<logfiles>, I<snapshots>, and I<vectfiles>.
+
+I<logfiles> contains the log files discussed under I<Display>
+above. All quantities are logged at intervals, and the files are
+compressed so that they contain evenly spaced quantities from the
+entire run, but have size at most 100 KB. The I<--MaxLogSize> option
+can be used to control this size. The I<--NoLsqrLog> turns off the log
+for the lsqr subroutine, which can be quite large for problems where
+the linear algebra is very difficult.
+
+I<vectfiles> contains intermediate configurations of the polygon which
+is being minimized. The size of this directory is usually limited to
+100 MB, but this limit can be adjusted with the I<--MaxVectDirSize>
+option. The option I<--NoOutputFiles> leaves this subdirectory empty,
+which increases speed on long runs. The files in I<vectfiles> are
+ordinarily colored according to a set of standard colors for the
+components of a link. This can be turned off with I<--NoColor>. We
+also generally highlight straight sections of the tube and sections
+which are kinked. This highlighting can be turned off with
+I<--NoHighlight>. If the B<povrayutils>, B<plsurf>, and B<vecttools>
+libraries are installed, along with B<povray>, this directory can be
+animated with the script B<povanimate>, which is installed with
+B<ridgerunner>.
+
+I<snapshots> contains copies of the configuration (X.vect), together
+with the gradient of length field (X.dlen.vect), the struts
+(X.struts.vect), the constrained gradient of length field
+(X.dVdt.vect). The file (X.geom) is a geomview file which displays all
+of these together. Snapshots are saved every 10,000 (or
+I<--SnapshotInterval>) steps.
+
+=back
+
+=head1 EXAMPLES
+
+B<ridgerunner> is usually called first on a relatively low resolution
+file to reach an approximately tight configuration, then the
+resolution is increased with B<splinevect --mps> and the curve is run
+again. The process is repeated until the run converges to the desired
+accuracy. Here are some example calls:
+
+ridgerunner -s 100 trefoil.vect 
+
+A demonstration run for 100 steps on the file I<trefoil.vect>. 
+
+ridgerunner --StopRes=0.01 --NoOutputFiles --NoLsqrLog -a trefoil.vect
+
+A typical low-resolution run, starting from a loose configuration,
+which is tuned for speed by calling I<-a> to scale to low thickness
+before we start, and suppressing both intermediate configurations
+(with I<--NoOutputFiles>) and the log from lsqr (with I<--NoLsqrLog>).
+
+ridgerunner --StopRes=1e-4 --StopTime=1440 --NoOutputFiles --NoLsqrLog trefoil.vect
+
+A typical high-resolution run (there is no point in running low-res
+configurations to such a low residual), again tuned for speed.
+
+ridgerunner --StopRes=0.01 --AnimationStepper --MaxVectDirSize=250M trefoil.vect
+
+A typical animation run. Even though we are starting with a ``loose''
+configuration, we don't automatically scale (presumably, we want to
+see the curve shrink). We use the animation stepper to create a
+smoother movie, and also increase the size of the I<vectfiles>
+directory to make sure that we don't lose any frames. The stopping
+criterion is set to a relatively large residual because the final
+stages are likely to involve relatively little visible change in the
+knot.
+
+ridgerunner --StopRes=0.01 --Timewarp clasp.vect
+
+A run for a curve with constrained endpoints. Notice that
+I<--Timewarp> should always be on in such a case. Also, we may not
+achieve as low a residual as we would for a closed knot. If the curve
+I<clasp.vect> is open, then we assume that we have called
+B<constrainvect> to add constraints to the endpoints.
+
+=head1 SEE ALSO
+
+B<strutplot>, L<http://www.geomview.org>, B<plCurve>, B<tsnnls>, B<octrope>
+
+=head1 AUTHORS
+
+Jason Cantarella and Michael Piatek
+
+=head1 LICENSE RESTRICTIONS
+
+This program is covered by the GNU General Public License for free software.
+
+
+
+
