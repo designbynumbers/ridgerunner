@@ -455,6 +455,11 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
     taucs_ccs_write_sparse(fp,A);
     fclose(fp);
 
+    sprintf(filename,"%sA.mat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_mat(fp,A);
+    fclose(fp);
+
   }
 
   /* Construct filename for x. */

@@ -95,6 +95,8 @@ int SS_HIGHLIGHT = {true},
   PLOT_BACKGROUND = {true},
   USE_DSC = {true};
 
+double gLambda;
+
 /**********************************************************************/
 /*  Horizontal tag plotting (crude)                                   */
 /**********************************************************************/
@@ -923,7 +925,7 @@ void create_st_plot(plCurve *L,
       for(j=i+1;
 	  j<num_min_rad_locs && 
 	    min_rad_locs[j].component == min_rad_locs[i].component && 
-	    min_rad_locs[j].vert == min_rad_locs[j-1].vert + 1;
+	    (min_rad_locs[j].vert == min_rad_locs[j-1].vert + 1 || min_rad_locs[j].vert == min_rad_locs[j-1].vert);
 	  j++);
 
       j--;
@@ -953,15 +955,15 @@ void create_st_plot(plCurve *L,
       vtags[nvtags].plotx = NBOXES*10;
       vtags[nvtags].ploty = (shi + slo)/2.0;
       
-      sprintf(vtags[nvtags].text,"(%1.2f)",
-	      (s_positions[min_rad_locs[i].component][min_rad_locs[i].vert] +
-	       s_positions[min_rad_locs[j].component][min_rad_locs[j].vert])/2.0);
+      sprintf(vtags[nvtags].text,"((%1.3f,%1.3f))",
+	      (s_positions[min_rad_locs[i].component][min_rad_locs[i].vert]), 
+	       s_positions[min_rad_locs[j].component][min_rad_locs[j].vert]);
 
       vtags[nvtags].tagx = NBOXES*10 + 10.0/plotscale;
       vtags[nvtags].tagy = (shi + slo)/2.0;
       vtags[nvtags].code = 'C';
 
-      nvtags++; nkinks++;
+      nvtags++; nkinks++; i = j; /* We advance i to start looking for the next kinked region */
 
     }
 
@@ -1619,7 +1621,7 @@ int main(int argc,char *argv[]) {
     
   }
 
-  if (arg_lambda > 0) {
+  if (arg_lambda->count > 0) {
 
     lambda = arg_lambda->dval[0];
 
