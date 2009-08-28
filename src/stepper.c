@@ -162,7 +162,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
      the number of verts stays more or less constant inside here. */
 
   gOctmem_size = octrope_est_mem(plc_num_edges(*inLink));
-  gOctmem = malloc_or_die(sizeof(char)*gOctmem_size, __FILE__ , __LINE__ );
+  gOctmem = malloc_or_die(sizeof(char)*gOctmem_size, __FILE__ , __LINE__ );  
   
   for( stepItr=0; /* Main loop, incorporates stopping criteria. */
        (stepItr < inState->maxItrs) && 
@@ -191,6 +191,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	
       }
     
+      free(inState->newDir); inState->newDir = NULL; /* Change the link, frag the direction. */
       logprintf("Max edgelength/min edgelength = %g > 3. After equilateralization, max/min = %g.\n",maxmin,
 		plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink));
       
@@ -209,15 +210,36 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
 	if (!correct_thickness(*inLink,inState)) {
 
-	  plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
-	  logprintf("Correction stepper failed. Rescaled manually.\n");
+	  if (inState->oktoscale) {
+	    
+	    plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	    logprintf("Correction stepper failed. Rescaled manually.\n");
+
+	  } else {
+
+	    char errmsg[1024],dumpname[1024];
+
+	    dumpLink(*inLink,inState,dumpname);
+	    sprintf(errmsg,
+		    "Correction stepper failed, and we cannot rescale due to constraints of type \"fixed\".\n"
+		    "Dumped link to %s.\n"
+		    "Terminating run.\n",
+		    dumpname);
+	    FatalError(errmsg,__FILE__,__LINE__);
+
+	  }
 
 	}
 
       } else { 
 
-	plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
-	
+	if (inState->oktoscale) { 
+	  plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda)); 
+	} else { 
+	  correct_thickness(*inLink,inState); 
+	}
+
+	free(inState->newDir); inState->newDir = NULL; 
       }
 
     }        
@@ -993,7 +1015,7 @@ void correct_constraints(plCurve *inLink,search_state *inState)
   octrope_mrloc *minradSet = NULL;
   
   int strutStorageSize = 6*inState->totalVerts;
-  int minradStorageSize = inState->totalVerts;
+  int minradStorageSize = 2*inState->totalVerts;
 
   strutSet = (octrope_strut *)(malloc(sizeof(octrope_strut)*strutStorageSize));
   minradSet = (octrope_mrloc *)(malloc(sizeof(octrope_mrloc)*minradStorageSize));
@@ -1127,7 +1149,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
   octrope_mrloc *minradSet = NULL;
   
   int strutStorageSize = 6*inState->totalVerts;
-  int minradStorageSize = inState->totalVerts;
+  int minradStorageSize = 2*inState->totalVerts;
 
   if (VERBOSITY >= 5) { logprintf("Correction step...\n"); }
   
@@ -1767,13 +1789,112 @@ void mnbrak(double *ax, double *bx, double *cx, double *fa, double *fb, double *
       }
 }
 
+plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, search_state *inState)
+
+{
+  /* We attempt to actually take the step, starting at InitialStepSize and reducing the size until 
+     we reach a point where the linear algebra works on the next step. We set the inState variable
+     stepDir if we succeed. We do not return if we fail. */
+
+  plCurve *workerLink;
+  plc_vector *newDir = NULL;
+  double StepSize;
+
+  for(StepSize = 2*InitialStepSize;newDir==NULL;) {
+
+    StepSize /= 2.0;  /* We change StepSize here so that it's correct when we exit the loop */
+
+    workerLink = plc_copy(inLink);
+    step(workerLink, StepSize, dVdt);
+    newDir = stepDirection( workerLink, inState);
+    
+    if (StepSize < 1e-9) { 
+
+      /* We couldn't get the linear algebra to work at any step size. */
+
+      char errmsg[1024],dumpname[1024];
+
+      dumpLink(inLink,inState,dumpname);
+      sprintf(errmsg,
+	      "Linear algebra fails even at StepSize = %g.\n"
+	      "Dumping link to %s.\n"
+	      ,StepSize,dumpname);
+      FatalError(errmsg,__FILE__,__LINE__);
+      
+    }
+
+  }
+
+  /* We've managed to actually take the step! */
+
+  inState->stepSize = StepSize;
+
+  double newrop,newthi,newlen,newmr,newpoca;
+
+  /* We now compute the error in minRad and poca.  Since we need to
+     update inState later if we're accepting this configuration, we
+     just go ahead and make a full-on octrope call.
+     
+     This is pretty much a wash, speed-wise. I don't know whether
+     octrope computes length in order to do an octrope_poca call, so
+     there might be some speed savings in calling octrope_poca and
+     octrope_minrad separately.
+     
+     On the other hand, having done so you need to either assemble
+     these into thickness yourself after the loop (likely to be
+     buggy) or call octrope again in order to do the assembly and
+     length calculation (slow). 
+
+     I'm probably overthinking this. --Jason. */
+  
+  octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	  gOctmem,gOctmem_size,gLambda);
+  
+  inState->octrope_calls++;
+  
+  /* Now we update "inState" to reflect the changes in inLink. */
+
+   int dvdtItr;
+  // grab average dvdt now that we have finished mungering it
+  inState->avgDvdtMag=0;
+  for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ ) {
+
+    inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
+  
+  }
+  inState->avgDvdtMag /= inState->totalVerts;
+
+  /* Now it's safe to destroy dVdt. */
+
+  free(inState->newDir);
+  inState->newDir = newDir;
+
+  inState->last_step_attempts = 0; /* This is no longer recorded, as it doesn't really make sense. */
+  inState->minrad = newmr;
+  inState->shortest = newpoca;
+  inState->length = newlen;
+  inState->ropelength = newrop; 
+  inState->thickness = newthi;
+  
+  inState->cstep_time += inState->stepSize;
+  inState->time += inState->stepSize;
+
+  return workerLink;
+
+}
 
 plCurve* 
 steepest_descent_step( plCurve *inLink, search_state *inState)
 {
   double best_step,best_score;
   plc_vector *dVdt;
-  dVdt = stepDirection(inLink,inState);
+
+  if (inState->newDir != NULL) {  /* We may have cached a step direction. If we did, use it! */
+    dVdt = inState->newDir;
+  } else {
+    dVdt = stepDirection(inLink,inState);
+  }
 
   /* Now we are going to loop to figure out the best step in the current direction. */
   /* Function evaluations are octrope calls, so we try to be efficient. Essentially, this
@@ -1808,66 +1929,11 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   if (best_step < 1e-7) { best_step = 1e-7; }  // We prohibit backward steps.
   
-  /* We now actually take the step. */
-
   plCurve *workerLink;
+  workerLink = doStep(inLink,dVdt,best_step,inState);
 
-  workerLink = plc_copy(inLink);
-  step(workerLink, best_step, dVdt);
-  inState->stepSize = best_step;
-
-  double newrop,newthi,newlen,newmr,newpoca;
-
-  /* We now compute the error in minRad and poca.  Since we need to
-     update inState later if we're accepting this configuration, we
-     just go ahead and make a full-on octrope call.
-     
-     This is pretty much a wash, speed-wise. I don't know whether
-     octrope computes length in order to do an octrope_poca call, so
-     there might be some speed savings in calling octrope_poca and
-     octrope_minrad separately.
-     
-     On the other hand, having done so you need to either assemble
-     these into thickness yourself after the loop (likely to be
-     buggy) or call octrope again in order to do the assembly and
-     length calculation (slow). 
-
-     I'm probably overthinking this. --Jason. */
-  
-  octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
-	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	  gOctmem,gOctmem_size,gLambda);
-  
-  inState->octrope_calls++;
-
-  plc_free(inLink);		/* Commit to the step by changing inLink */
-  inLink = workerLink;
-  
-  /* Now we update "inState" to reflect the changes in inLink. */
-  
-  inState->last_step_attempts = 0; /* This is no longer recorded, as it doesn't really make sense. */
-  inState->minrad = newmr;
-  inState->shortest = newpoca;
-  inState->length = newlen;
-  inState->ropelength = best_score; // We are actually trying to minimize _this_...
-  inState->thickness = newthi;
-  
-  inState->cstep_time += inState->stepSize;
-  inState->time += inState->stepSize;
-
-  int dvdtItr;
-  // grab average dvdt now that we have finished mungering it
-  inState->avgDvdtMag=0;
-  for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ ) {
-
-    inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
-  
-  }
-  inState->avgDvdtMag /= inState->totalVerts;
-
-  free(dVdt);
-  
-  return inLink;
+  plc_free(inLink);  
+  return workerLink;
 
 }
 
@@ -2721,7 +2787,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   /* We need to start by allocating some memory for the strutSet. It
      is clear that we can kill the problem of finding too many minrad
-     struts by setting minradStorageSize to the number of verts. We
+     struts by setting minradStorageSize to twice the number of verts. We
      believe (with no proof) that choosing strutStorageSize = 6*the
      number of edges in the link we will similarly overestimate the #
      of struts. We will double-check the results anyway. */
@@ -2733,7 +2799,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   if (VERBOSITY >= 10) { logprintf("\tbuildRigidityMatrix..."); }
 
   strutStorageSize = 6*inState->totalVerts;
-  minradStorageSize = inState->totalVerts;
+  minradStorageSize = 2*inState->totalVerts;
 
   strutSet = malloc(sizeof(octrope_strut)*strutStorageSize);
   minradSet = malloc(sizeof(octrope_mrloc)*minradStorageSize);
@@ -3136,6 +3202,49 @@ eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
 }
 
+
+taucs_ccs_matrix *taucs_ccs_delete_column(taucs_ccs_matrix *A,int col)
+/* Constructs the matrix with col deleted. We expect col to be between 0 and A->n-1. */
+{
+  taucs_ccs_matrix *Ap;
+
+  Ap = calloc(1,sizeof(taucs_ccs_matrix));
+
+  if (col > A->n-1 || col < 0) { 
+
+    char errcode[1024];
+
+    sprintf(errcode,"taucs_ccs_delete_column: can't delete column %d of %d column matrix A.\n",col,A->n);
+    FatalError(errcode,__FILE__,__LINE__);
+
+  }
+
+  Ap->n = A->n-1;
+  Ap->m = A->m;
+  Ap->flags = A->flags;
+
+  Ap->colptr = calloc(Ap->n+1,sizeof(int));
+  Ap->rowind = calloc(A->colptr[A->n],sizeof(int));      /* These are actually too big. But that's ok. */
+  Ap->values.d = calloc(A->colptr[A->n],sizeof(double)); 
+
+  /* First, we copy the column pointers into the new colptr array. */
+
+  int i,shft,colstart,colstop;
+  for(i=0;i<col;i++) { Ap->colptr[i] = A->colptr[i]; }
+  colstart = A->colptr[col]; colstop = A->colptr[col+1];
+  shft = colstop - colstart;  /* How many entries in rowind are we deleting? */
+  for(;i<=Ap->n;i++) { Ap->colptr[i] = A->colptr[i+1] - shft; }
+
+  /* Now we copy the row data and values. When we reach the break point, we skip ahead by shft entries. */
+
+  for(i=0;i<colstart;i++) { Ap->rowind[i] = A->rowind[i]; Ap->values.d[i] = A->values.d[i]; }
+  for(;i<Ap->colptr[Ap->n];i++) { Ap->rowind[i] = A->rowind[i+shft]; Ap->values.d[i] = A->values.d[i+shft]; }
+  
+  return Ap;
+
+}
+
+
 int gFeasibleThreshold = 0;
 int gDeferredStrutExport = 0;
 int gFoo = 0;
@@ -3147,6 +3256,8 @@ plc_vector
 	inLink, building a rigidity matrix along the way and calling
 	octrope and tsnnls to do their jobs. The resulting force is
 	returned in a new buffer.  
+
+	If the linear algebra fails, we return NULL.
      */
 
 {
@@ -3156,7 +3267,7 @@ plc_vector
   int		     vItr, sItr; 
   // loop iterators over components, vertices, and struts
   int		     dlItr;
-  char               errmsg[1024],vectdumpname[1024],strutdumpname[1024];
+  //char               errmsg[1024],vectdumpname[1024],strutdumpname[1024];
 
   double* compressions = NULL;
   double* minusDL = NULL;
@@ -3226,10 +3337,7 @@ plc_vector
  
     double l2ResidualNorm;
     compressions = t_snnls_fallback(A, minusDL, &l2ResidualNorm, 2, 1);
-    inState->residual = l2ResidualNorm/minusDLnorm;
-    
-    if (VERBOSITY >= 10) { logprintf("ok\n"); }
-    
+       
     char *terr;
 
     if (tsnnls_error(&terr)) {  /* If tsnnls throws a code, log it. */
@@ -3239,25 +3347,65 @@ plc_vector
 
     }
 
-    if (compressions == NULL) {  
+    if (compressions == NULL) {   /* We really failed. We need to free the memory that we've allocated, and return. */
 
-      /* Here's where we expect to fail. Put recovery code in here when designed. */
-
-      dumpAxb_sparse(inState,A,NULL,minusDL);
-      dumpStruts(inLink,inState,strutdumpname);
-      dumpLink(inLink,inState,vectdumpname);
-
-      sprintf(errmsg,
-	      "ridgerunner: Linear algebra failure.\n"
-	      "             Dumped link to %s.\n"
-	      "             Dumped matrix to A.dat. \n"
-	      "             Dumped minusDL to b.dat.\n"
-	      "             Dumped struts to %s.\n",
-	      vectdumpname,strutdumpname);
-
-      FatalError(errmsg, __FILE__ , __LINE__ );
+      logprintf("resolve_force: Linear algebra failure. Returning control to stepper.\n");
+      taucs_ccs_free(A);
+      free(minusDL);
+      return NULL;
 
     }
+
+     /*  /\* We failed the linear algebra step. It is likely that our matrix can be saved by deleting  *\/ */
+/*       /\* a column. The question is simple: which one? We can only find out by a search algorithm... *\/ */
+
+/*       taucs_ccs_matrix *Ap; */
+/*       int col; */
+/*       bool success = false; */
+/*       double rcond; */
+
+/*       logprintf("Linear algebra failed. Trying to delete a column to find nonsingular matrix.\n"); */
+
+/*       for(col=0;col<A->n && !success;col++) { */
+
+/* 	Ap = taucs_ccs_delete_column(A,col); */
+/* 	rcond = taucs_rcond(Ap); */
+	
+/* 	if (rcond > 1e-12) {      /\* We might be able to solve it! *\/ */
+
+/* 	  printf("\t col deleted: %d rcond: %g, trying again...\n",col,rcond);  */
+
+/* 	  compressions = t_snnls_fallback(Ap, minusDL, &l2ResidualNorm, 2, 1); /\* Try to solve it *\/ */
+/* 	  success = (compressions != NULL); */
+/* 	  if (success) { logprintf("Succeeded by deleting column %d. Run should continue.\n",col); } */
+
+/* 	} */
+
+/* 	taucs_ccs_free(Ap); */
+
+/*       } */
+
+/*     } */
+	  
+/*     if (compressions == NULL) { */
+  
+/*     dumpAxb_sparse(inState,A,NULL,minusDL); */
+/*       dumpStruts(inLink,inState,strutdumpname); */
+/*       dumpLink(inLink,inState,vectdumpname); */
+
+/*       sprintf(errmsg, */
+/* 	      "ridgerunner: Linear algebra failure.\n" */
+/* 	      "             rcond of matrix %g.\n" */
+/* 	      "             Dumped link to %s.\n" */
+/* 	      "             Dumped matrix to A.mat, A.sparse. \n" */
+/* 	      "             Dumped minusDL to b.mat.\n" */
+/* 	      "             Dumped struts to %s.\n", */
+/* 	      taucs_rcond(A),vectdumpname,strutdumpname); */
+
+/*       FatalError(errmsg, __FILE__ , __LINE__ ); */
+
+    inState->residual = l2ResidualNorm/minusDLnorm;  
+    if (VERBOSITY >= 10) { logprintf("ok\n"); }
 
     /* We have survived the linear algebra step! We record our victory in inState. */
 

@@ -129,6 +129,9 @@ typedef struct
   
   /* Correction step information. */
 
+  bool   oktoscale;  /* If there are no "fixed" constraints, it's ok to correct thickness by scaling (fast). 
+			Otherwise, we have to use Newton's method (slow). */
+
   double correctionStepDefault;	// default correction step size
  
   double  overstepTol;		        // the amount we are willing to
@@ -153,6 +156,7 @@ typedef struct
 
   /* Geometric data about the current state of the link. */
 
+  plc_vector *newDir;    // The computed step direction for the current link.
   double  minrad;	 // Rawdon's minimum radius of curvature
   double  ropelength;	 // the ropelength of the link
   double  length;	 // the polygonal length of the link

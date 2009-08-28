@@ -337,6 +337,7 @@ main( int argc, char* argv[] )
 
   }
 
+  state.newDir = NULL;
   state.correctionStepDefault = correctionStepSize;
   state.movie = movie;
   state.moviefactor = 1.0;
@@ -607,6 +608,8 @@ main( int argc, char* argv[] )
     }
     
   }
+
+  state.oktoscale = true;
   
   plc_constraint *thisCst;
   
@@ -625,6 +628,12 @@ main( int argc, char* argv[] )
 	      "ridgerunner: This version does not implement 'line' constraints\n"
 	      "             Replace them with a pair of 'plane' constraints.\n");
       FatalError(errmsg, __FILE__ , __LINE__ );
+
+    }
+
+    if (thisCst->kind == fixed) {
+
+      state.oktoscale = false;
 
     }
 
