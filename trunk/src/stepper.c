@@ -285,8 +285,6 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
     inState->oldLength = inState->length;
     inState->oldLengthTime = inState->cstep_time;
-
-   
    
     /* And we update our list of old ropelength values. */
 
@@ -302,6 +300,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     #endif
     
   } 
+
+  if (inState->newDir != NULL) { free(inState->newDir); inState->newDir = NULL; }
 
   free(gOctmem);
 
@@ -3350,6 +3350,7 @@ plc_vector
     if (compressions == NULL) {   /* We really failed. We need to free the memory that we've allocated, and return. */
 
       logprintf("resolve_force: Linear algebra failure. Returning control to stepper.\n");
+      free(dVdt);
       taucs_ccs_free(A);
       free(minusDL);
       return NULL;
