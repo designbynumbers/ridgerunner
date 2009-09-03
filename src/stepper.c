@@ -1894,6 +1894,22 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
     dVdt = inState->newDir;
   } else {
     dVdt = stepDirection(inLink,inState);
+
+    if (dVdt == NULL) {
+
+      char errMsg[1024],dumpname[1024];
+
+      dumpLink(inLink,inState,dumpname);
+      sprintf(errMsg,
+	      "Could not compute a step direction at the start of a steepest descent step.\n"
+	      "Either this link cannot be run with -c or correction stepping has resulted\n"
+	      "in a degenerate configuration.\n"
+	      "Dumped link to %s.\n"
+	      "Terminating run.\n",dumpname);
+      FatalError(errMsg, __FILE__, __LINE__ );
+
+    }
+
   }
 
   /* Now we are going to loop to figure out the best step in the current direction. */
@@ -1955,6 +1971,9 @@ bsearch_step( plCurve* inLink, search_state* inState )
 	
   double ERROR_BOUND = 1e-5;
   double MR_ERROR_BOUND = 1e-5;
+
+  /* Be conservative if we can't afford to crash the error-correction stepper. */
+  if (!inState->oktoscale) { ERROR_BOUND *= 0.1; MR_ERROR_BOUND *= 0.1; }  
   
   // create initial vector field for which we want to move along in this step
   plc_vector  *dVdt;
@@ -2265,7 +2284,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   // the final motion of any vertex shouldn't be > 10% of edgelength
 
   if( inState->stepSize*inState->avgDvdtMag > (inState->length/inState->totalVerts)*(0.1) ) {
-    inState->stepSize = ((inState->length/inState->totalVerts)*.1)/(inState->avgDvdtMag);
+    inState->stepSize = ((inState->length/inState->totalVerts)*.01)/(inState->avgDvdtMag);
   }
 
   free(dVdt);
