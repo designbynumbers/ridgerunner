@@ -686,6 +686,7 @@ main( int argc, char* argv[] )
   state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
   state.shortest = octrope_poca(link,NULL,0);
   state.residual = DBL_MAX;
+  state.score = stepScore(link,&state,NULL,0);
 
   state.totalVerts = plc_num_verts(link);
 
@@ -818,7 +819,7 @@ initializeState( search_state* state )
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
     "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance",
-    "lsqroutput","memused","effectiveness"
+    "lsqroutput","memused","effectiveness","score"
   }; 
 
   search_state *zerostate;

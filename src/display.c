@@ -133,7 +133,11 @@ void parse_display_arg(search_state *inState, struct arg_str *display)
       
       inState->runtime_display[inState->ndisplay++] = kEffectiveness;
       
-    } 
+    } else if (!strcmp(display->sval[n],"score")) {
+
+      inState->runtime_display[inState->ndisplay++] = kScore;
+
+    }
     
   }
 
@@ -295,6 +299,7 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
     case kMaxOverMin : printf("Max/min edge: %1.7f ",inState->lastMaxMin); break;
     case kRcond : printf("Rcond: %g ",inState->rcond); break;
     case kEffectiveness : printf("Eff: %1.4f MrEff: %1.4f ",inState->lastStepPocaEffectiveness,inState->lastStepMREffectiveness); break;
+    case kScore : printf("Sco: %3.11f ",inState->score); break;
     default: break;
       
     }
