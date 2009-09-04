@@ -94,6 +94,7 @@ enum GraphTypes
   klsqrlog,
   kMemused,  // total amount of memory allocated
   kEffectiveness, // a measure of how successful we are in avoiding error
+  kScore, // the total "score" assigned to each configuration
   
   kTotalLogTypes
 };
@@ -162,6 +163,7 @@ typedef struct
   double  length;	 // the polygonal length of the link
   double  shortest;	 // the shortest strut on last firstVariation call
   double  thickness;     // the overall thickness of the link
+  double  score;         // the current score of the link
 
   double  factor;	 // curvature scaling factor
 
@@ -272,6 +274,12 @@ extern RSettings gRidgeSettings;
 /****************************************************************/
 
 /* stepper.c */
+
+double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, double stepSize);
+/* This is the function that's ultimately being minimized. It is
+usually equal to to length when there are no struts and ropelength
+when there are struts, but changes to include a weighted length for
+free sections when Timewarp is turned on. */
 
 void bsearch_stepper( plCurve** inLink, search_state* inState );
 /*
@@ -425,5 +433,9 @@ void highlight_curve( plCurve *L, search_state *state );
 
 void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *inState);
 /* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
+
+double strut_free_length( plCurve *L, search_state *state);
+/* Computes the length of the portion of the curve with no struts */
+
 
 #endif

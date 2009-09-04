@@ -133,7 +133,7 @@ void highlight_curve(plCurve *L, search_state *state)
   free(mrBuf);
 
 }
-      
+     
   
 void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *state)
 /* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
@@ -158,5 +158,51 @@ void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *state
   }
 
   free(freeFlag);
+
+}
+
+double strut_free_length( plCurve *L, search_state *state) 
+
+/* Returns the total strut-free arclength of the curve. */
+
+{
+  int nStrutFree;
+  bool *freeFlag;
+
+  freeFlag = malloc_or_die(sizeof(bool)*plc_num_verts(L), __FILE__ , __LINE__ );
+  nStrutFree = strut_free_vertices(L,state->tube_radius,freeFlag);
+
+  int cmpItr,vItr,vt=0;
+  double sfLen = 0;
+
+  for(cmpItr=0;cmpItr < L->nc;cmpItr++) {
+
+    for(vItr=0;vItr < L->cp[cmpItr].nv-1;vItr++,vt++) {
+
+      if (freeFlag[vt] || freeFlag[vt+1]) {
+
+	sfLen += plc_distance(L->cp[cmpItr].vt[vItr],L->cp[cmpItr].vt[vItr+1]);
+
+      }
+
+    } 
+
+    if (L->cp[cmpItr].open == false) { /* We need to deal with the last edge */
+      
+      if (freeFlag[vt] || freeFlag[0]) {
+
+	sfLen += plc_distance(L->cp[cmpItr].vt[vItr],L->cp[cmpItr].vt[0]);
+
+      }
+
+    } 
+
+    vt++;
+
+  }
+      
+  free(freeFlag);
+   
+  return sfLen;
 
 }

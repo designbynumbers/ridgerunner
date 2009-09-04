@@ -236,10 +236,14 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	if (inState->oktoscale) { 
 	  plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda)); 
 	} else { 
-	  correct_thickness(*inLink,inState); 
+	  if (!correct_thickness(*inLink,inState)) { 
+	    NonFatalError("Newton error correction failed. Will try to continue run anyway.\n",__FILE__,__LINE__);
+	  }
 	}
 
 	free(inState->newDir); inState->newDir = NULL; 
+	inState->score = stepScore(*inLink,inState,NULL,0); /* We have changed the curve, so reset the score */
+
       }
 
     }        
@@ -564,6 +568,7 @@ void update_runtime_logs(search_state *state)
   fprintf(state->logfiles[kRcond],"%d %g \n",state->steps,state->rcond);
   fprintf(state->logfiles[kEffectiveness],"%d %g %g\n",state->steps,
 	  state->lastStepPocaEffectiveness,state->lastStepMREffectiveness);
+  fprintf(state->logfiles[kScore],"%d %g\n",state->steps,state->score);
 
 #ifdef HAVE_MALLINFO
   struct mallinfo m;
@@ -1100,6 +1105,9 @@ void correct_constraints(plCurve *inLink,search_state *inState)
   free(strutSet);
   free(minradSet);
   
+  inState->score = stepScore(inLink,inState,NULL,0); 
+  /* Update the score after constraint enforcement */
+
 }
 
 
@@ -1624,30 +1632,51 @@ double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, do
  
 /* Scoring a step is actually a little difficult, since the score is not strictly in terms of ropelength.
    When there are no struts, the score should simply be the length. If there _are_ struts, then the score
-   is ropelength. This isn't hard to do, but we encapsulate it in order to make the stepper code readable. */
+   is ropelength. This isn't hard to do, but we encapsulate it in order to make the stepper code readable.
+   
+   Note that you can score the current configuration by passing NULL as the stepDir and 0 as the 
+   stepsize. 
+*/
 { 
   plCurve *workerLink;
   double newrop, newthi, newlen, newmr, newpoca;
+  double score;
  
   workerLink = plc_copy(inLink); 
-  step(workerLink, stepSize, stepDir);
+  
+  if (stepSize != 0 && stepDir != NULL) {
 
+    step(workerLink, stepSize, stepDir);
+
+  }
+    
   octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
 	  gOctmem,gOctmem_size,gLambda);
 
   inState->octrope_calls++;
-  plc_free(workerLink);
-
+  
   if (newmr < gLambda * inState->tube_radius || newpoca < 2*inState->tube_radius) {
 
-    return newrop;
+    score=newrop;
 
   } else {
 
-    return 2*newlen;
+    score=2*newlen;
 
   }
+
+  if (!gNoTimeWarp) {
+
+    score += 2*(9*strut_free_length(workerLink,inState));
+    /* The portion of the curve which is strut free is weighted 10x more heavily. 
+       We've already counted it once. But we need to add the extra weight. */
+
+  }
+
+  plc_free(workerLink);
+
+  return score;
 
 }
 
@@ -1947,7 +1976,8 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
   
   plCurve *workerLink;
   workerLink = doStep(inLink,dVdt,best_step,inState);
-
+  inState->score = best_score;
+  
   plc_free(inLink);  
   return workerLink;
 
