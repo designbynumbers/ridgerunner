@@ -177,8 +177,6 @@ main( int argc, char* argv[] )
   double        stop20 = -1000;        /* For this to fail, ropelength would have to climb! */
   double        eqMult = 0.0;
 
-
-  char		fname[1024];
   double	maxStep = -1;
   long		maxItrs = 10000000;
   double	correctionStepSize = 0.25;
@@ -593,10 +591,11 @@ main( int argc, char* argv[] )
       
       logprintf("Scaled curve has thickness %g.\n",thickness);
       
-      if (fabs(thickness - (state.tube_radius + t_margin) > 1e-12)) {
+      if ((state.tube_radius + t_margin) - thickness > 1e-12) {  
+	/* Make sure that our thickness is close to the desired value */
 	
 	sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
-		"             Aborting run.\n",fname,state.tube_radius + t_margin);
+		"             Aborting run.\n",state.basename,state.tube_radius + t_margin);
 	FatalError(errmsg, __FILE__ , __LINE__ );
 	
       } else {
