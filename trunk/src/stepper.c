@@ -1949,7 +1949,7 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
      on stepsize. This means that this probably won't be good for moviemaking. On the other hand,
      it may do very well in the endgame. */
 
-  double ax = 0, bx = 1.0*fabs(inState->stepSize), cx = 2.0*fabs(inState->stepSize);
+  double ax = 0, bx = 1.0*1e-4 /* fabs(inState->stepSize) */, cx = 2.0*1e-4 /*fabs(inState->stepSize) */;
   double fa, fb, fc;
 
   mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
@@ -1972,7 +1972,11 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-2,&best_step);
 
-  if (best_step < 1e-7) { best_step = 1e-7; }  // We prohibit backward steps.
+  if (best_step < 1e-7) { 
+
+    best_step = 1e-7; 
+
+  }  // We prohibit backward steps.
   
   plCurve *workerLink;
   workerLink = doStep(inLink,dVdt,best_step,inState);
