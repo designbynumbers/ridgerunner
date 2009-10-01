@@ -100,7 +100,7 @@ foreach (@files) {
   my $jobspec  = `$xgrid -job specification -id $jobnum`;
   my $input_file;
 
-  print STDERR $jobspec;
+  #print STDERR $jobspec;
 
   $jobspec =~ tr/\n/\#/;
 
@@ -147,4 +147,19 @@ print "  };\n";
 
 print "};\n";
 print "}\n\n";
+
+#
+# Having done this, we try to generate a GridStuffer metajob file. This is going to be called gridstuffer.txt
+#
+
+open(GRIDSTUFFER,">gridstuffer.txt") or die("Couldn't open gridstuffer.txt.\n");
+
+print GRIDSTUFFER "-dirs $cwd\n";
+
+foreach (@files) {
+
+  print GRIDSTUFFER "$ridgerunner $_ @rrargs\n";
+
+}
+
 
