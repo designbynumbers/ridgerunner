@@ -322,6 +322,9 @@ void constraintForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 plc_vector *resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState);
 /* Uses rigidity matrix to resolve the force dl over struts, kinks, and constraints. */
 
+plc_vector *stepDirection( plCurve *inLink, search_state *inState); 
+/* Ties everything together to compute the final step direction */
+
 void open_runtime_logs(search_state *state, char opentype);
 /* Opens the runtime logs */
 
