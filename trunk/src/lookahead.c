@@ -143,8 +143,9 @@ int main(int argc,char *argv[])
   state.last_cstep_attempts = 0;
   state.cstep_count = 0;
 
-  state.steps = 0;
+  state.steps = 1;
   state.maxStepSize = 0.01;
+  state.snapinterval = 10;
 
 #ifdef HAVE_ASCTIME
 #ifdef HAVE_LOCALTIME
@@ -386,7 +387,7 @@ int main(int argc,char *argv[])
     sample_x = calloc(samps,sizeof(double));
     assert(sample_x != NULL);
 
-    double a=-1,b=1;
+    double a=-0.1,b=0.1;
 
     if (arg_minstep->count > 0) { 
 
@@ -403,7 +404,7 @@ int main(int argc,char *argv[])
     int i;
     double x;   
 
-    for(i=0,x=0;i<samps;i++,x+=(b-a)/(samps-1)) {
+    for(i=0,x=a;i<samps;i++,x+=(b-a)/(samps-1)) {
 
       sample_x[i] = x;
 
@@ -422,7 +423,27 @@ int main(int argc,char *argv[])
 
     }
 
-    /* We now output the data. */
+    /* We now output a summary for the user. */
+
+    for(i=0;i<8;i++) {
+
+      printf("%13.8f ",sample_x[(int)(floor(i*samps/8))]);
+
+    } 
+
+    printf("\n                                 ");
+
+    
+    for(i=0;i<8;i++) {
+
+      printf("%13.8f ",scores[(int)(floor(i*samps/8))]);
+
+    } 
+    
+    printf("\n                 ");
+
+
+    /* We now output the data at the largest scale. */
 
     FILE *datfile;
     char datname[1024];
@@ -438,28 +459,32 @@ int main(int argc,char *argv[])
       fprintf(datfile,"%3.15g %3.15g\n",sample_x[i],scores[i]);
 
     }
+    
+    /* We now repeat at other scales; */
+
+    int k;
+
+    for(k=0;k<3;k++) {
+
+      a /= 10.0;
+      b /= 10.0;
+      
+      for(i=0,x=a;i<samps;i++,x+=(b-a)/(samps-1)) {
+	
+	fprintf(datfile,"%3.15g %3.15g\n",x,stepScore(link,&state,stepDir,x));
+	
+      }
+
+    }
+
+    a *= 10*10*10;
+    b *= 10*10*10;
+
+    /* We now compute the data at other scales */
 
     fclose(datfile);
 
-    /* We now output a summary for the user. */
-
-    for(i=0;i<10;i++) {
-
-      printf("%1.8g ",sample_x[(int)(floor(i*samps/10))]);
-
-    } 
-
-    printf("\n                 ");
-
-    
-    for(i=0;i<10;i++) {
-
-      printf("%1.8g ",scores[(int)(floor(i*samps/10))]);
-
-    } 
-    
-    printf("\n                 ");
-
+   
     /* We now try to generate and xv a gnuplot graph of the results. */
 
     FILE *gpfile;
@@ -468,7 +493,7 @@ int main(int argc,char *argv[])
     sprintf(gpfilename,"./%s.lookahead/genplot.gnuplot",
 	    state.basename);
 
-    gpfile = fopen(datname,"w");
+    gpfile = fopen(gpfilename,"w");
     assert(gpfile != NULL);
     
     fprintf(gpfile,
@@ -478,15 +503,44 @@ int main(int argc,char *argv[])
 	    "set output \"%s.la.png\"\n"
 	    "set title \"Ropelength score vs stepsize for %s.vect \" \n"	\
 	    "set style data lines \n"
+	    "set size 1.0, 1.0 \n"
+	    "set origin 0.0, 0.0 \n"
+	    "set multiplot \n"
+
+	    "set size 0.5, 0.5 \n"
+	    "set origin 0.0, 0.5 \n"
 	    "set xrange [%g:%g] \n"
 	    "#set yrange  \n"
-	    "plot %s.la.dat' u 1:2 w filledcurve \n",
-
-	    state.basename,state.basename,a,b,state.basename);
+	    "plot '%s.la.dat' \n"
+	    "set size 0.5, 0.5 \n"
+	    "set origin 0.5, 0.5 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange  \n"
+	    "plot '%s.la.dat' \n"
+	    "set size 0.5, 0.5 \n"
+	    "set origin 0.0, 0.0 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange  \n"
+	    "plot '%s.la.dat' \n"
+	    "set size 0.5, 0.5 \n"
+	    "set origin 0.5, 0.0 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange  \n"
+	    "plot '%s.la.dat' \n"
+	    "unset multiplot \n",
+	    state.basename,state.basename,
+	    a,b,state.basename,
+	    a/10.0,b/10.0,state.basename,
+	    a/100.0,b/100.0,state.basename,
+	    a/1000.0,b/1000.0,state.basename
+	    );
 
     fclose(gpfile);
+
+    char cmd[1024];
     
-    system("cd %/lookahead; gnuplot genplot.gnuplot; xv *.png &;");
+    sprintf(cmd,"bash -c \"cd %s.lookahead; gnuplot genplot.gnuplot; xv *.png &\"",state.basename);
+    system(cmd);
     
     /* We now clean up after ourselves */
 
