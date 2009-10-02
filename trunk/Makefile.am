@@ -121,7 +121,26 @@ else
 TESTS = src/csteptest
 endif
 
-check_PROGRAMS = src/csteptest src/mrgradtest
+check_PROGRAMS = src/csteptest src/mrgradtest src/lookahead
+
+src_lookahead_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	src/lookahead.c 
+
+src_lookahead_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
+
 
 src_csteptest_SOURCES =  src/errors.c \
 	src/dlen.c \
