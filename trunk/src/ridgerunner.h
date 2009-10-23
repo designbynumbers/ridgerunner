@@ -292,6 +292,9 @@ void bsearch_stepper( plCurve** inLink, search_state* inState );
  *
  */
 
+double plc_l2norm(plc_vector *V,int n);
+/* Computes the l2 norm of a multivector of n plc_vectors. */
+
 int correct_thickness(plCurve *inLink,search_state *inState);
 /* Newton's method thickness correction algorithm */
 
