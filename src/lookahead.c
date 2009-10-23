@@ -9,6 +9,9 @@
 #include <config.h>
 #endif
 
+#include<stdio.h>
+#include<stdlib.h>
+
 #include<ridgerunner.h>
 #include<mangle.h>
 #include<argtable2.h>
@@ -16,6 +19,7 @@
 /* Global variables live here. */
 
 struct arg_dbl  *arg_minstep;
+struct arg_dbl  *arg_scale;
 struct arg_dbl  *arg_maxstep;
 struct arg_int  *arg_nsamples;
 struct arg_lit  *arg_logsampling;
@@ -35,6 +39,37 @@ FILE    *infile_fptr,*outfile_fptr;
 
 int    QUIET=0;
 
+struct dpoint {
+  double x;
+  double y;
+};
+
+double scale = 0.1;
+
+int compare_data(const struct dpoint *A,const struct dpoint *B) {
+
+  if (A->x > B->x) return 1;
+  if (A->x < B->x) return -1;
+  return 0;
+}
+
+plc_vector *dLenDirection(plCurve *inLink,search_state *inState) {
+
+  plc_vector *dLen;
+
+  dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
+  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
+  fatalifnull_(dLen);
+    
+  dlenForce(dLen,inLink,inState);
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
+  eqForce(dLen,inLink,inState);
+  specialForce(dLen,inLink,inState);
+  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+
+  return dLen;
+}
+
 int main(int argc,char *argv[])
 {
   int       infilenum,i,nerrors;
@@ -46,6 +81,7 @@ int main(int argc,char *argv[])
     {
 
      target_thickness  = arg_dbl0("r","radius","<x>","target tube radius"),
+     arg_scale  = arg_dbl0("s","scale","<double>","maximum stepsize to plot"),
      arg_lambda = arg_dbl0("l","lambda","<double>",
 			   "minimum radius of curvature for unit rope"),
      verbose = arg_lit0("v","verbose","print debugging information"),
@@ -99,6 +135,8 @@ int main(int argc,char *argv[])
   }
 
   QUIET = quiet->count > 0; /* Register if we're in batch mode */
+
+  if (arg_scale->count > 0) { scale = arg_scale->dval[0]; }
 
   double correctionStepSize = 0.25;
   double minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
@@ -355,10 +393,11 @@ int main(int argc,char *argv[])
     
     /* We are now prepared to get the step direction. */
 
-    plc_vector *stepDir;
+    plc_vector *stepDir,*dLen;
     stepDir = stepDirection(link,&state);
+    dLen = dLenDirection(link,&state);
 
-    if (stepDir == NULL) {
+    if (stepDir == NULL || dLen == NULL) {
 
       char errMsg[1024],dumpname[1024];
 
@@ -387,7 +426,10 @@ int main(int argc,char *argv[])
     sample_x = calloc(samps,sizeof(double));
     assert(sample_x != NULL);
 
-    double a=-0.1,b=0.1;
+    double a,b;
+
+    a=-scale; 
+    b=scale;
 
     if (arg_minstep->count > 0) { 
 
@@ -412,14 +454,18 @@ int main(int argc,char *argv[])
 
     /* We now gather the actual data. */
 
-    double *scores;
+    double *scores,*dlscores;
 
     scores = calloc(samps,sizeof(double));
     assert(scores != NULL);
 
+    dlscores = calloc(samps,sizeof(double));
+    assert(dlscores != NULL);
+
     for(i=0;i<samps;i++) {
 
-      scores[i] = stepScore(link,&state,stepDir,sample_x[i]);
+      scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
+      dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - state.ropelength;
 
     }
 
@@ -444,19 +490,30 @@ int main(int argc,char *argv[])
 
 
     /* We now output the data at the largest scale. */
+    /* We now collect data. */
 
     FILE *datfile;
     char datname[1024];
+    double stepMax[4] = {-100000,-100000,-100000,-100000}, stepMin[4] = {100000000,1000000,10000000,1000000}; /* We will set the plot range to the max of stepDir */
+    
+   
+    struct dpoint *data, *dldata;
+    data = calloc(samps*5,sizeof(struct dpoint));
+    dldata = calloc(samps*5,sizeof(struct dpoint));
+    
+    int dItr = 0;
 
-    sprintf(datname,"./%s.lookahead/%s.la.dat",
-	    state.basename,state.basename);
+   
+    for(i=0;i<samps;i++,dItr++) {
 
-    datfile = fopen(datname,"w");
-    assert(datfile != NULL);
+      data[dItr].x = sample_x[i];
+      data[dItr].y = scores[i];
 
-    for(i=0;i<samps;i++) {
+      dldata[dItr].x = sample_x[i];
+      dldata[dItr].y = dlscores[i];
 
-      fprintf(datfile,"%3.15g %3.15g\n",sample_x[i],scores[i]);
+      stepMax[0] = (data[dItr].y > stepMax[0]) ? data[dItr].y : stepMax[0];
+      stepMin[0] = (data[dItr].y < stepMin[0]) ? data[dItr].y : stepMin[0];
 
     }
     
@@ -469,9 +526,16 @@ int main(int argc,char *argv[])
       a /= 10.0;
       b /= 10.0;
       
-      for(i=0,x=a;i<samps;i++,x+=(b-a)/(samps-1)) {
-	
-	fprintf(datfile,"%3.15g %3.15g\n",x,stepScore(link,&state,stepDir,x));
+      for(i=0,x=a;i<samps;i++,x+=(b-a)/(samps-1),dItr++) {
+
+	data[dItr].x = x;
+	data[dItr].y = stepScore(link,&state,stepDir,x) - state.ropelength;
+
+	dldata[dItr].x = x;
+	dldata[dItr].y = stepScore(link,&state,dLen,x) - state.ropelength;
+
+	stepMax[k+1] = (data[dItr].y > stepMax[k+1]) ? data[dItr].y : stepMax[k+1];
+	stepMin[k+1] = (data[dItr].y < stepMin[k+1]) ? data[dItr].y : stepMin[k+1];
 	
       }
 
@@ -480,10 +544,58 @@ int main(int argc,char *argv[])
     a *= 10*10*10;
     b *= 10*10*10;
 
-    /* We now compute the data at other scales */
+    dldata[dItr].x = 0;
+    dldata[dItr].y = 0;
+
+    data[dItr].x = 0;
+    data[dItr].y = 0;
+
+    /* We now sort the data by x. */
+
+    qsort(data,4*samps+1,sizeof(struct dpoint),compare_data);
+    qsort(dldata,4*samps+1,sizeof(struct dpoint),compare_data);
+    
+    /* And now we write it to the file. */
+
+    sprintf(datname,"./%s.lookahead/%s.la.dat",
+	    state.basename,state.basename);
+
+    datfile = fopen(datname,"w");
+    assert(datfile != NULL);
+
+    for(k=0;k<4*samps;k++) {
+
+      fprintf(datfile,"%15.15f %15.15f \n",data[k].x,data[k].y);
+
+    }
 
     fclose(datfile);
+    free(data);
 
+    sprintf(datname,"./%s.lookahead/%s_d.la.dat",
+	    state.basename,state.basename);
+
+    datfile = fopen(datname,"w");
+    assert(datfile != NULL);
+
+    for(k=0;k<4*samps;k++) {
+
+      fprintf(datfile,"%15.15f %15.15f \n",dldata[k].x,dldata[k].y);
+
+    }
+
+    fclose(datfile);
+    free(dldata);
+
+    double margin;
+
+    for(k=0;k<4;k++) { 
+
+      margin = 0.1 * (stepMax[k] - stepMin[k]);
+      stepMax[k] += margin;
+      stepMin[k] -= margin;
+
+    }
    
     /* We now try to generate and xv a gnuplot graph of the results. */
 
@@ -499,47 +611,95 @@ int main(int argc,char *argv[])
     fprintf(gpfile,
 
 	    "# \n"
-	    "set terminal png\n"
-	    "set output \"%s.la.png\"\n"
-	    "set title \"Ropelength score vs stepsize for %s.vect \" \n"	\
+	    "set terminal pdf\n"
+	    "set output \"%s.la.pdf\"\n"
+	    "set autoscale y2\n"
+	    
 	    "set style data lines \n"
-	    "set size 1.0, 1.0 \n"
-	    "set origin 0.0, 0.0 \n"
-	    "set multiplot \n"
+	    "#set size 1.0, 1.0 \n"
+	    "#set origin 0.0, 0.0 \n"
+	    "set multiplot layout 2, 2 title \"Delta Ropelength score vs stepsize for %s.vect \" \n"
 
-	    "set size 0.5, 0.5 \n"
-	    "set origin 0.0, 0.5 \n"
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.0, 0.5 \n"
 	    "set xrange [%g:%g] \n"
-	    "#set yrange  \n"
-	    "plot '%s.la.dat' \n"
-	    "set size 0.5, 0.5 \n"
-	    "set origin 0.5, 0.5 \n"
+	    "set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.5, 0.5 \n"
 	    "set xrange [%g:%g] \n"
-	    "#set yrange  \n"
-	    "plot '%s.la.dat' \n"
-	    "set size 0.5, 0.5 \n"
-	    "set origin 0.0, 0.0 \n"
+	    "set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.0, 0.0 \n"
 	    "set xrange [%g:%g] \n"
-	    "#set yrange  \n"
-	    "plot '%s.la.dat' \n"
-	    "set size 0.5, 0.5 \n"
-	    "set origin 0.5, 0.0 \n"
+	    "set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.5, 0.0 \n"
 	    "set xrange [%g:%g] \n"
-	    "#set yrange  \n"
-	    "plot '%s.la.dat' \n"
-	    "unset multiplot \n",
+	    "set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "unset multiplot \n"
+	    
+	    "clear \n"
+	    "# \n"
+	    "#set terminal pdf\n"
+	    "#set output \"%s.la.pdf\"\n"
+	    "set autoscale y\n"
+	    "set autoscale y2\n"
+	    
+	    "set style data lines \n"
+	    "#set size 1.0, 1.0 \n"
+	    "#set origin 0.0, 0.0 \n"
+	    "set multiplot layout 2, 2 title \"Delta Ropelength score vs stepsize for %s.vect \" \n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.0, 0.5 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.5, 0.5 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.0, 0.0 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+
+	    "#set size 0.5, 0.5 \n"
+	    "#set origin 0.5, 0.0 \n"
+	    "set xrange [%g:%g] \n"
+	    "#set yrange [%13.21g:%13.21g] \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "unset multiplot \n"
+	    ,
 	    state.basename,state.basename,
-	    a,b,state.basename,
-	    a/10.0,b/10.0,state.basename,
-	    a/100.0,b/100.0,state.basename,
-	    a/1000.0,b/1000.0,state.basename
+	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,
+	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,
+	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,
+	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename,
+
+	    state.basename,state.basename,
+	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,
+	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,
+	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,
+	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename
 	    );
 
     fclose(gpfile);
 
     char cmd[1024];
     
-    sprintf(cmd,"bash -c \"cd %s.lookahead; gnuplot genplot.gnuplot; xv *.png &\"",state.basename);
+    sprintf(cmd,"bash -c \"cd %s.lookahead; gnuplot genplot.gnuplot; gv --scale=4 --spartan *.pdf &\"",state.basename);
     system(cmd);
     
     /* We now clean up after ourselves */
