@@ -397,6 +397,16 @@ int main(int argc,char *argv[])
     stepDir = stepDirection(link,&state);
     dLen = dLenDirection(link,&state);
 
+    /* Now it would be completely unfair to compare these vectorfields, because they have different norms. */
+    
+    int k;
+    double scaleFactor;
+    scaleFactor = plc_l2norm(stepDir,state.totalVerts)/plc_l2norm(dLen,state.totalVerts);
+    for(k=0;k<state.totalVerts;k++) { dLen[k] = plc_scale_vect(scaleFactor,dLen[k]); }
+    scaleFactor = plc_l2norm(stepDir,state.totalVerts)/plc_l2norm(dLen,state.totalVerts);
+
+    /* Now they have the same scale */
+
     if (stepDir == NULL || dLen == NULL) {
 
       char errMsg[1024],dumpname[1024];
@@ -518,8 +528,6 @@ int main(int argc,char *argv[])
     }
     
     /* We now repeat at other scales; */
-
-    int k;
 
     for(k=0;k<3;k++) {
 
