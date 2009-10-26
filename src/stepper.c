@@ -1692,9 +1692,37 @@ plc_vector *stepDirection( plCurve *inLink, search_state *inState)
     
   dlenForce(dLen,inLink,inState);
   if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
+
+  if (dLen[500].c[0] > 0) {  // Checking to see if dLen is ok at this point.
+
+    dLen[500].c[0] *= 1.0;
+
+  }
+
   eqForce(dLen,inLink,inState);
+
+  if (dLen[500].c[0] > 0) {  // Checking to see if dLen is ok at this point.
+
+    dLen[500].c[0] *= 1.0;
+
+  }
+
   specialForce(dLen,inLink,inState);
+
+    if (dLen[500].c[0] > 0) {  // Checking to see if dLen is ok at this point.
+
+    dLen[500].c[0] *= 1.0;
+
+  }
+
   constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+
+    if (dLen[500].c[0] > 0) {  // Checking to see if dLen is ok at this point.
+
+    dLen[500].c[0] *= 1.0;
+
+  }
+
 
   dVdt = resolveForce(dLen,inLink,inState); 
   free(dLen);
@@ -3435,7 +3463,7 @@ plc_vector
     // construct minusDL -- this is a column vector of size totalVerts
     // we must operate using strictly doubles to interoperate with taucs_snnls
     
-    minusDL = (double*)malloc((3*inState->totalVerts)*sizeof(double));
+    minusDL = (double*)calloc((3*inState->totalVerts),sizeof(double));
     fatalifnull_(minusDL);
 
     double minusDLnorm = 0;
