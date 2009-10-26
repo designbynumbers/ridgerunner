@@ -464,7 +464,7 @@ int main(int argc,char *argv[])
 
     /* We now gather the actual data. */
 
-    double *scores,*dlscores;
+    double *scores,*dlscores, *prescores, *predlscores;
 
     scores = calloc(samps,sizeof(double));
     assert(scores != NULL);
@@ -472,10 +472,18 @@ int main(int argc,char *argv[])
     dlscores = calloc(samps,sizeof(double));
     assert(dlscores != NULL);
 
+    prescores = calloc(samps,sizeof(double));
+    assert(prescores != NULL);
+
+    predlscores = calloc(samps,sizeof(double));
+    assert(predlscores != NULL);
+
     for(i=0;i<samps;i++) {
 
       scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
       dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - state.ropelength;
+      prescores[i] = predict_deltarop(link,stepDir,sample_x[i],&state);
+      predlscores[i] = predict_deltarop(link,dLen,sample_x[i],&state);
 
     }
 
@@ -487,7 +495,7 @@ int main(int argc,char *argv[])
 
     } 
 
-    printf("\n                                 ");
+    printf("\n     scores                       ");
 
     
     for(i=0;i<8;i++) {
@@ -495,7 +503,17 @@ int main(int argc,char *argv[])
       printf("%13.8f ",scores[(int)(floor(i*samps/8))]);
 
     } 
+
+    printf("\n     predicted                   ");
+
     
+    for(i=0;i<8;i++) {
+
+      printf("%13.8f ",prescores[(int)(floor(i*samps/8))]);
+
+    } 
+    
+
     printf("\n                 ");
 
 
@@ -507,13 +525,15 @@ int main(int argc,char *argv[])
     double stepMax[4] = {-100000,-100000,-100000,-100000}, stepMin[4] = {100000000,1000000,10000000,1000000}; /* We will set the plot range to the max of stepDir */
     
    
-    struct dpoint *data, *dldata;
+    struct dpoint *data, *dldata, *predata, *predldata;
+
     data = calloc(samps*5,sizeof(struct dpoint));
     dldata = calloc(samps*5,sizeof(struct dpoint));
+    predata = calloc(samps*5,sizeof(struct dpoint));        /* Predicted stepDir data */
+    predldata = calloc(samps*5,sizeof(struct dpoint));      /* Predicted dLen data */
     
     int dItr = 0;
 
-   
     for(i=0;i<samps;i++,dItr++) {
 
       data[dItr].x = sample_x[i];
@@ -521,6 +541,12 @@ int main(int argc,char *argv[])
 
       dldata[dItr].x = sample_x[i];
       dldata[dItr].y = dlscores[i];
+
+      predata[dItr].x = sample_x[i];
+      predata[dItr].y = prescores[i];
+       
+      predldata[dItr].x = sample_x[i];
+      predldata[dItr].y = predlscores[i];
 
       stepMax[0] = (data[dItr].y > stepMax[0]) ? data[dItr].y : stepMax[0];
       stepMin[0] = (data[dItr].y < stepMin[0]) ? data[dItr].y : stepMin[0];
@@ -542,6 +568,12 @@ int main(int argc,char *argv[])
 	dldata[dItr].x = x;
 	dldata[dItr].y = stepScore(link,&state,dLen,x) - state.ropelength;
 
+	predata[dItr].x = x;
+	predata[dItr].y = predict_deltarop(link,stepDir,x,&state);
+
+	predldata[dItr].x = x;
+	predldata[dItr].y = predict_deltarop(link,dLen,x,&state);
+
 	stepMax[k+1] = (data[dItr].y > stepMax[k+1]) ? data[dItr].y : stepMax[k+1];
 	stepMin[k+1] = (data[dItr].y < stepMin[k+1]) ? data[dItr].y : stepMin[k+1];
 	
@@ -558,11 +590,19 @@ int main(int argc,char *argv[])
     data[dItr].x = 0;
     data[dItr].y = 0;
 
+    predldata[dItr].x = 0;
+    predldata[dItr].y = 0;
+
+    predata[dItr].x = 0;
+    predata[dItr].y = 0;
+
     /* We now sort the data by x. */
 
     qsort(data,4*samps+1,sizeof(struct dpoint),compare_data);
     qsort(dldata,4*samps+1,sizeof(struct dpoint),compare_data);
-    
+    qsort(predata,4*samps+1,sizeof(struct dpoint),compare_data);
+    qsort(predldata,4*samps+1,sizeof(struct dpoint),compare_data);
+
     /* And now we write it to the file. */
 
     sprintf(datname,"./%s.lookahead/%s.la.dat",
@@ -594,6 +634,36 @@ int main(int argc,char *argv[])
 
     fclose(datfile);
     free(dldata);
+
+    sprintf(datname,"./%s.lookahead/%s_p.la.dat",
+	    state.basename,state.basename);
+    
+    datfile = fopen(datname,"w");
+    assert(datfile != NULL);
+
+    for(k=0;k<4*samps;k++) {
+
+      fprintf(datfile,"%15.15f %15.15f \n",predata[k].x,predata[k].y);
+
+    }
+
+    fclose(datfile);
+    free(predata);
+
+    sprintf(datname,"./%s.lookahead/%s_pd.la.dat",
+	    state.basename,state.basename);
+
+    datfile = fopen(datname,"w");
+    assert(datfile != NULL);
+
+    for(k=0;k<4*samps;k++) {
+
+      fprintf(datfile,"%15.15f %15.15f \n",predldata[k].x,predldata[k].y);
+
+    }
+
+    fclose(datfile);
+    free(predldata);
 
     double margin;
 
@@ -632,28 +702,28 @@ int main(int argc,char *argv[])
 	    "#set origin 0.0, 0.5 \n"
 	    "set xrange [%g:%g] \n"
 	    "set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen', '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)' \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.5, 0.5 \n"
 	    "set xrange [%g:%g] \n"
 	    "set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)' \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.0, 0.0 \n"
 	    "set xrange [%g:%g] \n"
 	    "set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)'  \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.5, 0.0 \n"
 	    "set xrange [%g:%g] \n"
 	    "set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)'  \n"
 	    "unset multiplot \n"
 	    
-	    "clear \n"
+	    "#clear \n"
 	    "# \n"
 	    "#set terminal pdf\n"
 	    "#set output \"%s.la.pdf\"\n"
@@ -669,38 +739,38 @@ int main(int argc,char *argv[])
 	    "#set origin 0.0, 0.5 \n"
 	    "set xrange [%g:%g] \n"
 	    "#set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)' \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.5, 0.5 \n"
 	    "set xrange [%g:%g] \n"
 	    "#set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen'\n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)' \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.0, 0.0 \n"
 	    "set xrange [%g:%g] \n"
 	    "#set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)'  \n"
 
 	    "#set size 0.5, 0.5 \n"
 	    "#set origin 0.5, 0.0 \n"
 	    "set xrange [%g:%g] \n"
 	    "#set yrange [%13.21g:%13.21g] \n"
-	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen' \n"
+	    "plot '%s.la.dat' title 'stepDir', '%s_d.la.dat' title 'dLen',  '%s_p.la.dat' title 'p(stepDir)', '%s_pd.la.dat' title 'p(dLen)'  \n"
 	    "unset multiplot \n"
 	    ,
 	    state.basename,state.basename,
-	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,
-	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,
-	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,
-	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename,
+	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,state.basename,state.basename,
+	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,state.basename,state.basename,
+	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,state.basename,state.basename,
+	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename,state.basename,state.basename,
 
 	    state.basename,state.basename,
-	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,
-	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,
-	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,
-	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename
+	    a,b,stepMin[0],stepMax[0],state.basename,state.basename,state.basename,state.basename,
+	    a/10.0,b/10.0,stepMin[1],stepMax[1],state.basename,state.basename,state.basename,state.basename,
+	    a/100.0,b/100.0,stepMin[2],stepMax[2],state.basename,state.basename,state.basename,state.basename,
+	    a/1000.0,b/1000.0,stepMin[3],stepMax[3],state.basename,state.basename,state.basename,state.basename
 	    );
 
     fclose(gpfile);

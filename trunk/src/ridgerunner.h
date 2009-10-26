@@ -351,6 +351,10 @@ void reloadDump( double* A, int rows, int cols, double* x, double* b );
 void our_matrix_write(double val, double *A, int LDA, int i, int j);
 double maxError(plCurve *L, int comp, search_state* inState);
 
+double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,search_state *inState);
+/* Predicts, using the rigidty matrix, the change in ropelength on a given step. Used for debugging */
+
+
 /* linklib_additions.c */
 
 plCurve*  octrope_fixlength( plCurve* inLink );
