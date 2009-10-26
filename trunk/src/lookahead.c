@@ -134,6 +134,7 @@ int main(int argc,char *argv[])
     
   }
 
+  gNoTimeWarp = true;
   QUIET = quiet->count > 0; /* Register if we're in batch mode */
 
   if (arg_scale->count > 0) { scale = arg_scale->dval[0]; }
@@ -312,6 +313,7 @@ int main(int argc,char *argv[])
     state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
     state.residual = 1.0;
     state.shortest = octrope_poca(link,NULL,0);
+    state.eqMultiplier = 0;
     
     state.totalVerts = plc_num_verts(link);
     
