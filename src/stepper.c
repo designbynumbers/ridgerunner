@@ -1110,7 +1110,81 @@ void correct_constraints(plCurve *inLink,search_state *inState)
 
 }
 
+double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,search_state *inState)
 
+/* Uses the rigidity matrix to predict the change in ropelength if we
+   take the step stepSize * stepDir. This is primarily a debugging check. */
+
+{
+  taucs_ccs_matrix *sparseA = NULL;
+  taucs_ccs_matrix *sparseAT = NULL;
+ 
+  sparseA = buildRigidityMatrix(inLink,inState);  /* Note: strut set in inState updates */
+  sparseAT = taucs_ccs_transpose(sparseA);
+
+  plc_vector *step;
+
+  step = (plc_vector *)(calloc(inState->totalVerts,sizeof(plc_vector)));
+  fatalifnull_(step);
+  
+  int i;
+  for(i=0;i<inState->totalVerts;i++) { step[i] = plc_scale_vect(stepSize,stepDir[i]); }
+
+  /* Now we take the matrix product. The output buffer has to be allocated in advance. 
+     It should be equal in size to the number of rows in sparseAT. */
+
+  double *B;
+  B = calloc(sparseAT->m,sizeof(double *));
+  fatalifnull_(B);
+
+  ourtaucs_ccs_times_vec(sparseAT,(taucs_double *)(step),(taucs_double *)(B));
+
+  /* We now analyze the resulting B output */
+
+  double leastDelta = 1000000;
+  int ldloc = -1;
+
+  for(i=0;i<sparseAT->m;i++) {
+
+    if (B[i] < leastDelta) {
+      
+      leastDelta = B[i];
+      ldloc = i;
+
+    }
+
+  }
+
+  /* The prediction is that 
+
+   (d/dt) Len/Thi = -Len/Thi^2 (d/dt) Thi = Len/Thi * (-(d/dt) Thi/ Thi). 
+
+   we have computed (d/dt) Thi, which is expected to be leastDelta. But 
+   we need the other numbers to make a prediction. 
+
+   As this is debugging code, we just do it the easy way. 
+
+  */
+
+  double Rop, Thi;
+
+  Rop = octrope_ropelength(inLink,NULL,0,gLambda);
+  Thi = octrope_thickness(inLink,NULL,0,gLambda);
+
+  double prediction;
+
+  prediction = (Rop)*(-leastDelta/Thi);
+
+  /* Now we clean up after ourselves */
+
+  free(B);
+  free(step);
+  taucs_ccs_free(sparseA);
+  taucs_ccs_free(sparseAT);
+
+  return prediction;
+
+}
 
 int correct_thickness(plCurve *inLink,search_state *inState) 
 
@@ -3409,6 +3483,40 @@ plc_vector
       return NULL;
 
     }
+
+    /* We now (being paranoid) check to make sure that the compressions are actually all positive. */
+
+    double compmin = 1000000;
+    int compminloc = -1;
+
+    for(dlItr=0;dlItr<A->n;dlItr++) { 
+
+      if (compressions[dlItr] < compmin) {
+
+	compmin = compressions[dlItr];
+	compminloc = dlItr;
+
+      }
+
+      if (compressions[dlItr] < 0) {
+
+	char errmsg[1024];
+	
+	sprintf(errmsg,
+		"resolve_force: tsnnls returned a negative compression on column %d of matrix A.\n"
+		"               This indicates a bug in tsnnls which needs to be corrected.\n"
+		"               Contact cantarella@math.uga.edu with dump data (A,x,b).\n"
+		"               Dumping rigidity matrix (to A), compressions (to x), \n",dlItr);
+
+	dumpAxb_sparse(inState,A,compressions,minusDL);
+
+	FatalError(errmsg,__FILE__,__LINE__);
+	
+      }
+
+    } 
+
+    /* We have gathered compmin, which was essentially free, but we won't usually use it. */
 
      /*  /\* We failed the linear algebra step. It is likely that our matrix can be saved by deleting  *\/ */
 /*       /\* a column. The question is simple: which one? We can only find out by a search algorithm... *\/ */
