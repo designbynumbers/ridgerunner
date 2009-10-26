@@ -121,7 +121,11 @@ else
 TESTS = src/csteptest
 endif
 
+if HAVEGSL
 check_PROGRAMS = src/csteptest src/mrgradtest src/lookahead
+else 
+check_PROGRAMS = src/csteptest src/lookahead
+endif
 
 src_lookahead_SOURCES =  src/errors.c \
 	src/dlen.c \
