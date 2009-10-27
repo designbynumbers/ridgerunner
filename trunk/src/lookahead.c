@@ -147,6 +147,9 @@ int main(int argc,char *argv[])
 
   search_state state;
 
+  gLambda = 1.0;
+  if (arg_lambda->count > 0) { gLambda = arg_lambda->dval[0]; }
+
   state.maxItrs = 999999;
   state.stop20  = -20;
   state.residualThreshold = -1;
@@ -480,6 +483,33 @@ int main(int argc,char *argv[])
     predlscores = calloc(samps,sizeof(double));
     assert(predlscores != NULL);
 
+    /* DEBUGGING CODE for a particular failure. */
+
+    scores[1] = predict_deltarop(link,dLen,0.05,&state);
+
+    plCurve *wLink;
+    wLink = plc_copy(link);
+
+    step(wLink,0.05,dLen);
+
+    double newrop,newthi,newmr,newpoca,newlen;
+    octrope_strut struts[3000];
+    octrope_mrloc mrlocs[3000];
+    int nmr,nstrut;
+
+    octrope(wLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	    gLambda*state.tube_radius,0,mrlocs,3000,&nmr,
+	    2*state.tube_radius,0,struts,3000,&nstrut,
+	    NULL,0,gLambda);
+    
+    scores[0] = stepScore(link,&state,dLen,0.05) - state.ropelength;
+
+    printf("predicted %g, got %g.\n",scores[1],scores[0]);
+
+    exit(1);
+
+
+
     for(i=0;i<samps;i++) {
 
       scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
@@ -497,7 +527,7 @@ int main(int argc,char *argv[])
 
     } 
 
-    printf("\n     scores                       ");
+    printf("\n     scores                      ");
 
     
     for(i=0;i<8;i++) {
@@ -792,7 +822,10 @@ int main(int argc,char *argv[])
 
   }
   
-  exit(0);
+ if (state.lastStepStruts != NULL) { free(state.lastStepStruts); state.lastStepStruts = NULL;}
+ if (state.lastStepMRlist != NULL) { free(state.lastStepMRlist); state.lastStepMRlist = NULL;}
+
+ exit(0);
 
 }
     
