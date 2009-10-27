@@ -1122,19 +1122,24 @@ double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,sear
   sparseA = buildRigidityMatrix(inLink,inState);  /* Note: strut set in inState updates */
   sparseAT = taucs_ccs_transpose(sparseA);
 
-  plc_vector *step;
+  double *step;
 
-  step = (plc_vector *)(calloc(inState->totalVerts,sizeof(plc_vector)));
+  step = (double*)(calloc(3*inState->totalVerts,sizeof(double)));
   fatalifnull_(step);
   
   int i;
-  for(i=0;i<inState->totalVerts;i++) { step[i] = plc_scale_vect(stepSize,stepDir[i]); }
-
+  for(i=0;i<inState->totalVerts;i++) { 
+   
+    step[3*i]     = stepSize*stepDir[i].c[0]; 
+    step[(3*i)+1] = stepSize*stepDir[i].c[1];
+    step[(3*i)+2] = stepSize*stepDir[i].c[2];
+  
+  }
   /* Now we take the matrix product. The output buffer has to be allocated in advance. 
      It should be equal in size to the number of rows in sparseAT. */
 
   double *B;
-  B = calloc(sparseAT->m,sizeof(double *));
+  B = calloc(sparseAT->m,sizeof(double));
   fatalifnull_(B);
 
   ourtaucs_ccs_times_vec(sparseAT,(taucs_double *)(step),(taucs_double *)(B));
@@ -2484,17 +2489,25 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
   if( strutCount == 0 )
     return;
   
-  // in constructing the ridigity matrix, we will need the struts as viewed 
+  // in constructing the rigidity matrix, we will need the struts as viewed 
   // as force vectors on the edges, so we create normalized vectors for each strut
   // here
-  plc_vector* strutDirections = (plc_vector*)calloc(strutCount, sizeof(plc_vector));
-  fatalifnull_(strutDirections);
 
-  normalizeStruts( strutDirections, strutSet, inLink, strutCount );
-  
+  /* We follow Proposition 3.3 in the ridgerunner paper, remembering that  */
+  /* ridgerunner, for historical reasons, uses the diameter form of ropelength */
+
   for( sItr=0; sItr<strutCount; sItr++ ) {
 
     int		entry;
+    plc_vector  points[2],pmq;
+    double      alpha,beta;
+
+    octrope_strut_ends( inLink, &strutSet[sItr], points );
+    pmq = plc_scale_vect(0.5,plc_vect_diff(points[0],points[1]));
+    alpha = 1 - strutSet[sItr].position[0];
+    beta  = 1 - strutSet[sItr].position[1];
+
+    // Here we compute (1/2) (p - q). 
 				
     // entry is the offset in A which begin this strut's influce
     // it corresponds to the x influence on the lead_vert[0]th vertex
@@ -2507,9 +2520,9 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     // of the force to lead_vert+1
   
     // our column is 12*sItr from the start, and we need to set our rowInds
-    A->values.d[12*sItr+0] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-    A->values.d[12*sItr+1] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-    A->values.d[12*sItr+2] = (1-strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+    A->values.d[12*sItr+0] = alpha * pmq.c[0];
+    A->values.d[12*sItr+1] = alpha * pmq.c[1];
+    A->values.d[12*sItr+2] = alpha * pmq.c[2];
 			
     A->rowind[12*sItr+0] = entry + 0;
     A->rowind[12*sItr+1] = entry + 1;
@@ -2520,9 +2533,9 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     entry = rownum(inState,inLink,
 		   strutSet[sItr].component[0],strutSet[sItr].lead_vert[0]+1,0);
       
-    A->values.d[12*sItr+3] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[0];
-    A->values.d[12*sItr+4] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[1];
-    A->values.d[12*sItr+5] = (strutSet[sItr].position[0]) * strutDirections[sItr].c[2];
+    A->values.d[12*sItr+3] = (1 - alpha) * pmq.c[0];
+    A->values.d[12*sItr+4] = (1 - alpha) * pmq.c[1];
+    A->values.d[12*sItr+5] = (1 - alpha) * pmq.c[2];
     
     A->rowind[12*sItr+3] = entry + 0;
     A->rowind[12*sItr+4] = entry + 1;
@@ -2533,9 +2546,9 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     entry = rownum(inState,inLink,
 		   strutSet[sItr].component[1],strutSet[sItr].lead_vert[1],0);
 					
-    A->values.d[12*sItr+6] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-    A->values.d[12*sItr+7] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-    A->values.d[12*sItr+8] = (1-strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+    A->values.d[12*sItr+6] = beta * (-pmq.c[0]);
+    A->values.d[12*sItr+7] = beta * (-pmq.c[1]);
+    A->values.d[12*sItr+8] = beta * (-pmq.c[2]);
     
     A->rowind[12*sItr+6] = entry + 0;
     A->rowind[12*sItr+7] = entry + 1;
@@ -2544,9 +2557,9 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     entry = rownum(inState,inLink,
 		   strutSet[sItr].component[1],strutSet[sItr].lead_vert[1]+1,0);
     
-    A->values.d[12*sItr+9] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[0];
-    A->values.d[12*sItr+10] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[1];
-    A->values.d[12*sItr+11] = (strutSet[sItr].position[1]) * -strutDirections[sItr].c[2];
+    A->values.d[12*sItr+9]  = (1 - beta) * (-pmq.c[0]);
+    A->values.d[12*sItr+10] = (1 - beta) * (-pmq.c[1]);
+    A->values.d[12*sItr+11] = (1 - beta) * (-pmq.c[2]);
     
     A->rowind[12*sItr+9]  = entry + 0;
     A->rowind[12*sItr+10] = entry + 1;
@@ -2554,7 +2567,6 @@ placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     
   }
 	
-  free(strutDirections);
 }
 
 void compute_minrad_gradient(plCurve *inLink,octrope_mrloc mrloc,plc_vector *AAs,plc_vector *BBs,plc_vector *CCs)
@@ -3006,7 +3018,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   
   /* A maps from the strut space to the space of variations of
    * vertices, and gives the force at each vertex resulting from a
-   * compressive force pushing _out_ from each strut.
+   * comprssive force pushing _out_ from each strut.
    *
    * If the strut strikes in the middle of an edge, we apply its force
    * to both endpoints of the edge, divided according to the position
@@ -3652,6 +3664,8 @@ plc_vector
 void
 normalizeStruts( plc_vector* strutDirections, octrope_strut* strutSet, 
 		 plCurve* inLink, int strutCount )
+
+// No longer called.
 {
   int sItr;
   bool ok = true;
