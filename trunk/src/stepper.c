@@ -2409,6 +2409,38 @@ bsearch_step( plCurve* inLink, search_state* inState )
 /*                 Building the rigidity matrix                   */
 /******************************************************************/
 
+void cvc(search_state *inState,plCurve *inLink,int rownum,int *cmp,int *vert,int *coord)
+
+/* Computes the component, vector and coordinate corresponding to a given row
+   in the rigidity matrix, using the componentOffsets in inState. cvc should be 
+   the inverse of rownum. */
+
+{
+  char errmsg[1024];
+  
+  /* Basic sanity check before we begin. */
+
+  if (rownum < 0 || rownum > inState->totalVerts*3) {
+
+    sprintf(errmsg,
+	    "ridgerunner: reference to row %d of rigidity matrix for polyline"
+	    "             with %d vertices (and %d rows in rmatrix) is illegal.\n",
+	    rownum,inState->totalVerts,inState->totalVerts*3);
+    FatalError(errmsg, __FILE__ , __LINE__ );
+    
+  }
+
+  /* We now convert. Remember that the compOffsets are in terms of a list of VECTORS,
+     so they should be multiplied by 3 when we are offsetting in the list of doubles
+     referred to by rownum. */
+
+  for(*cmp=0;rownum < 3*inState->compOffsets[*cmp+1] && *cmp < inLink->nc;*cmp++); // Search for the right component.
+  *vert = (int)(floor((rownum - 3*inState->compOffsets[*cmp])/(3.0)));             // rownum - 3*compOffsets is the coordinate number in this cmp
+  *coord = rownum - (3*inState->compOffsets[*cmp] + 3*(*vert));                    // could also be rownum - 3*compOffsets % 3.
+
+}
+  
+
 int rownum(search_state *inState, plCurve *inLink, int cmp, int vert, int coord)
 
      /* Computes the row number in the rigidity matrix corresponding
@@ -2474,10 +2506,9 @@ int rownum(search_state *inState, plCurve *inLink, int cmp, int vert, int coord)
 
 }
 
-static void
-placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink, 
-		     octrope_strut* strutSet, int strutCount,  
-		     search_state* inState )
+void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink, 
+			  octrope_strut* strutSet, int strutCount,  
+			  search_state* inState )
 
      /* Part of the buildrigiditymatrix call. We assume when we're
         building the matrix that the strut columns are placed FIRST,
@@ -2898,8 +2929,6 @@ void placeConstraintStruts(taucs_ccs_matrix *rigidityA, plCurve *inLink,
   }
 
 }
-
-	
 	
 
 taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
@@ -3037,21 +3066,23 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   constraintCount = 0; // plCurve_score_constraints(inLink);
   int nnz = 12*strutCount + 9*minradLocs + 3*constraintCount; // we KNOW this
   taucs_ccs_matrix *cleanA;
-  
-  cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix));
-  fatalifnull_(cleanA);
 
-  cleanA->n = strutCount+minradLocs+constraintCount;
-  cleanA->m = 3*inState->totalVerts;
-  cleanA->flags = TAUCS_DOUBLE;
+  cleanA = taucs_ccs_new(nnz,3*inState->totalVerts,strutCount+minradLocs+constraintCount); /* (nnz,rows,columns) */
   
-  cleanA->colptr = (int*)malloc(sizeof(int)*(cleanA->n+1));
-  cleanA->rowind = (int*)malloc(sizeof(int)*nnz);
-  cleanA->values.d = (double*)malloc(sizeof(taucs_double)*nnz);
+/* cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix)); */
+/*   fatalifnull_(cleanA); */
 
-  fatalifnull_(cleanA->colptr);
-  fatalifnull_(cleanA->rowind);
-  fatalifnull_(cleanA->values.d);
+/*   cleanA->n = strutCount+minradLocs+constraintCount; */
+/*   cleanA->m = 3*inState->totalVerts; */
+/*   cleanA->flags = TAUCS_DOUBLE; */
+  
+/*   cleanA->colptr = (int*)malloc(sizeof(int)*(cleanA->n+1)); */
+/*   cleanA->rowind = (int*)malloc(sizeof(int)*nnz); */
+/*   cleanA->values.d = (double*)malloc(sizeof(taucs_double)*nnz); */
+
+/*   fatalifnull_(cleanA->colptr); */
+/*   fatalifnull_(cleanA->rowind); */
+/*   fatalifnull_(cleanA->values.d); */
   
   // just as we know nnz, we know the column positions. 
   // struts involve 4 vertices, 
