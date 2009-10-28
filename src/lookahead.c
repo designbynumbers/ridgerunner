@@ -18,6 +18,8 @@
 
 /* Global variables live here. */
 
+void step( plCurve* inLink, double stepSize, plc_vector* dVdt ); // This is in stepper.c, but not exposed to public.
+
 struct arg_dbl  *arg_minstep;
 struct arg_dbl  *arg_scale;
 struct arg_dbl  *arg_maxstep;
@@ -46,8 +48,10 @@ struct dpoint {
 
 double scale = 0.1;
 
-int compare_data(const struct dpoint *A,const struct dpoint *B) {
+int compare_data(const void *a,const void *b) {
 
+  const struct dpoint *A = a;
+  const struct dpoint *B = b;
   if (A->x > B->x) return 1;
   if (A->x < B->x) return -1;
   return 0;
