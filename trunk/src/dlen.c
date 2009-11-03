@@ -43,7 +43,10 @@
 
  */
 void
-dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
+dlenForce( plc_vector* ioDL, plCurve* inLink, search_state *inState)
+
+/* This procedure can be called "stateless" by passing NULL for inState. */
+
 {
   int cItr, vItr, totalVerts=0, dlItr;
   plc_vector* diffVectors;
@@ -52,7 +55,7 @@ dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
   /* Allocate a "flat" buffer of vectors which will be used to construct
      the dLen vector */
   
-  totalVerts = inState->totalVerts;
+  totalVerts = plc_num_verts(inLink);
   diffVectors = (plc_vector*)calloc(totalVerts, sizeof(struct plc_vector_type));
   fatalifnull_(diffVectors);
 
@@ -87,7 +90,7 @@ dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState )
       if ( (!norm1ok && (vItr != 0 || !inLink->cp[cItr].open)) || 
 	   (!norm2ok && (vItr != inLink->cp[cItr].nv-1 || !inLink->cp[cItr].open)) ) {
 
-	dumpLink(inLink,inState,dumpname);
+	if (inState != NULL) {dumpLink(inLink,inState,dumpname);}
 	sprintf(errmsg,
 		"ridgerunner: Zero length edge adjacent to vert %d of cmp %d \n"
 		"             of link. inLink->cp[%d].open = %d. \n"

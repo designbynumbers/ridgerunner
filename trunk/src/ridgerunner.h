@@ -301,7 +301,7 @@ int correct_thickness(plCurve *inLink,search_state *inState);
 void correct_constraints(plCurve *inLink,search_state *inState);
 /* Correct the position of the link so that constraints are obeyed. */
 
-taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState);
+taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,double tube_radius,double lambda,search_state *inState);
 /* Creates rigidity matrix corresponding to current set of struts, kinks, constraints. */
 
 int dlenPos( plCurve *inLink,int cmp,int vt);
@@ -310,7 +310,7 @@ int dlenPos( plCurve *inLink,int cmp,int vt);
 void dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState );
 /* Adds gradient of length to the buffer ioDL. */
 
-void eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
+void eqForce( plc_vector* dlen, plCurve* inLink, double eqMultiplier, search_state* inState );
 /* Adds an "equilateralization force" to the buffer dlen. */
 
 void spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
@@ -319,13 +319,13 @@ void spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
 void specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
 /* A stub, used in future versions to add other forces to dlen. */
 
-void constraintForce( plc_vector* dlen, plCurve* inLink, search_state* inState );
+void constraintForce( plc_vector* dlen, plCurve* inLink );
 /* Alters the force to make sure that it does not attempt to violate constraints. */
 
-plc_vector *resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState);
+plc_vector *resolveForce( plc_vector* dl, plCurve* inLink, double tube_radius, double lambda, search_state* inState);
 /* Uses rigidity matrix to resolve the force dl over struts, kinks, and constraints. */
 
-plc_vector *stepDirection( plCurve *inLink, search_state *inState); 
+plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda, search_state *inState); 
 /* Ties everything together to compute the final step direction */
 
 void open_runtime_logs(search_state *state, char opentype);
@@ -351,7 +351,7 @@ void reloadDump( double* A, int rows, int cols, double* x, double* b );
 void our_matrix_write(double val, double *A, int LDA, int i, int j);
 double maxError(plCurve *L, int comp, search_state* inState);
 
-double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,search_state *inState);
+double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize, double tube_radius, double lambda);
 /* Predicts, using the rigidty matrix, the change in ropelength on a given step. Used for debugging */
 
 
@@ -441,7 +441,7 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, bool *freeFlag);
 void highlight_curve( plCurve *L, search_state *state );
 /* Highlight straight segments, kinks, and other understood regions of the curve. */
 
-void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *inState);
+void accelerate_free_vertices( plc_vector *dLen, plCurve *L,double tube_radius);
 /* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
 
 double strut_free_length( plCurve *L, search_state *state);

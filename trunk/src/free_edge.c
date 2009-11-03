@@ -135,7 +135,7 @@ void highlight_curve(plCurve *L, search_state *state)
 }
      
   
-void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *state)
+void accelerate_free_vertices( plc_vector *dLen, plCurve *L, double tube_radius)
 /* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
 {
 
@@ -143,7 +143,7 @@ void accelerate_free_vertices( plc_vector *dLen, plCurve *L, search_state *state
   bool *freeFlag;
 
   freeFlag = malloc_or_die(sizeof(bool)*plc_num_verts(L), __FILE__ , __LINE__ );
-  nStrutFree = strut_free_vertices(L,state->tube_radius,freeFlag);
+  nStrutFree = strut_free_vertices(L,tube_radius,freeFlag);
   
   int cp, vt, i=0;
 

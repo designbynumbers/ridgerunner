@@ -32,8 +32,7 @@ bool gFail = false;
 search_state *gState;
 
 void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink, 
-			  octrope_strut* strutSet, int strutCount,  
-			  search_state* inState );
+			  octrope_strut* strutSet, int strutCount );
 
 void cvc(plCurve *inLink,int rownum,int *cmp,int *vert,int *coord);
 
@@ -66,7 +65,7 @@ plc_vector *compute_poca_gradient(plCurve *inLink,octrope_strut strut)
   cleanA->colptr[0] = 0;
   cleanA->colptr[1] = 12;
 
-  placeContactStruts(cleanA,inLink,&strut,1,gState);    /* This is the code we're trying to debug, so it's important to call it. */
+  placeContactStruts(cleanA,inLink,&strut,1);    /* This is the code we're trying to debug, so it's important to call it. */
 
   /* We now want to extract the data from cleanA into the correct components of first and second. */
 
@@ -390,7 +389,74 @@ void test_10_154_grad_var(int steps)
     printf("pass.\n");
     
   }
+
+  /* Now we're going to do the same drill with dLen. */
+
+  printf("\t (dlen force)       ");
+
+  stepDir = calloc(plc_num_verts(L),sizeof(plc_vector));
+  dlenForce(stepDir,L,NULL);
+  stepNorm = sqrt(stepNorm);
+  for(i=0;i<plc_num_verts(L);i++) { stepDir[i] = plc_scale_vect(1/stepNorm,stepDir[i]); }
   
+  //stepDir[1] = plc_build_vect(0,0,-1);
+  
+  if (VERBOSE)  
+    { 
+      
+      printf("\t Variation       = (%+2.8f,%+2.8f,%+2.8f), (%+2.8f,%+2.8f,%+2.8f), (%+2.8f,%+2.8f,%+2.8f),  (%+2.8f,%+2.8f,%+2.8f)\n",
+	     plc_M_clist(stepDir[0]),plc_M_clist(stepDir[1]),plc_M_clist(stepDir[2]),plc_M_clist(stepDir[3]));
+      
+    }
+  
+  for(dder=0,i=0;i<plc_num_verts(L);i++) { dder += plc_dot_prod(stepDir[i],grad[i]); }
+  
+  /* We have now computed the directional derivative of poca in the step direction. It remains to actually vary the curve in this 
+     direction and see to what extent this predicts the actual change in poca. */
+  
+  for(h=1e-5,ndata=0;h>1e-9;h/=2.0,ndata++) {
+    
+    plCurve *workerLink;
+    
+    workerLink = plc_copy(L);
+    step(workerLink,h,stepDir);
+    poca_after = octrope_poca(workerLink,NULL,0);
+    
+    quot = fabs((h*dder - ((poca_after/2.0) - (poca_before/2.0)))/h);
+    
+    if (VERBOSE) {
+      printf("\t\t h = %2.6f delta poca = %1.10f quot = %1.10f \n",h,
+	     poca_after - poca_before,quot);
+    }
+    
+    hdata[ndata] = h;
+    quotdata[ndata] = quot;
+    
+  }
+  
+  //double c0,c1,cov00,cov01,cov11,sumsq;  /* We are going to fit to the linear model y = c0 + c1 h. */
+  //bool tFail = false;
+  
+  gsl_fit_linear(hdata,1,quotdata,1,ndata,&c0,&c1,&cov00,&cov01,&cov11,&sumsq);
+  printf("%10.4g h + %10.4g (%10.4g) ",c1,c0,sumsq);
+  
+  if (fabs(c0) > 1e-4 || fabs(sumsq) > 1e-7) {
+    
+    tFail = true;
+    gFail = true;
+    
+  }
+  
+  if (tFail) {
+    
+    printf("FAIL\n");
+    
+  } else {
+    
+    printf("pass.\n");
+    
+  }
+
   printf("\n");
 
 }

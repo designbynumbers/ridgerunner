@@ -116,15 +116,15 @@ dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate src/gridrunner.pl
 
 # Now include some testing stuff
 if HAVEGSL
-TESTS = src/csteptest src/mrgradtest src/strutgradtest
+TESTS = src/csteptest src/mrgradtest src/strutgradtest src/rownumcvctest
 else
-TESTS = src/csteptest 
+TESTS = src/csteptest src/rownumcvctest
 endif
 
 if HAVEGSL
-check_PROGRAMS = src/csteptest src/mrgradtest src/lookahead src/strutgradtest
+check_PROGRAMS = src/csteptest src/mrgradtest src/lookahead src/strutgradtest src/rownumcvctest
 else 
-check_PROGRAMS = src/csteptest src/lookahead 
+check_PROGRAMS = src/csteptest src/lookahead src/rownumcvctest
 endif
 
 src_lookahead_SOURCES =  src/errors.c \
@@ -200,3 +200,21 @@ src_strutgradtest_SOURCES =  src/errors.c \
 	src/strutgradtest.c 
 
 src_strutgradtest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
+
+src_rownumcvctest_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+	src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	src/rownumcvctest.c 
+
+src_rownumcvctest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
