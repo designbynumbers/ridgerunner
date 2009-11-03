@@ -2409,7 +2409,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 /*                 Building the rigidity matrix                   */
 /******************************************************************/
 
-void cvc(search_state *inState,plCurve *inLink,int rownum,int *cmp,int *vert,int *coord)
+void cvc(plCurve *inLink,int rownum,int *cmp,int *vert,int *coord)
 
 /* Computes the component, vector and coordinate corresponding to a given row
    in the rigidity matrix, using the componentOffsets in inState. cvc should be 
@@ -2420,28 +2420,45 @@ void cvc(search_state *inState,plCurve *inLink,int rownum,int *cmp,int *vert,int
   
   /* Basic sanity check before we begin. */
 
-  if (rownum < 0 || rownum > inState->totalVerts*3) {
+  if (rownum < 0 || rownum >= plc_num_verts(inLink)*3) {
 
     sprintf(errmsg,
 	    "ridgerunner: reference to row %d of rigidity matrix for polyline"
 	    "             with %d vertices (and %d rows in rmatrix) is illegal.\n",
-	    rownum,inState->totalVerts,inState->totalVerts*3);
+	    rownum,plc_num_verts(inLink),plc_num_verts(inLink)*3);
     FatalError(errmsg, __FILE__ , __LINE__ );
     
   }
 
-  /* We now convert. Remember that the compOffsets are in terms of a list of VECTORS,
-     so they should be multiplied by 3 when we are offsetting in the list of doubles
-     referred to by rownum. */
+  /* We now convert. The idea is that we start subtracting entire components until 
+     we go negative, then use that point to figure out which component we're in.
+     We know that we _will_ go negative because rownum < plc_num_verts(inLink)*3. */
 
-  for(*cmp=0;rownum < 3*inState->compOffsets[*cmp+1] && *cmp < inLink->nc;*cmp++); // Search for the right component.
-  *vert = (int)(floor((rownum - 3*inState->compOffsets[*cmp])/(3.0)));             // rownum - 3*compOffsets is the coordinate number in this cmp
-  *coord = rownum - (3*inState->compOffsets[*cmp] + 3*(*vert));                    // could also be rownum - 3*compOffsets % 3.
+  int cp=0;
+  for(cp=0;rownum >= 0;rownum -= 3*inLink->cp[cp].nv,cp++);
+  *cmp = cp-1; // On the last trip through the loop, we incremented cp.
+  rownum += 3*inLink->cp[*cmp].nv; /* Now we have just the remainder. */
+  
+  *vert = (int)(floor(rownum/3.0));
+  *coord = rownum % 3;
+
+  /* /\* The following is legacy code which used the compOffsets array. *\/ */
+
+/*   /\* We now convert. Remember that the compOffsets are in terms of a list of VECTORS, */
+/*      so they should be multiplied by 3 when we are offsetting in the list of doubles */
+/*      referred to by rownum. *\/ */
+
+/*   int cp = 0; */
+/*   for(cp=0;rownum >= 3*inState->compOffsets[cp] && cp < inLink->nc;cp++); // Search for the right component. */
+/*   *cmp = cp-1; */
+
+/*   *vert = (int)(floor((rownum - 3*inState->compOffsets[*cmp])/(3.0)));             // rownum - 3*compOffsets is the coordinate number in this cmp */
+/*   *coord = rownum - (3*inState->compOffsets[*cmp] + 3*(*vert));                    // could also be rownum - 3*compOffsets % 3. */
 
 }
   
 
-int rownum(search_state *inState, plCurve *inLink, int cmp, int vert, int coord)
+int rownum(plCurve *inLink, int cmp, int vert, int coord)
 
      /* Computes the row number in the rigidity matrix corresponding
 	to the given data. Handles wraparound correctly, and does
@@ -2496,12 +2513,22 @@ int rownum(search_state *inState, plCurve *inLink, int cmp, int vert, int coord)
 
   }
 
-  /* Now compute the row number. Recall that compOffset counts the
+  /* Now compute the row number. */
+
+  rnum = 0;
+  int i;
+  for(i=0;i<cmp;i++) { rnum += 3*inLink->cp[i].nv; }
+  rnum += 3*vert + coord;
+  
+  /* The old version of this used compOffset. Here's the legacy code:
+
+     Recall that compOffset counts the
      number of _vectors_ which the 0-th vertex of this component is
      offset from the start, so we must multiply by three to get the
      number of _rows_. */
 
-  rnum = 3*inState->compOffsets[cmp] + 3*vert + coord;
+  /* rnum = 3*inState->compOffsets[cmp] + 3*vert + coord; */
+
   return rnum;
 
 }
@@ -2532,18 +2559,20 @@ void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     int		entry;
     plc_vector  points[2],pmq;
     double      alpha,beta;
+    double      strutlen;
 
     octrope_strut_ends( inLink, &strutSet[sItr], points );
     pmq = plc_scale_vect(0.5,plc_vect_diff(points[0],points[1]));
     alpha = 1 - strutSet[sItr].position[0];
     beta  = 1 - strutSet[sItr].position[1];
+    strutlen = plc_distance(points[0],points[1]);
 
-    // Here we compute (1/2) (p - q). 
+    // Here we compute (1/strutlen) (p - q). 
 				
     // entry is the offset in A which begin this strut's influce
     // it corresponds to the x influence on the lead_vert[0]th vertex
     // after this line, entry+1 is y, +2: z.
-    entry = rownum(inState,inLink,
+    entry = rownum(inLink,
 		   strutSet[sItr].component[0],strutSet[sItr].lead_vert[0],0);
 
     // the strut information includes the position from the strut.lead_vert
@@ -2551,9 +2580,9 @@ void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
     // of the force to lead_vert+1
   
     // our column is 12*sItr from the start, and we need to set our rowInds
-    A->values.d[12*sItr+0] = alpha * pmq.c[0];
-    A->values.d[12*sItr+1] = alpha * pmq.c[1];
-    A->values.d[12*sItr+2] = alpha * pmq.c[2];
+    A->values.d[12*sItr+0] = alpha * pmq.c[0] / strutlen;
+    A->values.d[12*sItr+1] = alpha * pmq.c[1] / strutlen;
+    A->values.d[12*sItr+2] = alpha * pmq.c[2] / strutlen;
 			
     A->rowind[12*sItr+0] = entry + 0;
     A->rowind[12*sItr+1] = entry + 1;
@@ -2561,12 +2590,12 @@ void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
 			
     // now for the next vertex, receiving "position[0]" of the force, 
 
-    entry = rownum(inState,inLink,
+    entry = rownum(inLink,
 		   strutSet[sItr].component[0],strutSet[sItr].lead_vert[0]+1,0);
       
-    A->values.d[12*sItr+3] = (1 - alpha) * pmq.c[0];
-    A->values.d[12*sItr+4] = (1 - alpha) * pmq.c[1];
-    A->values.d[12*sItr+5] = (1 - alpha) * pmq.c[2];
+    A->values.d[12*sItr+3] = (1 - alpha) * pmq.c[0] / strutlen;
+    A->values.d[12*sItr+4] = (1 - alpha) * pmq.c[1] / strutlen;
+    A->values.d[12*sItr+5] = (1 - alpha) * pmq.c[2] / strutlen;
     
     A->rowind[12*sItr+3] = entry + 0;
     A->rowind[12*sItr+4] = entry + 1;
@@ -2574,23 +2603,23 @@ void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink,
 		
     // we do the same thing at the opposite end of the strut, except now the 
     // force is negated
-    entry = rownum(inState,inLink,
+    entry = rownum(inLink,
 		   strutSet[sItr].component[1],strutSet[sItr].lead_vert[1],0);
 					
-    A->values.d[12*sItr+6] = beta * (-pmq.c[0]);
-    A->values.d[12*sItr+7] = beta * (-pmq.c[1]);
-    A->values.d[12*sItr+8] = beta * (-pmq.c[2]);
+    A->values.d[12*sItr+6] = beta * (-pmq.c[0]) / strutlen;
+    A->values.d[12*sItr+7] = beta * (-pmq.c[1]) / strutlen; 
+    A->values.d[12*sItr+8] = beta * (-pmq.c[2]) / strutlen;
     
     A->rowind[12*sItr+6] = entry + 0;
     A->rowind[12*sItr+7] = entry + 1;
     A->rowind[12*sItr+8] = entry + 2;
 
-    entry = rownum(inState,inLink,
+    entry = rownum(inLink,
 		   strutSet[sItr].component[1],strutSet[sItr].lead_vert[1]+1,0);
     
-    A->values.d[12*sItr+9]  = (1 - beta) * (-pmq.c[0]);
-    A->values.d[12*sItr+10] = (1 - beta) * (-pmq.c[1]);
-    A->values.d[12*sItr+11] = (1 - beta) * (-pmq.c[2]);
+    A->values.d[12*sItr+9]  = (1 - beta) * (-pmq.c[0]) / strutlen;
+    A->values.d[12*sItr+10] = (1 - beta) * (-pmq.c[1]) / strutlen;
+    A->values.d[12*sItr+11] = (1 - beta) * (-pmq.c[2]) / strutlen;
     
     A->rowind[12*sItr+9]  = entry + 0;
     A->rowind[12*sItr+10] = entry + 1;
@@ -2795,7 +2824,7 @@ placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink,
     bVert = minradStruts[mItr].vert;
     cVert = minradStruts[mItr].vert+1;
 
-    entry = rownum(inState,inLink,minradStruts[mItr].component,aVert,0);
+    entry = rownum(inLink,minradStruts[mItr].component,aVert,0);
 		
     rigidityA->values.d[colptr+0] = As.c[0];
     rigidityA->values.d[colptr+1] = As.c[1];
@@ -2807,7 +2836,7 @@ placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink,
 
     /* We now fill in the appropriate entries for b. */
 
-    entry = rownum(inState,inLink,minradStruts[mItr].component,bVert,0);
+    entry = rownum(inLink,minradStruts[mItr].component,bVert,0);
     assert(0 <= entry && entry < rigidityA->m-2);
 
     rigidityA->values.d[colptr+3] = Bs.c[0];
@@ -2820,7 +2849,7 @@ placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink,
 
     /* We now fill in the cVert values. */
 
-    entry = rownum(inState,inLink,minradStruts[mItr].component,cVert,0);
+    entry = rownum(inLink,minradStruts[mItr].component,cVert,0);
     assert(0 <= entry && entry < rigidityA->m-2);
         
     rigidityA->values.d[colptr+6] = Cs.c[0];
@@ -2872,7 +2901,7 @@ void placeConstraintStruts(taucs_ccs_matrix *rigidityA, plCurve *inLink,
 	rigidityA->values.d[rigidityA->colptr[cstItr]+1] = thisConst->vect[0].c[1];
 	rigidityA->values.d[rigidityA->colptr[cstItr]+2] = thisConst->vect[0].c[2];
 	
-	entry = rownum(inState,inLink,thisConst->cmp,vItr,0);
+	entry = rownum(inLink,thisConst->cmp,vItr,0);
 
 	rigidityA->rowind[rigidityA->colptr[cstItr]+0] = entry + 0;
 	rigidityA->rowind[rigidityA->colptr[cstItr]+1] = entry + 1;
@@ -2904,7 +2933,7 @@ void placeConstraintStruts(taucs_ccs_matrix *rigidityA, plCurve *inLink,
 
 	  rigidityA->values.d[rigidityA->colptr[cstItr]+i] = 1;
 	  
-	  entry = rownum(inState,inLink,thisConst->cmp,vItr,0);
+	  entry = rownum(inLink,thisConst->cmp,vItr,0);
 
 	  rigidityA->rowind[rigidityA->colptr[cstItr]+0] = entry + 0;
 	  rigidityA->rowind[rigidityA->colptr[cstItr]+1] = entry + 1;
@@ -3067,7 +3096,7 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   int nnz = 12*strutCount + 9*minradLocs + 3*constraintCount; // we KNOW this
   taucs_ccs_matrix *cleanA;
 
-  cleanA = taucs_ccs_new(nnz,3*inState->totalVerts,strutCount+minradLocs+constraintCount); /* (nnz,rows,columns) */
+  cleanA = taucs_ccs_new(3*inState->totalVerts,strutCount+minradLocs+constraintCount,nnz); /* (rows,columns,nnz) */
   
 /* cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix)); */
 /*   fatalifnull_(cleanA); */

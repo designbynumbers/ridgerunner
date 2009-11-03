@@ -489,28 +489,28 @@ int main(int argc,char *argv[])
 
     /* DEBUGGING CODE for a particular failure. */
 
-    scores[1] = predict_deltarop(link,dLen,0.05,&state);
+    /* scores[1] = predict_deltarop(link,dLen,0.05,&state); */
 
-    plCurve *wLink;
-    wLink = plc_copy(link);
+/*     plCurve *wLink; */
+/*     wLink = plc_copy(link); */
 
-    step(wLink,0.05,dLen);
+/*     step(wLink,0.05,dLen); */
 
-    double newrop,newthi,newmr,newpoca,newlen;
-    octrope_strut struts[3000];
-    octrope_mrloc mrlocs[3000];
-    int nmr,nstrut;
+/*     double newrop,newthi,newmr,newpoca,newlen; */
+/*     octrope_strut struts[3000]; */
+/*     octrope_mrloc mrlocs[3000]; */
+/*     int nmr,nstrut; */
 
-    octrope(wLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
-	    gLambda*state.tube_radius,0,mrlocs,3000,&nmr,
-	    2*state.tube_radius,0,struts,3000,&nstrut,
-	    NULL,0,gLambda);
+/*     octrope(wLink,&newrop,&newthi,&newlen,&newmr,&newpoca, */
+/* 	    gLambda*state.tube_radius,0,mrlocs,3000,&nmr, */
+/* 	    2*state.tube_radius,0,struts,3000,&nstrut, */
+/* 	    NULL,0,gLambda); */
     
-    scores[0] = stepScore(link,&state,dLen,0.05) - state.ropelength;
+/*     scores[0] = stepScore(link,&state,dLen,0.05) - state.ropelength; */
 
-    printf("predicted %g, got %g.\n",scores[1],scores[0]);
+/*     printf("predicted %g, got %g.\n",scores[1],scores[0]); */
 
-    exit(1);
+/*     exit(1); */
 
 
 
@@ -518,8 +518,8 @@ int main(int argc,char *argv[])
 
       scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
       dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - state.ropelength;
-      prescores[i] = predict_deltarop(link,stepDir,sample_x[i],&state);
-      predlscores[i] = predict_deltarop(link,dLen,sample_x[i],&state);
+      prescores[i] = 0; //predict_deltarop(link,stepDir,sample_x[i],&state);
+      predlscores[i] = 0; //predict_deltarop(link,dLen,sample_x[i],&state);
 
     }
 
@@ -605,10 +605,10 @@ int main(int argc,char *argv[])
 	dldata[dItr].y = stepScore(link,&state,dLen,x) - state.ropelength;
 
 	predata[dItr].x = x;
-	predata[dItr].y = predict_deltarop(link,stepDir,x,&state);
+	predata[dItr].y = 0; //predict_deltarop(link,stepDir,x,&state);
 
 	predldata[dItr].x = x;
-	predldata[dItr].y = predict_deltarop(link,dLen,x,&state);
+	predldata[dItr].y = 0; //predict_deltarop(link,dLen,x,&state);
 
 	stepMax[k+1] = (data[dItr].y > stepMax[k+1]) ? data[dItr].y : stepMax[k+1];
 	stepMin[k+1] = (data[dItr].y < stepMin[k+1]) ? data[dItr].y : stepMin[k+1];
