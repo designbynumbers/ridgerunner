@@ -217,4 +217,4 @@ src_rownumcvctest_SOURCES =  src/errors.c \
 	src/mangle.c \
 	src/rownumcvctest.c 
 
-src_rownumcvctest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
+src_rownumcvctest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
