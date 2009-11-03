@@ -66,10 +66,10 @@ plc_vector *dLenDirection(plCurve *inLink,search_state *inState) {
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
+  /* if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
   eqForce(dLen,inLink,inState);
   specialForce(dLen,inLink,inState);
-  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints. */
 
   return dLen;
 }
@@ -80,6 +80,7 @@ int main(int argc,char *argv[])
   plCurve   *link;
   
   double    overstepTol=0.0001; /* Should this only be for tube_radius = 1? */
+  double    tube_radius = 0.5;
   
   void *argtable[] = 
     {
@@ -403,7 +404,11 @@ int main(int argc,char *argv[])
     /* We are now prepared to get the step direction. */
 
     plc_vector *stepDir,*dLen;
-    stepDir = stepDirection(link,&state);
+
+    stepDir = stepDirection(link,tube_radius,0,gLambda,&state); // tube_radius, no Eq force, lambda = gLambda
+    //stepDir = calloc(plc_num_verts(link),sizeof(plc_vector));
+    //stepDir[0] = plc_build_vect(1,1,1);
+
     dLen = dLenDirection(link,&state);
 
     /* Now it would be completely unfair to compare these vectorfields, because they have different norms. */
@@ -489,28 +494,28 @@ int main(int argc,char *argv[])
 
     /* DEBUGGING CODE for a particular failure. */
 
-    /* scores[1] = predict_deltarop(link,dLen,0.05,&state); */
+    scores[1] = predict_deltarop(link,dLen,1e-5,tube_radius,gLambda);
 
-/*     plCurve *wLink; */
-/*     wLink = plc_copy(link); */
+    plCurve *wLink;
+    wLink = plc_copy(link);
 
-/*     step(wLink,0.05,dLen); */
+    step(wLink,0.05,dLen);
 
-/*     double newrop,newthi,newmr,newpoca,newlen; */
-/*     octrope_strut struts[3000]; */
-/*     octrope_mrloc mrlocs[3000]; */
-/*     int nmr,nstrut; */
+    double newrop,newthi,newmr,newpoca,newlen;
+    octrope_strut struts[3000];
+    octrope_mrloc mrlocs[3000];
+    int nmr,nstrut;
 
-/*     octrope(wLink,&newrop,&newthi,&newlen,&newmr,&newpoca, */
-/* 	    gLambda*state.tube_radius,0,mrlocs,3000,&nmr, */
-/* 	    2*state.tube_radius,0,struts,3000,&nstrut, */
-/* 	    NULL,0,gLambda); */
+    octrope(wLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	    gLambda*state.tube_radius,0,mrlocs,3000,&nmr,
+	    2*state.tube_radius,0,struts,3000,&nstrut,
+	    NULL,0,gLambda);
     
-/*     scores[0] = stepScore(link,&state,dLen,0.05) - state.ropelength; */
+    scores[0] = stepScore(link,&state,dLen,1e-5) - state.ropelength;
 
-/*     printf("predicted %g, got %g.\n",scores[1],scores[0]); */
+    printf("predicted %g, got %g.\n",scores[1],scores[0]);
 
-/*     exit(1); */
+    exit(1);
 
 
 
@@ -518,8 +523,8 @@ int main(int argc,char *argv[])
 
       scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
       dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - state.ropelength;
-      prescores[i] = 0; //predict_deltarop(link,stepDir,sample_x[i],&state);
-      predlscores[i] = 0; //predict_deltarop(link,dLen,sample_x[i],&state);
+      prescores[i] = 0; //predict_deltarop(link,stepDir,sample_x[i],tube_radius,gLambda);
+      predlscores[i] = 0; //predict_deltarop(link,dLen,sample_x[i],tube_radius,gLambda);
 
     }
 
@@ -558,9 +563,9 @@ int main(int argc,char *argv[])
 
     FILE *datfile;
     char datname[1024];
-    double stepMax[4] = {-100000,-100000,-100000,-100000}, stepMin[4] = {100000000,1000000,10000000,1000000}; /* We will set the plot range to the max of stepDir */
+    double stepMax[4] = {-100000,-100000,-100000,-100000}, stepMin[4] = {100000000,1000000,10000000,1000000}; 
+    /* We will set the plot range to the max of stepDir */
     
-   
     struct dpoint *data, *dldata, *predata, *predldata;
 
     data = calloc(samps*5,sizeof(struct dpoint));
@@ -605,10 +610,10 @@ int main(int argc,char *argv[])
 	dldata[dItr].y = stepScore(link,&state,dLen,x) - state.ropelength;
 
 	predata[dItr].x = x;
-	predata[dItr].y = 0; //predict_deltarop(link,stepDir,x,&state);
+	predata[dItr].y = 0; //predict_deltarop(link,stepDir,x,tube_radius,gLambda);
 
 	predldata[dItr].x = x;
-	predldata[dItr].y = 0; //predict_deltarop(link,dLen,x,&state);
+	predldata[dItr].y = 0; //predict_deltarop(link,dLen,x,tube_radius,gLambda);
 
 	stepMax[k+1] = (data[dItr].y > stepMax[k+1]) ? data[dItr].y : stepMax[k+1];
 	stepMin[k+1] = (data[dItr].y < stepMin[k+1]) ? data[dItr].y : stepMin[k+1];

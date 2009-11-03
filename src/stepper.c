@@ -1110,7 +1110,7 @@ void correct_constraints(plCurve *inLink,search_state *inState)
 
 }
 
-double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,search_state *inState)
+double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,double tube_radius,double lambda)
 
 /* Uses the rigidity matrix to predict the change in ropelength if we
    take the step stepSize * stepDir. This is primarily a debugging check. */
@@ -1119,16 +1119,16 @@ double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,sear
   taucs_ccs_matrix *sparseA = NULL;
   taucs_ccs_matrix *sparseAT = NULL;
  
-  sparseA = buildRigidityMatrix(inLink,inState);  /* Note: strut set in inState updates */
+  sparseA = buildRigidityMatrix(inLink,tube_radius,lambda,NULL);  /* Note: strut set in inState updates */
   sparseAT = taucs_ccs_transpose(sparseA);
 
   double *step;
 
-  step = (double*)(calloc(3*inState->totalVerts,sizeof(double)));
+  step = (double*)(calloc(3*plc_num_verts(inLink),sizeof(double)));
   fatalifnull_(step);
   
   int i;
-  for(i=0;i<inState->totalVerts;i++) { 
+  for(i=0;i<plc_num_verts(inLink);i++) { 
    
     step[3*i]     = stepSize*stepDir[i].c[0]; 
     step[(3*i)+1] = stepSize*stepDir[i].c[1];
@@ -1263,7 +1263,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
     
     /* We start by building a rigidity matrix, and taking its' transpose */
 
-    sparseA = buildRigidityMatrix(inLink,inState);  /* Note: strut set in inState updates */
+    sparseA = buildRigidityMatrix(inLink,inState->tube_radius,gLambda,inState);  /* Note: strut set in inState updates */
     sparseAT = taucs_ccs_transpose(sparseA);
 
     C = thicknessError(inLink,
@@ -1682,26 +1682,27 @@ double trialStep( plCurve *inLink, search_state *inState,
   
 }
 
-plc_vector *stepDirection( plCurve *inLink, search_state *inState) 
+plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState) 
 
 /* Compute the step direction by building the rigidity matrix and resolving against constraints */
+/* Can be called "stateless" by passing NULL for inState. */
 
 {
   // create initial vector field for which we want to move along in this step
   plc_vector  *dVdt;
   plc_vector  *dLen; 
   
-  dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
+  dLen = (plc_vector *)(calloc(plc_num_verts(inLink), sizeof(plc_vector)));
   /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
-  eqForce(dLen,inLink,inState);
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,tube_radius); }  // This feature tries to straighten free sections faster
+  eqForce(dLen,inLink,eqMultiplier,inState);
   specialForce(dLen,inLink,inState);
-  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+  constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
 
-  dVdt = resolveForce(dLen,inLink,inState); 
+  dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
   free(dLen);
 
   return dVdt;
@@ -1914,7 +1915,7 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
 
     workerLink = plc_copy(inLink);
     step(workerLink, StepSize, dVdt);
-    newDir = stepDirection( workerLink, inState);
+    newDir = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
     
     if (StepSize < 1e-9) { 
 
@@ -2001,7 +2002,7 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
   if (inState->newDir != NULL) {  /* We may have cached a step direction. If we did, use it! */
     dVdt = inState->newDir;
   } else {
-    dVdt = stepDirection(inLink,inState);
+    dVdt = stepDirection(inLink,inState->tube_radius,inState->eqMultiplier,gLambda, inState);
 
     if (dVdt == NULL) {
 
@@ -2106,12 +2107,12 @@ bsearch_step( plCurve* inLink, search_state* inState )
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
-  eqForce(dLen,inLink,inState);
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState->tube_radius); }  // This feature tries to straighten free sections faster
+  eqForce(dLen,inLink,inState->eqMultiplier,inState);
   specialForce(dLen,inLink,inState);
-  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints.
+  constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
 
-  dVdt = resolveForce(dLen,inLink,inState); 
+  dVdt = resolveForce(dLen,inLink,inState->tube_radius,gLambda,inState); 
   /* Built from the bones of firstVariation. */ 
 
   /* We compute the maximum size of a vector in dVdt to help with debugging code. */
@@ -2534,8 +2535,7 @@ int rownum(plCurve *inLink, int cmp, int vert, int coord)
 }
 
 void placeContactStruts ( taucs_ccs_matrix* A, plCurve* inLink, 
-			  octrope_strut* strutSet, int strutCount,  
-			  search_state* inState )
+			  octrope_strut* strutSet, int strutCount)
 
      /* Part of the buildrigiditymatrix call. We assume when we're
         building the matrix that the strut columns are placed FIRST,
@@ -2780,7 +2780,7 @@ void compute_minrad_gradient(plCurve *inLink,octrope_mrloc mrloc,plc_vector *AAs
 static void
 placeMinradStruts( taucs_ccs_matrix* rigidityA, plCurve* inLink, 
 		   octrope_mrloc* minradStruts, 
-		   int minradLocs, int startColumn, search_state* inState)
+		   int minradLocs, int startColumn )
 
      /* Using the information provided by octrope in the octrope_mrloc array,
 	and assuming that rigidityA already contains "contactstruts" 12 entry
@@ -2960,12 +2960,13 @@ void placeConstraintStruts(taucs_ccs_matrix *rigidityA, plCurve *inLink,
 }
 	
 
-taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
+taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,double tube_radius,double lambda,search_state *inState)
 
      /* Procedure calls octrope and uses the results to allocate and
 	build a rigidity matrix for the curve, calling
 	placeMinradStruts, placeContactStruts, and
-	placeConstraintStruts. */
+	placeConstraintStruts. The procedure can be called "stateless" by 
+        passing NULL for search_state. */
 
 {
   int strutStorageSize = 0;
@@ -2995,8 +2996,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   if (VERBOSITY >= 10) { logprintf("\tbuildRigidityMatrix..."); }
 
-  strutStorageSize = 6*inState->totalVerts;
-  minradStorageSize = 2*inState->totalVerts;
+  strutStorageSize = 6*plc_num_verts(inLink);
+  minradStorageSize = 2*plc_num_verts(inLink);
 
   strutSet = malloc(sizeof(octrope_strut)*strutStorageSize);
   minradSet = malloc(sizeof(octrope_mrloc)*minradStorageSize);
@@ -3004,24 +3005,26 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   fatalifnull_(strutSet);
   fatalifnull_(minradSet); 
 
+  double rop,thi,len,mr,shortest;
+
   octrope(inLink, 
 		
-	  &inState->ropelength,
-	  &inState->thickness,		
+	  &rop,
+	  &thi,		
 		
-	  &inState->length,		
-	  &inState->minrad,
-	  &inState->shortest,
+	  &len,		
+	  &mr,
+	  &shortest,
 		
 	  // minrad struts
-	  gLambda*inState->tube_radius,  /* Cutoff reports all mrlocs less than this */
+	  lambda*tube_radius,  /* Cutoff reports all mrlocs less than this */
 	  0,                             /* This value will be ignored. */
 	  minradSet, 
 	  minradStorageSize,
 	  &minradLocs,
 		
 	  // strut info
-	  2*inState->tube_radius, /* Cutoff reports struts shorter than this. */
+	  2*tube_radius, /* Cutoff reports struts shorter than this. */
 	  0,                      /* This epsilon value also ignored. */
 	  strutSet,
 	  strutStorageSize,
@@ -3029,12 +3032,12 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 		
 	  NULL, 0,
 
-	  gLambda);               /* The global "stiffness" parameter. */  
+	  lambda);               /* The global "stiffness" parameter. */  
 
   /* We now need to correct if stiffness == 0, because in this case, we want to throw 
      out the minradlocs buffer whatever its contents are.  */
 
-  if (gLambda == 0) {
+  if (lambda == 0) {
 
     free(minradSet);
     minradSet = NULL;
@@ -3042,15 +3045,24 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   }
 
-  inState->octrope_calls++;
+  if (inState != NULL) {  /* Update the trailing cache in inState. */
+
+    inState->ropelength = rop;
+    inState->thickness = thi;
+    inState->length = len;
+    inState->minrad = mr;
+    inState->shortest = shortest;
+    inState->octrope_calls++;
 
   /* We now need to make sure that we didn't exceed the size of the strut
      and/or minrad buffers. */
 
+  }
+
   if (strutCount >= strutStorageSize || minradLocs >= minradStorageSize ||
       strutCount < 0 || minradLocs < 0) {
 
-    dumpLink(inLink,inState,dumpname);
+    if (inState != NULL) { dumpLink(inLink,inState,dumpname); }
     sprintf(errmsg,
 	    "ridgerunner: octrope found %d struts and %d mrlocs on\n"
 	    "             the %d vertex link (dumped to %s), too close to\n"
@@ -3061,22 +3073,26 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   }
 
-  /* We now swap in the strutSet and minRad set into inState. */
-  
-  inState->lastStepStrutCount = strutCount;
-  inState->lastStepMinradStrutCount = minradLocs;
-  
-  if (inState->lastStepStruts != NULL) { free(inState->lastStepStruts); }
-  if (inState->lastStepMRlist != NULL) { free(inState->lastStepMRlist); }
+  if (inState != NULL) {
 
-  inState->lastStepStruts = strutSet;
-  inState->lastStepMRlist = minradSet;
+    /* We now swap in the strutSet and minRad set into inState. */
+    
+    inState->lastStepStrutCount = strutCount;
+    inState->lastStepMinradStrutCount = minradLocs;
+    
+    if (inState->lastStepStruts != NULL) { free(inState->lastStepStruts); }
+    if (inState->lastStepMRlist != NULL) { free(inState->lastStepMRlist); }
+    
+    inState->lastStepStruts = strutSet;
+    inState->lastStepMRlist = minradSet;
 
+  }
+    
   /* We now build the rigidity matrix. */
   
   /* A maps from the strut space to the space of variations of
    * vertices, and gives the force at each vertex resulting from a
-   * comprssive force pushing _out_ from each strut.
+   * compressive force pushing _out_ from each strut.
    *
    * If the strut strikes in the middle of an edge, we apply its force
    * to both endpoints of the edge, divided according to the position
@@ -3095,8 +3111,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
   constraintCount = 0; // plCurve_score_constraints(inLink);
   int nnz = 12*strutCount + 9*minradLocs + 3*constraintCount; // we KNOW this
   taucs_ccs_matrix *cleanA;
-
-  cleanA = taucs_ccs_new(3*inState->totalVerts,strutCount+minradLocs+constraintCount,nnz); /* (rows,columns,nnz) */
+  
+  cleanA = taucs_ccs_new(3*plc_num_verts(inLink),strutCount+minradLocs+constraintCount,nnz); /* (rows,columns,nnz) */
   
 /* cleanA = (taucs_ccs_matrix*)malloc(sizeof(taucs_ccs_matrix)); */
 /*   fatalifnull_(cleanA); */
@@ -3142,8 +3158,8 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,search_state *inState)
 
   // We now fill the matrix A. 
 
-  placeContactStruts( cleanA, inLink, strutSet, strutCount, inState );
-  placeMinradStruts( cleanA, inLink, minradSet, minradLocs, strutCount, inState );
+  placeContactStruts( cleanA, inLink, strutSet, strutCount);
+  placeMinradStruts( cleanA, inLink, minradSet, minradLocs, strutCount );
   //placeConstraintStruts( cleanA, inLink, strutCount+minradLocs, inState );
 
   taucs_enforce_ccs_sort(cleanA);
@@ -3282,7 +3298,7 @@ int dlenPos(plCurve *inLink,int cmp,int vt)
 }
 
 void
-constraintForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+constraintForce( plc_vector* dlen, plCurve* inLink )
 
      /* Make sure that the force obeys any active constraints. */
 
@@ -3334,7 +3350,9 @@ constraintForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 }
 
 void
-eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+eqForce( plc_vector* dlen, plCurve* inLink, double eqMultiplier, search_state* inState )
+
+/* Can be called "stateless" by passing NULL for inState. */
 
 {
   int cItr, vItr;
@@ -3363,7 +3381,7 @@ eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
     for(lenUsed=0,vItr=0;vItr<inLink->cp[cItr].nv;vItr++,dlItr++) {
 
       goalUsed = vItr*avg_edge_length;
-      scaleFactor = inState->eqMultiplier*(goalUsed - lenUsed);
+      scaleFactor = eqMultiplier*(goalUsed - lenUsed);
       
       eqF = plc_scale_vect(scaleFactor,plc_mean_tangent(inLink,cItr,vItr,&ok));
 
@@ -3371,7 +3389,7 @@ eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
 	char dumpname[1024], errmsg[1024];
 	
-	dumpLink(inLink,inState,dumpname);
+	if (inState != NULL) { dumpLink(inLink,inState,dumpname); }
 	sprintf(errmsg,
 		"ridgerunner: eqForce can't compute tangent at vertex %d of comp %d \n"
 		"             of link %s.\n",vItr,cItr,dumpname);
@@ -3394,7 +3412,7 @@ eqForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
   }
 
-  inState->eqVariance = varianceSum/inState->totalVerts;
+  if (inState != NULL) {inState->eqVariance = varianceSum/inState->totalVerts;}
 
   free(edges);
   free(lengths);
@@ -3443,25 +3461,56 @@ taucs_ccs_matrix *taucs_ccs_delete_column(taucs_ccs_matrix *A,int col)
 
 }
 
+void vgscan_taucs_ccs_matrix(taucs_ccs_matrix *A)
+
+/* Look at the data in A and make a (trivial) decision based on every item. 
+   Intended to catch valgrind "conditional move or jump depends on uninitialized value" errors. */
+
+{
+  int i = 1;
+
+  if (A->n > 0) { i += 2; }
+  if (A->m > 0) { i += 2; }
+  if (A->flags > 0) { i += 2; }
+  
+  int j;
+
+  for(j=0;j<A->n+1;j++) {
+
+    if (A->colptr[j] > 0) { i += 2; }
+    
+  }
+
+  for (j=0;j<A->colptr[A->n];j++) {
+
+    if (A->rowind[j] > 0) { i += 2; }
+    if (A->values.d[j] > 0) { i += 2; }
+
+  }
+
+}
+
 
 int gFeasibleThreshold = 0;
 int gDeferredStrutExport = 0;
 int gFoo = 0;
 
 plc_vector 
-*resolveForce( plc_vector* dl, plCurve* inLink, search_state* inState)
+*resolveForce( plc_vector* dl, plCurve* inLink, double tube_radius, double lambda, search_state* inState)
 
      /* This function resolves the given force dl over the struts of
 	inLink, building a rigidity matrix along the way and calling
 	octrope and tsnnls to do their jobs. The resulting force is
 	returned in a new buffer.  
 
+	This function can be called "stateless" by passing inState = NULL. 
+
 	If the linear algebra fails, we return NULL.
      */
 
 {
   
-  plc_vector*	     dVdt = malloc(sizeof(plc_vector)*inState->totalVerts);
+  plc_vector*	     dVdt = calloc(plc_num_verts(inLink),sizeof(plc_vector));
   taucs_ccs_matrix*  A = NULL;
   int		     vItr, sItr; 
   // loop iterators over components, vertices, and struts
@@ -3474,20 +3523,23 @@ plc_vector
 
   /* We start with a little error checking. */
 	
-  assert(dl != NULL && inLink != NULL && inState != NULL);
+  assert(dl != NULL && inLink != NULL && tube_radius > 0 && lambda >= 0);
   fatalifnull_(dVdt);
 
   if (VERBOSITY >= 10) { logprintf("\tresolveForce...\n"); }
   
   /* Now we get to work. */
 
-  A = buildRigidityMatrix(inLink,inState);
+  A = buildRigidityMatrix(inLink,tube_radius,lambda,inState);
+
+  // Debugging code. We scan A to see if that's the thing that valgrind's complaining about. 
+  //vgscan_taucs_ccs_matrix(A);
 
   if (A->n == 0) {  /* There are no constraints yet. 
 		       Copy dl to dvdt and quit. */		
     
     for(vItr = 0;vItr < inState->totalVerts;vItr++) { dVdt[vItr] = dl[vItr]; }
-    inState->residual = 1.0;
+    if (inState != NULL) {inState->residual = 1.0;}
     
   } else { 			/* There is some linear algebra to do. */
 
@@ -3507,12 +3559,12 @@ plc_vector
     // construct minusDL -- this is a column vector of size totalVerts
     // we must operate using strictly doubles to interoperate with taucs_snnls
     
-    minusDL = (double*)calloc((3*inState->totalVerts),sizeof(double));
+    minusDL = (double*)calloc((3*plc_num_verts(inLink)),sizeof(double));
     fatalifnull_(minusDL);
 
     double minusDLnorm = 0;
     
-    for( dlItr=0; dlItr<inState->totalVerts; dlItr++ ) {
+    for( dlItr=0; dlItr<plc_num_verts(inLink); dlItr++ ) {
       
       minusDL[dlItr*3+0] = -dl[dlItr].c[0];
       minusDL[dlItr*3+1] = -dl[dlItr].c[1];
@@ -3542,7 +3594,7 @@ plc_vector
     if (tsnnls_error(&terr)) {  /* If tsnnls throws a code, log it. */
 	
       logprintf("%s",terr);
-      dumpAxb_sparse(inState,A,NULL,minusDL);
+      if (inState != NULL) {dumpAxb_sparse(inState,A,NULL,minusDL);}
 
     }
 
@@ -3580,7 +3632,7 @@ plc_vector
 		"               Contact cantarella@math.uga.edu with dump data (A,x,b).\n"
 		"               Dumping rigidity matrix (to A), compressions (to x), \n",dlItr);
 
-	dumpAxb_sparse(inState,A,compressions,minusDL);
+	if (inState != NULL) {dumpAxb_sparse(inState,A,compressions,minusDL);}
 
 	FatalError(errmsg,__FILE__,__LINE__);
 	
@@ -3638,42 +3690,47 @@ plc_vector
 
 /*       FatalError(errmsg, __FILE__ , __LINE__ ); */
 
-    inState->residual = l2ResidualNorm/minusDLnorm;  
     if (VERBOSITY >= 10) { logprintf("ok\n"); }
 
-    /* We have survived the linear algebra step! We record our victory in inState. */
+    if (inState != NULL) { 
 
-    for(sItr=0;sItr<inState->lastStepStrutCount;sItr++) {
+      inState->residual = l2ResidualNorm/minusDLnorm;  
+    
+      /* We have survived the linear algebra step! We record our victory in inState. */
+      
+      for(sItr=0;sItr<inState->lastStepStrutCount;sItr++) {
+	
+	inState->lastStepStruts[sItr].compression = compressions[sItr];
+	
+      }
+      
+      for(sItr=0;sItr<inState->lastStepMinradStrutCount;sItr++) {
+	
+	inState->lastStepMRlist[sItr].compression = 
+	  compressions[sItr + inState->lastStepStrutCount];
+	
+      }
+      
+      /* Note: what to do with constraint strut "compressions"? They aren't recorded! */
 
-      inState->lastStepStruts[sItr].compression = compressions[sItr];
+      if (gNoRcond) {
+	inState->rcond = 10; 
+      } else {
+	inState->rcond = taucs_rcond(A);
+      }
+      
+      inState->tsnnls_evaluations++;
 
-    }
-
-    for(sItr=0;sItr<inState->lastStepMinradStrutCount;sItr++) {
-
-      inState->lastStepMRlist[sItr].compression = 
-	compressions[sItr + inState->lastStepStrutCount];
-
-    }
-
-    /* Note: what to do with constraint strut "compressions"? They aren't recorded! */
-
-    if (gNoRcond) {
-      inState->rcond = 10; 
-    } else {
-      inState->rcond = taucs_rcond(A);
     }
       
-    inState->tsnnls_evaluations++;
-
     /* We now build dVdt = dl + cleanA*compressions; */
 
-    dVdtflat = (double *)malloc(inState->totalVerts * 3 * sizeof(double));
+    dVdtflat = (double *)calloc(3*plc_num_verts(inLink),sizeof(double));
     fatalifnull_(dVdtflat);
 
     ourtaucs_ccs_times_vec(A,compressions,dVdtflat);
 
-    for(dlItr=0; dlItr<inState->totalVerts; dlItr++) {
+    for(dlItr=0; dlItr<plc_num_verts(inLink); dlItr++) {
 
       dVdt[dlItr].c[0] = dVdtflat[3*dlItr+0];
       dVdt[dlItr].c[1] = dVdtflat[3*dlItr+1];
@@ -3694,7 +3751,7 @@ plc_vector
 
     */
     
-    for(dlItr=0;dlItr<inState->totalVerts;dlItr++) {
+    for(dlItr=0;dlItr<plc_num_verts(inLink);dlItr++) {
 
       plc_M_add_vect(dVdt[dlItr],dl[dlItr]);
 
@@ -3707,9 +3764,13 @@ plc_vector
 
   /* At this point, we take a snapshot of the computation every state.snapinterval */
 
-  if (inState->steps % inState->snapinterval == 0) {
-    
-    snapshot(inLink,dVdt,dl,inState);
+  if (inState != NULL) {
+
+    if (inState->steps % inState->snapinterval == 0) {
+      
+      snapshot(inLink,dVdt,dl,inState);
+      
+    }
 
   }
 
