@@ -802,7 +802,7 @@ void test_link(plCurve *L,int ndirs)
     
     double stepNorm = 0;
     
-    for(i=Lpoca.lead_vert[0] - 2;i<Lpoca.lead_vert[0]+2;i++) { stepDir[i] = plc_random_vect(); stepNorm += plc_dot_prod(stepDir[i],stepDir[i]);}
+    for(i=0;i<plc_num_verts(L);i++) { stepDir[i] = plc_random_vect(); stepNorm += plc_dot_prod(stepDir[i],stepDir[i]);}
     stepNorm = sqrt(stepNorm);
     for(i=0;i<plc_num_verts(L);i++) { stepDir[i] = plc_scale_vect(1/stepNorm,stepDir[i]); }
     

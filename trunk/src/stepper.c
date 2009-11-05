@@ -1117,10 +1117,8 @@ double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,doub
 
 {
   taucs_ccs_matrix *sparseA = NULL;
-  taucs_ccs_matrix *sparseAT = NULL;
  
-  sparseA = buildRigidityMatrix(inLink,tube_radius,lambda,NULL);  /* Note: strut set in inState updates */
-  sparseAT = taucs_ccs_transpose(sparseA);
+  sparseA = buildRigidityMatrix(inLink,tube_radius,lambda,NULL);  /* Note: called "stateless", so doesn't update state. */
 
   double *step;
 
@@ -1135,57 +1133,117 @@ double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,doub
     step[(3*i)+2] = stepSize*stepDir[i].c[2];
   
   }
+
   /* Now we take the matrix product. The output buffer has to be allocated in advance. 
-     It should be equal in size to the number of rows in sparseAT. */
+     It should be equal in size to the number of columns in sparseA. */
 
   double *B;
-  B = calloc(sparseAT->m,sizeof(double));
+  B = calloc(sparseA->n,sizeof(double));
   fatalifnull_(B);
+  taucs_transpose_vec_times_matrix_nosub(step,sparseA,B);
 
-  ourtaucs_ccs_times_vec(sparseAT,(taucs_double *)(step),(taucs_double *)(B));
+  /* We now analyze the resulting B output. This is a little
+     complicated.  This should predict the change in individual strut
+     lengths, but remember that the final ropelength change is
+     controlled by the length of the shortest strut (and not all of
+     these struts are the same length). To determine the actual 
+     results, we need to rebuild the strut and minrad sets. */
 
-  /* We now analyze the resulting B output */
+  double newrop,newthi,newmr,newpoca,newlen;
+  octrope_strut struts[7000];
+  octrope_mrloc mrlocs[7000];
+  int nmr,nstrut;
+  
+  octrope(inLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	  lambda*tube_radius,0,mrlocs,7000,&nmr,
+	  2*tube_radius,0,struts,7000,&nstrut,
+	  NULL,0,lambda);
+  
+  double predictedThickness=100000,poca = 100000;
+  int ptloc = -1,pocaloc = -1;
+  int sitr,mritr;
 
-  double leastDelta = 1000000;
-  int ldloc = -1;
+  for(i=0,sitr = 0;sitr < nstrut;i++,sitr++) {
 
-  for(i=0;i<sparseAT->m;i++) {
+    if ((struts[sitr].length + B[i])/2.0 < predictedThickness) {
 
-    if (B[i] < leastDelta) {
-      
-      leastDelta = B[i];
-      ldloc = i;
+      predictedThickness = (struts[sitr].length + B[i])/2.0;
+      ptloc = i;
+
+    }
+
+    if (struts[sitr].length < poca) {
+
+      poca = struts[sitr].length;
+      pocaloc = sitr;
 
     }
 
   }
 
+  for(mritr=0;mritr < nmr;mritr++,i++) {
+
+    if ((mrlocs[mritr].mr + B[i])/lambda < predictedThickness) {
+
+      predictedThickness = (mrlocs[mritr].mr + B[i])/lambda;
+      ptloc = i;
+
+    }
+  
+  }
+
+  double dThidt;
+  dThidt = predictedThickness - newthi;
+
   /* The prediction is that 
 
-   (d/dt) Len/Thi = -Len/Thi^2 (d/dt) Thi = Len/Thi * (-(d/dt) Thi/ Thi). 
+   (d/dt) Len/Thi = ((d/dt) Len * Thi - Len * (d/dt) Thi)/(Thi * Thi).
 
    we have computed (d/dt) Thi, which is expected to be leastDelta. But 
-   we need the other numbers to make a prediction. 
+   we need the other numbers to make a prediction. To figure out the change in length, 
+   we need the vector field dLen. Here we go:
+
+  */
+
+  plc_vector *dLen;
+
+  dLen = (plc_vector *)(calloc(plc_num_verts(inLink), sizeof(plc_vector)));
+  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
+  fatalifnull_(dLen);
+  dlenForce(dLen,inLink,NULL);
+
+  double dlendt = 0;
+
+  for(i=0;i<plc_num_verts(inLink);i++) {
+
+    dlendt += -stepSize * plc_dot_prod(stepDir[i],dLen[i]);
+
+  }
+
+  free(dLen);
+
+  /*
 
    As this is debugging code, we just do it the easy way. 
 
   */
 
-  double Rop, Thi;
+  double Len, Thi;
 
-  Rop = octrope_ropelength(inLink,NULL,0,gLambda);
+  Len = octrope_curvelength(inLink);
   Thi = octrope_thickness(inLink,NULL,0,gLambda);
 
   double prediction;
 
-  prediction = (Rop)*(-leastDelta/Thi);
+  /*   (d/dt) Len/Thi = ((d/dt) Len * Thi - Len * (d/dt) Thi)/(Thi * Thi). */
+
+  prediction = ((dlendt * Thi) - (Len * dThidt))/(Thi * Thi);
 
   /* Now we clean up after ourselves */
 
   free(B);
   free(step);
   taucs_ccs_free(sparseA);
-  taucs_ccs_free(sparseAT);
 
   return prediction;
 
