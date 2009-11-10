@@ -3650,6 +3650,10 @@ plc_vector
  
     double l2ResidualNorm;
     compressions = t_snnls_fallback(A, minusDL, &l2ResidualNorm, 2, 1);
+
+    /* We now dump the matrix if state requires us to. */
+
+    if (inState != NULL) { if (inState->dumpAxb) { dumpAxb_sparse(inState,A,compressions,minusDL); }}
        
     char *terr;
 

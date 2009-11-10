@@ -283,6 +283,7 @@ int main(int argc,char *argv[])
       
     }
     
+    state.dumpAxb = false;
     state.conserveLength = NULL; /* We aren't using this. */
     
     if (state.maxmovieframes % 2 == 1) { state.maxmovieframes--; } 

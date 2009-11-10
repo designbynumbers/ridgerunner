@@ -27,6 +27,7 @@ struct arg_int  *arg_nsamples;
 struct arg_lit  *arg_logsampling;
 struct arg_dbl  *arg_lambda;
 struct arg_dbl  *target_thickness; 
+struct arg_lit  *arg_dumpAxb;
 
 struct arg_lit  *verbose;
 struct arg_file *arg_infile;
@@ -81,6 +82,8 @@ int main(int argc,char *argv[])
      arg_scale  = arg_dbl0("s","scale","<double>","maximum stepsize to plot"),
      arg_lambda = arg_dbl0("l","lambda","<double>",
 			   "minimum radius of curvature for unit rope"),
+
+     arg_dumpAxb = arg_lit0(NULL,"dumpAxb","dump the rigidity matrix, right-hand side, and solution"),
      verbose = arg_lit0("v","verbose","print debugging information"),
      arg_infile  = arg_filen(NULL,NULL,"<file>",1,100000,"input files"),
     
@@ -151,6 +154,12 @@ int main(int argc,char *argv[])
   state.stop20  = -20;
   state.residualThreshold = -1;
   state.stopTime = 999999;
+
+  if (arg_dumpAxb->count > 0) {
+    state.dumpAxb = true;
+  } else {
+    state.dumpAxb = false;
+  } 
 
   state.moviefactor = 0;    // Nobody knows whether these still work
   state.maxmovieframes = 0;

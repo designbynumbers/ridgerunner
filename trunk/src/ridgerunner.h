@@ -111,6 +111,8 @@ typedef struct
   double residualThreshold;	// threshold for residual stopping, will use if nonzero
   int    stopTime;    // Maximum time for the run, in seconds.
 
+  bool   dumpAxb; // Dumps matrix, input, and solution in resolveForce.
+
   double moviefactor;           // multiplier determines how often to save movie frames. 
   int    maxmovieframes;        // maximum number of movie frames to save.
 

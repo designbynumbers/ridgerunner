@@ -679,6 +679,8 @@ main( int argc, char* argv[] )
   }
 
   if (state.maxmovieframes % 2 == 1) { state.maxmovieframes--; } /* Make sure this is even. */
+
+  state.dumpAxb = false;
   
   state.minrad = octrope_minradval(link);
   state.thickness = octrope_thickness(link,NULL,0,gLambda);
