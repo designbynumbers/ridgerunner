@@ -307,6 +307,10 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,double tube_radius,double 
 int dlenPos( plCurve *inLink,int cmp,int vt);
 /* Converts a position on a link to a "flat" address in the dlen buffer. */
 
+plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState );
+/* Generates the entire, final pre-resolution force, including all sub-forces (dLen,eq,spin,special,constraint) 
+   Can be called "stateless" by passing NULL for inState. */
+
 void dlenForce( plc_vector* ioDL, plCurve* inLink, search_state* inState );
 /* Adds gradient of length to the buffer ioDL. */
 
