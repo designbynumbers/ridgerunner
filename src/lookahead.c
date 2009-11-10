@@ -57,22 +57,14 @@ int compare_data(const void *a,const void *b) {
   return 0;
 }
 
+/*plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState ); */
+
 plc_vector *dLenDirection(plCurve *inLink,search_state *inState) {
 
-  plc_vector *dLen;
+  return inputForce(inLink,inState->tube_radius,inState->eqMultiplier,gLambda,inState);
 
-  dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
-  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
-  fatalifnull_(dLen);
-    
-  dlenForce(dLen,inLink,inState);
-  /* if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState); }  // This feature tries to straighten free sections faster
-  eqForce(dLen,inLink,inState);
-  specialForce(dLen,inLink,inState);
-  constraintForce(dLen,inLink,inState); // Make sure that dLen doesn't try to violate constraints. */
-
-  return dLen;
 }
+
 
 int main(int argc,char *argv[])
 {
@@ -833,6 +825,8 @@ int main(int argc,char *argv[])
   
  if (state.lastStepStruts != NULL) { free(state.lastStepStruts); state.lastStepStruts = NULL;}
  if (state.lastStepMRlist != NULL) { free(state.lastStepMRlist); state.lastStepMRlist = NULL;}
+
+ printf("\n");
 
  exit(0);
 

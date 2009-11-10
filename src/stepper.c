@@ -1740,16 +1740,13 @@ double trialStep( plCurve *inLink, search_state *inState,
   
 }
 
-plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState) 
+plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState )
 
-/* Compute the step direction by building the rigidity matrix and resolving against constraints */
-/* Can be called "stateless" by passing NULL for inState. */
+/* Builds the entire "input" force, including the dLen term, any timewarp force, eqForce, constraintForce or specialForce. */
 
 {
-  // create initial vector field for which we want to move along in this step
-  plc_vector  *dVdt;
-  plc_vector  *dLen; 
-  
+  plc_vector *dLen;
+
   dLen = (plc_vector *)(calloc(plc_num_verts(inLink), sizeof(plc_vector)));
   /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
   fatalifnull_(dLen);
@@ -1760,7 +1757,23 @@ plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultipl
   specialForce(dLen,inLink,inState);
   constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
 
+  return dLen;
+
+}
+
+plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultiplier, double lambda,search_state *inState) 
+
+/* Compute the step direction by building the rigidity matrix and resolving against constraints */
+/* Can be called "stateless" by passing NULL for inState. */
+
+{
+  // create initial vector field for which we want to move along in this step
+  plc_vector  *dVdt;
+  plc_vector  *dLen; 
+  
+  dLen = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
   dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
+  
   free(dLen);
 
   return dVdt;
@@ -2160,16 +2173,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 
   }
 
-  dLen = (plc_vector *)(calloc(inState->totalVerts, sizeof(plc_vector)));
-  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
-  fatalifnull_(dLen);
-    
-  dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,inState->tube_radius); }  // This feature tries to straighten free sections faster
-  eqForce(dLen,inLink,inState->eqMultiplier,inState);
-  specialForce(dLen,inLink,inState);
-  constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
-
+  dLen = inputForce( inLink, inState->tube_radius, inState->eqMultiplier,gLambda,inState );
   dVdt = resolveForce(dLen,inLink,inState->tube_radius,gLambda,inState); 
   /* Built from the bones of firstVariation. */ 
 
