@@ -2064,8 +2064,50 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
 
 }
 
+double brentSearch(plCurve *inLink,search_state *inState,plc_vector *dVdt,double *best_step)
+ /* Find a bracketing triple and do our best to find a stepsize. */
+ /* Function evaluations are octrope calls, so we try to be efficient. Essentially, this
+     is a combination of the Numerical Recipes routines mnbrak and brent. */
+
+ /* The terrifying thing about the steepest descent stepper is that there is NO UPPER BOUND
+    on stepsize. This means that this probably won't be good for moviemaking. On the other hand,
+    it may do very well in the endgame. */
+
+{
+  double ax = 0, bx = 1.0*1e-4 /* fabs(inState->stepSize) */, cx = 2.0*1e-4 /*fabs(inState->stepSize) */;
+  double fa, fb, fc;
+
+  mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
+  
+  /* We have now found a bracketing triple axv, bxv, cxv with corresponding step scores fav, fbv, fcv. */
+  /* Our goal will be to pass them to brent and take this opportunity to zero in on the best possible step. */
+
+  if (fb > fa || fb > fc) {
+
+    char ErrMsg[1024];
+    sprintf(ErrMsg,"sd_step: mnbrak returned triple of step sizes (%g,%g,%g) with values (%g,%g,%g) which do not appear to bracket a min.\n",
+	    ax,bx,cx,fa,fb,fc);
+    NonFatalError(ErrMsg,__FILE__,__LINE__);
+
+  }
+
+  /* We now invoke the brent code. Again, we lift this from a web source. We're trying to converge on the best 
+     step size, so relatively high (1e-2) error is acceptable, especially since function evaluations (octrope calls) 
+     are quite expensive. */
+
+  double best_score;
+  best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-2,best_step);
+
+  return best_score;
+}
+
 plCurve* 
 steepest_descent_step( plCurve *inLink, search_state *inState)
+
+/* We will have to make this a little more modular in order to compute step quality */
+/* and consider the effect of moving simply in the dLen/scale direction instead of  */
+/* resolving. */
+
 {
   double best_step,best_score;
   plc_vector *dVdt;
@@ -2092,42 +2134,52 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   }
 
+  double best_dVdt_score, best_dVdt_step;
+  best_dVdt_score = brentSearch(inLink,inState,dVdt,&best_dVdt_step);
+
   /* Now we are going to loop to figure out the best step in the current direction. */
-  /* Function evaluations are octrope calls, so we try to be efficient. Essentially, this
-     is a combination of the Numerical Recipes routines mnbrak and brent. */
+ 
+  if (best_dVdt_step < 1e-6) { 
 
-  /* The terrifying thing about the steepest descent stepper is that there is NO UPPER BOUND
-     on stepsize. This means that this probably won't be good for moviemaking. On the other hand,
-     it may do very well in the endgame. */
+    /* We suspect "unhealthy" step behavior. We are going to try a dVdt step instead. */
 
-  double ax = 0, bx = 1.0*1e-4 /* fabs(inState->stepSize) */, cx = 2.0*1e-4 /*fabs(inState->stepSize) */;
-  double fa, fb, fc;
+    plc_vector *dLen;
+    dLen = inputForce(inLink,inState->tube_radius,inState->eqMultiplier,gLambda,inState);
 
-  mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
-  
-  /* We have now found a bracketing triple axv, bxv, cxv with corresponding step scores fav, fbv, fcv. */
-  /* Our goal will be to pass them to brent and take this opportunity to zero in on the best possible step. */
+    double best_dLen_score,best_dLen_step;
+    best_dLen_score = brentSearch(inLink,inState,dLen,&best_dLen_step);
 
-  if (fb > fa || fb > fc) {
+    if (best_dLen_step < 1e-6) {
 
-    char ErrMsg[1024];
-    sprintf(ErrMsg,"sd_step: mnbrak returned triple of step sizes (%g,%g,%g) with values (%g,%g,%g) which do not appear to bracket a min.\n",
-	    ax,bx,cx,fa,fb,fc);
-    NonFatalError(ErrMsg,__FILE__,__LINE__);
+      best_dLen_step = 1e-6;
+      best_dLen_score = stepScore(inLink,inState,dLen,1e-6);
+
+    }
+
+    if (best_dLen_score < best_dVdt_score) {
+
+      int i,nv;
+      for(i=0,nv=plc_num_verts(inLink);i<nv;i++) { dVdt[i] = dLen[i]; }
+      best_step = best_dLen_step;
+      best_score = best_dLen_score;
+
+      logprintf("(dLen step)");
+    
+    } else {
+
+      best_step = 1e-6; 
+      best_score = stepScore(inLink, inState, dVdt, 1e-6);
+
+    }
+
+    free(dLen);
+
+  }  else { /* Normal step was of an ok size. */
+
+    best_step = best_dVdt_step;
+    best_score = best_dVdt_score;
 
   }
-
-  /* We now invoke the brent code. Again, we lift this from a web source. We're trying to converge on the best 
-     step size, so relatively high (1e-2) error is acceptable, especially since function evaluations (octrope calls) 
-     are quite expensive. */
-
-  best_score = brent_step(ax,bx,cx,inLink,inState,dVdt,1e-2,&best_step);
-
-  if (best_step < 1e-7) { 
-
-    best_step = 1e-7; 
-
-  }  // We prohibit backward steps.
   
   plCurve *workerLink;
   workerLink = doStep(inLink,dVdt,best_step,inState);

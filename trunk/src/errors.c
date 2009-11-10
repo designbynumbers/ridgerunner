@@ -460,6 +460,11 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
     taucs_ccs_write_mat(fp,A);
     fclose(fp);
 
+    sprintf(filename,"%sA.dat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_dat(fp,A);
+    fclose(fp);
+
   }
 
   /* Construct filename for x. */
@@ -471,6 +476,12 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
     colvector_write_mat(fp,x,A->n,"x");
     fclose(fp);
 
+    sprintf(filename,"%sx.dat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    colvector_write_dat(fp,x,A->n,"x");
+    fclose(fp);
+
+
   }
 
   /* Construct filename for b. */
@@ -480,6 +491,11 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
     sprintf(filename,"%sb.mat",inState->fprefix);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
     colvector_write_mat(fp,b,A->m,"b");    
+    fclose(fp);
+
+    sprintf(filename,"%sb.dat",inState->fprefix);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    colvector_write_dat(fp,b,A->m,"b");    
     fclose(fp);
 
   }
