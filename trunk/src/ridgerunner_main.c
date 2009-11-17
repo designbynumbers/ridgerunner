@@ -75,6 +75,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_nolsqrlog = arg_lit0(NULL,"NoLsqrLog","don't log output from lsqr");
 
+  struct arg_lit  *arg_nopng = arg_lit0(NULL,"NoPNGOutput","don't tube or draw final snapshot with POVRAY");
+
   struct arg_str  *arg_maxlogsize = arg_str0(NULL,"MaxLogSize","<100K>",
 					     "maximum log file size in bytes, K, or M");
 
@@ -155,7 +157,8 @@ main( int argc, char* argv[] )
 		      arg_stop20,arg_stopRes,arg_stopSteps,arg_stopTime,
 
 		      arg_bl4,arg_fileopts,arg_bl5,
-		      arg_suppressfiles, arg_nolsqrlog, arg_maxlogsize, 
+		      arg_suppressfiles, arg_nopng,
+		      arg_nolsqrlog, arg_maxlogsize, 
 		      arg_maxvectdirsize, arg_nocolor, arg_nohighlight, /* arg_outpath, */
 		      
 		      end};
@@ -769,28 +772,32 @@ main( int argc, char* argv[] )
   /* We can provide some convenient post-processing of the results if
      we have various utilities on this system. */
 
+  if (arg_nopng->count == 0) {
+    
 #ifdef HAVE_TUBE
 
-  char tmpcommand[8096];
-
-  sprintf(tmpcommand,"cd ./%s.rr; tube -r %g %s.final.vect",
-	  state.basename,state.tube_radius,state.basename);  
-
-  system(tmpcommand);
-
+    char tmpcommand[8096];
+    
+    sprintf(tmpcommand,"cd ./%s.rr; tube -r %g %s.final.vect",
+	    state.basename,state.tube_radius,state.basename);  
+    
+    system(tmpcommand);
+    
 #ifdef HAVE_POVRAY 
 
 #ifdef HAVE_POVSNAP 
 
-  printf("Running povsnap to generate image of final configuration.\n");
-  sprintf(tmpcommand,"cd ./%s.rr; orient -a 2 %s.final.tube.off; povsnap -q -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename,state.basename);
-  system(tmpcommand);
-
+    printf("Running povsnap to generate image of final configuration.\n");
+    sprintf(tmpcommand,"cd ./%s.rr; orient -a 2 %s.final.tube.off; povsnap -q -s %s.final.tube.off; rm -fr %s.final.tube",state.basename,state.basename,state.basename,state.basename);
+    system(tmpcommand);
+    
 #endif
 
 #endif
 
 #endif
+
+  }
 
   /* Now clean up allocated memory and close files. */
 
