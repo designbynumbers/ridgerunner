@@ -110,9 +110,9 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 	9.41.vect 9.42.vect 9.43.vect 9.44.vect 9.45.vect  \
 	9.46.vect 9.47.vect 9.48.vect 9.49.vect 9.5.vect  
 
-#install the shortest knot detecting PERL script in $(bindir)
+#install various supporting PERL scripts in $(bindir)
 
-dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate src/gridrunner.pl
+dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate src/gridrunner.pl src/residual.pl
 
 # Now include some testing stuff
 if HAVEGSL
