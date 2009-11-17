@@ -90,12 +90,18 @@ print <<EndUsage
      --accre or --gridstuffer or --local: specify batch computing 
         environment. --accre and --local will actually start runs,
         while --gridstuffer will only prepare a GridStuffer batch 
-        file. --local runs are always run with --nice.
+        file. --local runs are always run with nice -n 20.
 
      --rrargs="--StopRes=0.01" : arguments (other than filenames) to 
         be passed to ridgerunner. At the very least, this should include
         a valid ridgerunner stopping criterion, such as --StopRes or 
         --StopTime.
+
+  batchrunner will move VECT files in the run directory to ./inputs.
+  batchrunner will place intermediate results (depending on the batch
+  computing environment) in ./working. When called with --reap, final
+  results will be copied to ./outputs. --reap also generates a report
+  in ./batchrunner_progress.txt which summarizes the state of the runs.
  
 EndUsage
 
@@ -272,7 +278,7 @@ EndInstructions
 
 if ($reap) {
 
-    if ($gridrunner) {
+    if ($gridstuffer) {
 
     }
 

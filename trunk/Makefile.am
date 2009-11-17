@@ -112,7 +112,7 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 
 #install various supporting PERL scripts in $(bindir)
 
-dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate src/gridrunner.pl src/residual.pl
+dist_bin_SCRIPTS = src/shortestknot.pl src/povanimate src/gridrunner.pl src/residual.pl src/batchrunner
 
 # Now include some testing stuff
 if HAVEGSL
