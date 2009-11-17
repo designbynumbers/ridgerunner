@@ -1,145 +1,286 @@
-#!/bin/bash
+#!/usr/bin/perl
 
 #
 # Batchrunner. Puts a directory of inputs through the rr machine.
 #
 
-echo "batchrunner"
+#batchrunner takes arguments 
 
-echo "Runs ridgerunner on a directory of inputs in an organized way."
-echo "Checking for directories..."
+#"--accre"
+#"--gridstuffer"
+#"--local"
 
-if [ -d inputs ]; then
+#which change the behavior depending on the batch computing
+#environment you happen to be in. In addition, we always require that
+#the user specify
 
-    echo "Found ./inputs directory."
+#"--sow" 
 
-else 
+#which prepares (or starts) a run
 
-    echo "Need the directory ./inputs to exist."
-    exit 1;
+#or 
 
-fi
+#"--harvest" 
 
-if [ -d working ]; then
+#which collects data from the run. 
 
-    echo "Found ./working directory."
-    echo "Cleaning ./working..."
+#The batchrunner script is always intended to be run inside a
+#directory of vect files. The script creates
 
-    cd ./working
-    rm -fr *
-    cd ..
+#./inputs
+#./outputs
+#./working
 
-else 
+#Batchrunner also expects "--rrargs=" stuff " " which gives any and
+#all ridgerunner arguments which are common to all the runs.
 
-    echo "Creating ./working directory."
-    mkdir ./working
+#When run with --sow:
 
-fi
+#Step 1. Move all vect files in the current directory to ./inputs (if any).
 
-if [ -d trouble ]; then
+#Step 2. Create a job file (depending on environment) to run. This
+#file places job output in ./working. The user may need to submit this
+#manually, in which case the runs ends with instructions to the user
+#to this effect. If possible (eg. on accre or on the local machine),
+#we simply go ahead and spawn all the jobs from ./working.
 
-    echo "Found ./trouble directory. (./trouble not cleaned)"
+#When run with --harvest:
+
+#Step 1. Look in the ./working directory to find any and all completed
+#runs. Exactly where to look depends on the batch method.
+
+#Step 2. On finding .final.vect files in the appropriate places,
+#rename and copy those files to the /outputs directory.
+
+#Last, prepare a batchrunner_report.txt file which compares the list
+#of files in the ./inputs directory to the list of files in the
+#./outputs directory and computes stats (ropelength/residual) for the
+#files in the outputs directory.
+
+#<filename> <completed/INCOMPLETE> Verts/Resolution Ropelength Residual.
+
+use strict;
+use File::Temp;
+use File::Copy;
+use File::Slurp qw( slurp ) ;
+use File::Path;
+use warnings;
+use Getopt::Long;
+
+print STDERR "batchrunner 1.0\n";
+
+my $accre = '';
+my $gridstuffer = '';
+my $local = '';
+my $rrargs = '';
+my $sow = '';
+my $reap = '';
+
+GetOptions ( 'accre' => \$accre, 'gridstuffer' => \$gridstuffer, 'local' => \$local, 'rrargs=s' => \$rrargs, 'sow' => \$sow, 'harvest|reap' => \$reap );
+
+if (!($sow || $reap) || !($gridstuffer || $accre || $local) || !$rrargs) {
+
+print <<EndUsage 
+
+  batchrunner is used in a directory of VECT files to run them
+  in an organized way. A valid batchrunner command line must include
+
+     --sow or --reap : whether to begin runs or check for output
+
+     --accre or --gridstuffer or --local: specify batch computing 
+        environment. --accre and --local will actually start runs,
+        while --gridstuffer will only prepare a GridStuffer batch 
+        file. --local runs are always run with --nice.
+
+     --rrargs="--StopRes=0.01" : arguments (other than filenames) to 
+        be passed to ridgerunner. At the very least, this should include
+        a valid ridgerunner stopping criterion, such as --StopRes or 
+        --StopTime.
  
-else 
+EndUsage
 
-    echo "Creating ./trouble directory."
-    mkdir ./trouble
+}
 
-fi
+if ($sow && $reap) { die("batchrunner: Can't sow and reap on the same run.\n"); }
 
-if [ -d done ]; then
+if ($sow) {
 
-    echo "Found ./done directory. (./done not cleaned)"
- 
-else 
+  my @vectfiles = <*.vect>;
 
-    echo "Creating ./done directory."
-    mkdir ./done
+  print "Adding ".scalar @vectfiles." files to ./inputs.\n";
 
-fi
+  unless (-d "./inputs") { 
 
-echo "Beginning runs..."
+      mkpath("./inputs") or die("Couldn't create ./inputs");
 
-cd ./inputs
+  }
 
-for basefile in *.vect
-do
+  # We now move the vectfiles into ./inputs. 
+
+  foreach (@vectfiles) { 
+
+      move($_,"./inputs/") or die("Couldn't move $_ to ./inputs/");
+
+  }
+
+  my @runfiles = <./inputs/*.vect>;
+
+  unless (-d "./working") {
+
+      mkdir("./working") or die("Couldn't make ./working.\n");
+
+  }
+
+  unless (-d "./outputs") {
+
+      mkdir("./outputs") or die("Couldn't make ./outputs.\n");
+
+  }
+
+  if (scalar @runfiles == 0) { 
+
+      die("No VECT files found in working directory or ./inputs.\n");
+
+  }
+
+  print "Making script for ".scalar @runfiles." VECT files.\n";
+
+  my $ridgerunner; 
+  $ridgerunner = `which ridgerunner`;
+  chomp($ridgerunner);
   
-  basename=`echo $basefile | sed s/.vect//g`
+  my $wd;
+  $wd = `pwd`;
+  chomp($wd);
   
-  res=5
+  
+  if ($gridstuffer) {
 
-  thisbase=$basename.r$res
-  thisvect=$thisbase.vect
-      
-  echo cp $basefile ../working/$thisvect
-  cp $basefile ../working/$thisvect
-  cd ../working
-      
-  while [ $res -le 20 ]; do 
+    print "GRIDSTUFFER mode\n\n";
 
-      rdrop=-1
-      count=1
+    # open the GridStuffer script file. 
+    
+    $ridgerunner = "~/../..".$ridgerunner;
 
-      echo "Running " $basename " at resolution " $res 
-      
-      oldvect=$thisvect
-      thisbase=$basename.r$res
-      thisvect=$thisbase.vect
+    # we need to construct a relative path for ridgerunner in order to 
+    # ensure that this version of rr will be uploaded to all of the grid
+    # machines. 
 
-      cp $oldvect $thisvect
+    open (GRIDSTUFFER, '>gridstuffer.txt');
 
-      while [ `echo "$rdrop < -0.01" | bc` -gt 0 ] && [ $count -lt 10 ]; do
-      
-	  echo "Running rr on " $thisvect " for 20000 steps..."
-	  echo "ridgerunner -a -r " $res $thisvect "-s 20000 > " $thisbase.out
-	  ridgerunner -a -r $res $thisvect -s 20000 > $thisbase.out
-	  echo "Run completed."
+    print GRIDSTUFFER "-dirs $wd/inputs \n";
+    
+    foreach (@runfiles) { 
 
-	  finalvect=./$thisbase.rr/$thisbase.final.vect
+	print GRIDSTUFFER "$ridgerunner $_ $rrargs \n";
 
-	  echo "Checking for " $finalvect  "..."
+    }
 
-	  if [ -f $finalvect ]; then
+    close(GRIDSTUFFER);
 
-	      echo "Found it."
+    print "Generated file gridstuffer.txt. Contents: \n\n";
+    print `cat gridstuffer.txt`;
+    print "\n\n";
 
-	  else 
+    print <<EndInstructions
 
-	      echo "The run seems to have failed. Moving to ./trouble..."
-	      mv $thisbase.* ../trouble
-	      break 2                     # break out of the drop and res loops
+	The next step is for you to feed the file gridstuffer.txt to 
+        GridStuffer as a metajob. You should set the output directory
+	to $wd/working. 
 
-	  fi
+	You can collect the results with 
 
-	  echo "Checking to see whether ropelength dropped... "
-	  startrop=`ropelength -q $thisvect`
-          endrop=`ropelength -q $finalvect`
-	  rdrop=`echo $endrop - $startrop | bc`
+	batchrunner --harvest --gridstuffer
 
-	  echo "     Initial ropelength " $startrop 
-	  echo "     Final   ropelength " $endrop
-	  echo "     Ropelength change  " $rdrop
-	
-	  echo "Copying " $finalvect " to " $thisvect " for next run."
-	  cp $finalvect ./$thisvect
-	  let count=$count+1
-	  echo ""
+	which will move completed files to ./outputs and generate 
+        a report in progress_report.txt in this directory. You can 
+        run batchrunner --harvest --gridstuffer as many times as 
+        you like as long as you don't delete anything in ./working.
+
+EndInstructions
+
+  }
+
+  if ($local) {
+
+      my $hostname;
+
+      $hostname = `hostname`;
+      chomp($hostname);
+
+      print("LOCAL mode\n");
+
+      print "Copying input files to ./working.\n";
+
+      foreach (@runfiles) {
 	  
-      done
+	  copy($_,"./working/") or die("Couldn't copy $_ to ./working.");
+	  
+      }
 
-      # We are now ready to change resolution. We kick this copy into ./done
+      chdir("./working");
 
-      echo "Finished " $thisvect " at resolution " $res 
-      echo "Moving " $thisbase.rr $thisbase.out " to ./done" 
-      cp $thisvect ../done/$thisvect
-      mv $thisbase.rr ../done/    
-      mv $thisbase.out ../done/
+      my @workingfiles = <*.vect>;
+      
+      print("Generating a shell script to do runs on $hostname.\n");
 
-      let res=$res+5
+      open (LOCALSCRIPT,">start_runs.sh");
 
-  done
+      my $timestamp;
+      $timestamp = `date`;
+      chomp($timestamp);
 
-  cd ../inputs
-  
-done
+      print LOCALSCRIPT "echo Starting ".scalar @runfiles." ridgerunner runs.\n";
+      print LOCALSCRIPT "echo This script autogenerated by batchrunner at $timestamp.\n";
+
+      foreach (@workingfiles) {
+
+	  my $outputname;
+
+	  $outputname = $_;
+	  $outputname =~ s/vect/output/;
+
+      print LOCALSCRIPT "nohup nice -n 20  $ridgerunner $_ $rrargs 2>$outputname 1>$outputname ".' &'."\n";
+
+      }
+
+      close(LOCALSCRIPT);
+
+      chmod 0755, "start_runs.sh"; # corresponds to rwxr-xr-x
+
+      print "Running the shell script ./working/start_runs.sh.\n\n";
+
+      my $scriptresults = '';
+      $scriptresults = `./start_runs.sh`;
+
+      print "Output: \n\n$scriptresults\n";
+
+  } 
+
+  #
+  # Need to develop some scripts for the ACCRE qsub environment.
+  #
+
+  if ($accre) {
+
+      print "ACCRE/qsub environment not yet implemented.\n";
+      die();
+
+  }
+      
+}
+
+if ($reap) {
+
+    if ($gridrunner) {
+
+    }
+
+    if ($local) {
+
+    }
+
+}
+
+    
+
