@@ -20,7 +20,7 @@
 
 #or 
 
-#"--harvest" 
+#"--harvest" (or --reap)
 
 #which collects data from the run. 
 
@@ -282,9 +282,61 @@ if ($reap) {
 
     }
 
-    if ($local) {
+    if ($local) {  
+
+      #
+      # We expect to find output files in the ./working subdirectory 
+      # The first step is to copy the files to ./outputs
+      #
+
+      my @rrdirs = <./working/*.rr>;
+      my @inputfiles  = <./inputs/*.vect>;
+
+      foreach (@rrdirs) { 
+
+	my $basename;
+
+	$_ =~ m/(.+)\.rr/g;
+	$basename = $1;
+      
+	if (-e "$_/$basename.final.vect/") {
+
+	  copy("$_/$basename.final.vect","./outputs/$basename.vect") or 
+	    die("Couldn't copy $_/$basename.final.vect to ./outputs");
+
+	  push(@outputfiles,"$basename.vect");
+
+	}
+
+      }
 
     }
+
+    #
+    # In order to conserve coding effort, we assume that whatever our batch computing model
+    # we have now moved any outputs that we have into ./outputs and that filenames match from
+    # ./inputs to ./outputs. 
+    #
+    # We are going to recompute ropelengths and residuals as we prepare the output report. 
+    # This is a little slow, but it's easier to code than trying to pry that out of the 
+    # .rr directories in ./working.
+    #
+
+    my @inputfiles = <./inputs/*.vect>;
+    my @outputfiles = <./outputs/*.vect>;
+
+    #
+    # The first step is to match inputfiles and outputfiles to figure out what has completed.
+    #
+
+    my @completed;
+    my @incomplete;
+
+    foreach (@inputfiles) {
+
+      my $basename;
+
+    };
 
 }
 
