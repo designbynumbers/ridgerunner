@@ -296,15 +296,13 @@ if ($reap) {
 
 	my $basename;
 
-	$_ =~ m/(.+)\.rr/g;
+	$_ =~ m/\.\/working\/(.+)\.rr/g;
 	$basename = $1;
-      
-	if (-e "$_/$basename.final.vect/") {
+
+	if (-e "$_/$basename.final.vect") {
 
 	  copy("$_/$basename.final.vect","./outputs/$basename.vect") or 
-	    die("Couldn't copy $_/$basename.final.vect to ./outputs");
-
-	  push(@outputfiles,"$basename.vect");
+	    die("Couldn't copy $basename.final.vect to ./outputs");
 
 	}
 
@@ -334,11 +332,111 @@ if ($reap) {
 
     foreach (@inputfiles) {
 
-      my $basename;
+      my $filename;
+      m/\.\/inputs\/(.+)/;
+      $filename = $1;
 
-    };
+      if ( grep { $_ eq "./outputs/$filename" } @outputfiles ) {
+
+	push(@completed,$filename);
+
+      } else {
+
+	push(@incomplete,$filename);
+
+      }
+         
+    }
+
+    print scalar @completed." of ".scalar @inputfiles." files completed.\n";
+    print "Preparing progress report.\n";
+
+    open(PROGRESS_COMPLETE,">./completed.txt");
+
+    foreach (@completed) {
+
+      my $filename;
+      my $ropelen_before;
+      my $ropelen_after;
+      my $residual_before;
+      my $residual_after;
+
+      $filename = $_;
+      $ropelen_before = &ropelength("./inputs/$filename");
+      $ropelen_after = &ropelength("./outputs/$filename");
+      $residual_before = &residual("./inputs/$filename");
+      $residual_after = &residual("./outputs/$filename");
+
+      write(PROGRESS_COMPLETE);
+
+    }
+
+    close(PROGRESS_COMPLETE);
 
 }
 
+sub ropelength { 
+     my $filename;
+     $filename = $_[0];
+     my $ropelength;
+
+     open (ROPELENGTH,"ropelength $filename |");
+     while (<ROPELENGTH>) {
+       if (/Ropelength:\s*(\S+)/) {
+	 $ropelength = $1;
+       }
+     }
+     close ROPELENGTH;
+
+     $ropelength;
+   }
+
+sub residual {
+     my $filename;
+     $filename = $_[0];
+     my $residual;
+
+     open (RESIDUAL,"residual.pl $filename |");
+     while (<RESIDUAL>) {
+       if (/Residual:\s*(\S+)/) {
+	 $residual = $1;
+       }
+     }
+     close RESIDUAL;
+
+     $residual;
+   }
+
+my $filename;
+my $ropelen_before;
+my $ropelen_after;
+my $residual_before;
+my $residual_after;       
     
+format PROGRESS_COMPLETE_TOP =
+
+     Completed Files
+
+     Filename               Ropelength                              Residual
+                            Before              After               Before    After
+     ---------------------  ------------------  ------------------  --------  --------
+.
+
+format PROGRESS_COMPLETE = 
+     @<<<<<<<<<<<<<<<<<<<<  @####.############  @####.############  @#.#####  @#.#####
+      $filename, $ropelen_before, $ropelen_after, $residual_before, $residual_after 
+.
+
+format PROGRESS_INCOMPLETE_TOP = 
+
+     Incomplete Files 
+
+.
+
+format PROGRESS_INCOMPLETE = 
+     @<<<<<<<<<<<<<<<<<<<<
+     $filename
+.
+
+      
 
