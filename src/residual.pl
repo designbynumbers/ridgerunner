@@ -30,9 +30,11 @@ foreach (@ARGV) {
 
     push(@files,$_);
 
-  } 
+  } else {
 
-  push(@rrargs,$_);
+    push(@rrargs,$_);
+
+  }
 
 }
 
@@ -42,8 +44,6 @@ if ((scalar @files) == 0) {
 
 }
 
-print STDERR "residual 1.0.\n\tComputing residual with rr command line\n";
-print STDERR "\tridgerunner -c -s 1 --NoPNGOutput @rrargs \n";
 
 my $tempdir;
 my $rrdir;
@@ -51,10 +51,6 @@ my $rrdir;
 $tempdir = File::Temp->newdir();
 
 #print $tempdir;
-
-$rrdir = $files[0];
-$rrdir =~ s/vect/rr/; # replace extension
-
 #print $rrdirname;
 
 unless (-e $files[0]) {
@@ -63,24 +59,30 @@ unless (-e $files[0]) {
 
 }
 
-copy($files[0],$tempdir."/".$files[0]) or die("residual: Could not copy $files[0] to $tempdir.$files[0]");
+$files[0] =~ m/\/.+\/(.+)/; # Match out the base filename
 
+copy($files[0],$tempdir."/".$1) or die("residual: Could not copy $files[0] to $tempdir.$files[0]");
 chdir($tempdir) or die("residual: Could not chdir to $tempdir.\n");
 
+print "residual 1.0.\n\tComputing residual with rr command line\n";
+print "\tridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$1\n";
+
 my @rroutput;
-@rroutput = `ridgerunner -c -s 1 --NoPNGOutput @rrargs`;
+@rroutput = `ridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$1`;
 
 # print "ridgerunner output: @rroutput\n";
 
 # We now open the residual.dat logfile to check the final residual.
 
-my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat");
+$rrdir = $1;
+$rrdir =~ s/vect/rr/; # replace extension
+
+my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or die("Couldn't slurp $tempdir/$rrdir/logfiles/residual.dat");
 
 $resfile =~ /1 (.+)/g;
 my $resnumber = $1;
 
-print STDERR "Residual: ";
-print $resnumber;
+print "Residual: $resnumber\n";
 
 
 
