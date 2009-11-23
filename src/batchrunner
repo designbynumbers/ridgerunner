@@ -313,6 +313,43 @@ if ($reap) {
 
     if ($gridstuffer) {
 
+     print("Copying completed files to ./outputs...\n");
+
+     # We expect to find outputs in ./working/1/ ./working/2/ and so forth.
+     
+     my @gridstufferdirs = <./working/[0-9]*>;  # Ok, this is everything that starts with a number.
+
+     print "Found gridstuffer dirs: @gridstufferdirs\n";
+
+     foreach (@gridstufferdirs) {
+
+      if (-d $_) {
+
+        my @rrdirs = <$_/*.rr/>;
+        my $thisdir;
+
+        print("\tContains rr dirs: @rrdirs.\n");
+
+        foreach $thisdir (@rrdirs) {
+
+           my $basename;
+
+           $thisdir =~ m/.+\/(.+)\.rr/;
+           $basename = $1;
+
+           print "Looking for $thisdir$basename.final.vect...\n";
+           if (-e "$thisdir$basename.final.vect") {
+
+              copy("$thisdir$basename.final.vect","./outputs/$basename.vect") or die("Couldn't copy $thisdir/$basename.final.vect to ./outputs/$basename.vect");
+ 
+           }
+          
+         }  
+ 
+       }
+
+      }
+     
     }
 
     if ($local) {  
@@ -424,7 +461,7 @@ sub ropelength {
 
      open (ROPELENGTH,"ropelength $filename |");
      while (<ROPELENGTH>) {
-       if (/Ropelength:\s*(\S+)/) {
+       if (/:Ropelength:\s*(\S+)/) {
 	 $ropelength = $1;
        }
      }
