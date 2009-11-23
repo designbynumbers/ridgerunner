@@ -295,7 +295,7 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
     case kStepSize : printf("Step size: %1.7f ",inState->stepSize); break;
     case kThickness : printf("Thi: %1.7f ",inState->thickness); break;
     case kMinrad : printf("Minrad: %1.7f ", inState->minrad); break;
-    case kResidual : printf("Residual: %1.4f ",inState->residual); break;
+    case kResidual : printf("Residual: %1.8f ",inState->residual); break;
     case kMaxOverMin : printf("Max/min edge: %1.7f ",inState->lastMaxMin); break;
     case kRcond : printf("Rcond: %g ",inState->rcond); break;
     case kEffectiveness : printf("Eff: %1.4f MrEff: %1.4f ",inState->lastStepPocaEffectiveness,inState->lastStepMREffectiveness); break;

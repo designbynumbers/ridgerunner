@@ -59,22 +59,29 @@ unless (-e $files[0]) {
 
 }
 
-$files[0] =~ m/\/.+\/(.+)/; # Match out the base filename
+my $fname;
 
-copy($files[0],$tempdir."/".$1) or die("residual: Could not copy $files[0] to $tempdir.$files[0]");
+if ($files[0] =~ m/\/.+\/(.+)/) { # Match out the base filename (if a path is given)
+    $fname = $1;
+} else { # assume that the whole thing is the filename
+    $fname = $files[0];
+}
+
+
+copy($files[0],$tempdir."/".$fname) or die("residual: Could not copy $files[0] to $tempdir/$fname");
 chdir($tempdir) or die("residual: Could not chdir to $tempdir.\n");
 
 print "residual 1.0.\n\tComputing residual with rr command line\n";
-print "\tridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$1\n";
+print "\tridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$fname\n";
 
 my @rroutput;
-@rroutput = `ridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$1`;
+@rroutput = `ridgerunner -c -s 1 --NoPNGOutput @rrargs $tempdir/$fname`;
 
 # print "ridgerunner output: @rroutput\n";
 
 # We now open the residual.dat logfile to check the final residual.
 
-$rrdir = $1;
+$rrdir = $fname;
 $rrdir =~ s/vect/rr/; # replace extension
 
 my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or die("Couldn't slurp $tempdir/$rrdir/logfiles/residual.dat");

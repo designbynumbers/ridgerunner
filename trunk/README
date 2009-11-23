@@ -12,6 +12,23 @@ argtable2 (2-7 or later)
 BLAS
 LAPACK
 
+There are also several "optional" dependencies:
+
+vecttools
+povray
+povrayutils
+gsl
+
+Ridgerunner ships with a number of helper programs, including
+
+residual.pl  (display the residual of a VECT file)
+batchrunner  (run ridgerunner on a directory of inputs and collect the results)
+strutplot    (display the self-contacts of a VECT file with ``smart'' coloring)
+povanimate   (create an animation of a tightening run)
+
+Most of these are Perl scripts. You may need some additional Perl packages
+to run them (for instance, residual.pl and batchrunner require File::Temp).
+
 You usually use ATLAS Blas/Lapack to satisfy this part of the
 dependency tree.  On certain systems, especially RedHat derived linux
 systems, you need to be careful of the fact that shared libraries are
@@ -46,11 +63,6 @@ The rrpackage script installrr.sh will install all of the needed
 libraries except BLAS and LAPACK in either standard locations (if you
 have admin priviledges on the install machine) or in your account (if
 you don't).
-
-To use the movie generation script, you must also have 
-
-tube
-geomview
 
 2. The (really brief) user's guide to Ridgerunner.
 
