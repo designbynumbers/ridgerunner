@@ -67,6 +67,39 @@ use File::Path;
 use warnings;
 use Getopt::Long;
 
+my $filename;
+my $ropelen_before;
+my $ropelen_after;
+my $residual_before;
+my $residual_after;
+
+format PROGRESS_COMPLETE_TOP =
+
+     Completed Files
+
+     Filename               Ropelength                              Residual
+                            Before              After               Before    After
+     ---------------------  ------------------  ------------------  --------  --------
+.
+
+format PROGRESS_COMPLETE = 
+     @<<<<<<<<<<<<<<<<<<<<  @####.############  @####.############  @#.#####  @#.#####
+     $filename,             $ropelen_before,    $ropelen_after,     $residual_before, $residual_after 
+.
+
+format PROGRESS_INCOMPLETE_TOP = 
+
+     Incomplete Files 
+
+     Filename
+     ---------------------
+.
+
+format PROGRESS_INCOMPLETE = 
+     @<<<<<<<<<<<<<<<<<<<<
+     $filename
+.
+
 print STDERR "batchrunner 1.0\n";
 
 my $accre = '';
@@ -78,7 +111,7 @@ my $reap = '';
 
 GetOptions ( 'accre' => \$accre, 'gridstuffer' => \$gridstuffer, 'local' => \$local, 'rrargs=s' => \$rrargs, 'sow' => \$sow, 'harvest|reap' => \$reap );
 
-if (!($sow || $reap) || !($gridstuffer || $accre || $local) || !$rrargs) {
+if (!($sow || $reap) || !($gridstuffer || $accre || $local) || ($sow && !$rrargs)) {
 
 print <<EndUsage 
 
@@ -349,17 +382,11 @@ if ($reap) {
     }
 
     print scalar @completed." of ".scalar @inputfiles." files completed.\n";
-    print "Preparing progress report.\n";
+    print "Preparing progress report (saved to batchrunner_progress.txt):\n";
 
-    open(PROGRESS_COMPLETE,">./completed.txt");
+    open(PROGRESS_COMPLETE,">./batchrunner_progress.txt");
 
     foreach (@completed) {
-
-      my $filename;
-      my $ropelen_before;
-      my $ropelen_after;
-      my $residual_before;
-      my $residual_after;
 
       $filename = $_;
       $ropelen_before = &ropelength("./inputs/$filename");
@@ -372,6 +399,21 @@ if ($reap) {
     }
 
     close(PROGRESS_COMPLETE);
+
+    open(PROGRESS_INCOMPLETE,">>./batchrunner_progress.txt"); #append the new results
+
+    foreach (@incomplete) {
+
+      $filename = $_;
+      write(PROGRESS_INCOMPLETE);
+
+    }
+
+    close(PROGRESS_INCOMPLETE);
+
+    open(BRP,"<./batchrunner_progress.txt");
+    while (<BRP>) { print $_; }
+    close(BRP);
 
 }
 
@@ -407,36 +449,6 @@ sub residual {
      $residual;
    }
 
-my $filename;
-my $ropelen_before;
-my $ropelen_after;
-my $residual_before;
-my $residual_after;       
     
-format PROGRESS_COMPLETE_TOP =
 
-     Completed Files
-
-     Filename               Ropelength                              Residual
-                            Before              After               Before    After
-     ---------------------  ------------------  ------------------  --------  --------
-.
-
-format PROGRESS_COMPLETE = 
-     @<<<<<<<<<<<<<<<<<<<<  @####.############  @####.############  @#.#####  @#.#####
-      $filename, $ropelen_before, $ropelen_after, $residual_before, $residual_after 
-.
-
-format PROGRESS_INCOMPLETE_TOP = 
-
-     Incomplete Files 
-
-.
-
-format PROGRESS_INCOMPLETE = 
-     @<<<<<<<<<<<<<<<<<<<<
-     $filename
-.
-
-      
 
