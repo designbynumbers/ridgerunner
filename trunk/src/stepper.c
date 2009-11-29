@@ -2143,7 +2143,7 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
     if (inState->residual > 0.05) { /* We only try alternate step directions if residual is low */
 
-      best_dVdt_step = 1e-6;
+      best_step = 1e-6;
       best_score = stepScore(inLink, inState, dVdt, 1e-6);
 
     } else {
