@@ -2141,38 +2141,47 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
  
   if (best_dVdt_step < 1e-6) { 
 
-    /* We suspect "unhealthy" step behavior. We are going to try a dVdt step instead. */
+    if (inState->residual > 0.05) { /* We only try alternate step directions if residual is low */
 
-    plc_vector *dLen;
-    dLen = inputForce(inLink,inState->tube_radius,inState->eqMultiplier,gLambda,inState);
-
-    double best_dLen_score,best_dLen_step;
-    best_dLen_score = brentSearch(inLink,inState,dLen,&best_dLen_step);
-
-    if (best_dLen_step < 1e-6) {
-
-      best_dLen_step = 1e-6;
-      best_dLen_score = stepScore(inLink,inState,dLen,1e-6);
-
-    }
-
-    if (best_dLen_score < best_dVdt_score) {
-
-      int i,nv;
-      for(i=0,nv=plc_num_verts(inLink);i<nv;i++) { dVdt[i] = dLen[i]; }
-      best_step = best_dLen_step;
-      best_score = best_dLen_score;
-
-      logprintf("(dLen step)");
-    
-    } else {
-
-      best_step = 1e-6; 
+      best_dVdt_step = 1e-6;
       best_score = stepScore(inLink, inState, dVdt, 1e-6);
 
-    }
+    } else {
 
-    free(dLen);
+      /* We suspect "unhealthy" step behavior. We are going to try a dVdt step instead. */
+
+      plc_vector *dLen;
+      dLen = inputForce(inLink,inState->tube_radius,inState->eqMultiplier,gLambda,inState);
+      
+      double best_dLen_score,best_dLen_step;
+      best_dLen_score = brentSearch(inLink,inState,dLen,&best_dLen_step);
+      
+      if (best_dLen_step < 1e-6) {
+	
+	best_dLen_step = 1e-6;
+	best_dLen_score = stepScore(inLink,inState,dLen,1e-6);
+	
+      }
+      
+      if (best_dLen_score < best_dVdt_score) {
+	
+	int i,nv;
+	for(i=0,nv=plc_num_verts(inLink);i<nv;i++) { dVdt[i] = dLen[i]; }
+	best_step = best_dLen_step;
+	best_score = best_dLen_score;
+	
+	logprintf("(dLen step)");
+	
+      } else {
+	
+	best_step = 1e-6; 
+	best_score = stepScore(inLink, inState, dVdt, 1e-6);
+	
+      }
+
+      free(dLen);
+
+    }
 
   }  else { /* Normal step was of an ok size. */
 
