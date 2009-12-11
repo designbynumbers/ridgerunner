@@ -125,7 +125,7 @@ int main(int argc,char *argv[])
     } else {  /* The help table matched, which means we 
 		 asked for help or gave nothing */
   
-      printf("lookahead attempts to correct a Geomview VECT file to given thickness.\n"
+      printf("lookahead plots the ropelength of a VECT file along the standard search direction.\n"
            "usage: \n\n");
       arg_print_glossary(stdout, argtable," %-25s %s\n");
       exit(0);
