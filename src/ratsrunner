@@ -29,12 +29,16 @@
 use strict;
 use File::Temp;
 use File::Copy;
-use File::Slurp qw( slurp ) ;
+use File::Slurp;
 use File::Path;
+use File::Spec;
 use Data::Dumper;
+use Time::Local;
 use Sys::Hostname;
+use Cwd;
 use warnings;
 use Getopt::Long;
+use Benchmark;
 
 my $svnversion;
 my $ratsversion;
@@ -50,18 +54,22 @@ my $wd;
 
 $svnversion = `svnversion -n`;
 $hostname = hostname( );
-$ratsversion = $Revision$ ;
-$wd = pwd( );
+$ratsversion = '$Revision$';
+$wd = getcwd;
+
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
+$timestamp = sprintf "%4d-%02d-%02d %02d:%02d:%02d",$year+1900,$mon+1,$mday,$hour,$min,$sec;
 
 #
 # Now we print some of this data for the user.
 #
 
+print "$timestamp\n";
 print "RATSrunner $ratsversion performing tests on ridgerunner $svnversion on $hostname.\n";
-print "This sequence of automated tests should take about 60 seconds to run. Testing will";
-print "be aborted after 5 minutes.";
+print "This sequence of automated tests should take about 5 minutes to run. Testing will\n";
+print "be aborted after 60 minutes.\n\n";
 
-print "The files for the runs will appear in $wd/ratsworking.";
+print "The files for the runs will appear in $wd/ratsworking.\n\n";
 
 #
 # Now we parse the input arguments.
@@ -121,283 +129,160 @@ GetOptions ( 'rrargs=s' => \$rrargs );
 chdir("./ratsworking") or die("Couldn't chdir to ./ratsworking");
 
 my @runs;
+my @terminatedbecause;
+my $before;
+my $after;
+my %results;
 
-$runs[1] = `ridgerunner ../../data/sticktrefoil.vect --NoPNGOutput --StopTime=5 --StopRes=0.01 $rrargs`;
-$runs[2] = `ridgerunner ../../data/
-$runs[3] = `ridgerunner ../../data/9.2.6.vect --NoPNGOutput --StopTime=10 --StopRes=0.01 $rrargs`;
+my @files = qw( ../data/sticktrefoil.vect ../../data/9.2.3.vect ../../data/3.1.vect ../../data/simple_clasp.vect ../../data/kl_10_18_dt.vect );
 
+$before = Benchmark->new;
 
-  print "Making script for ".scalar @runfiles." VECT files.\n";
+%results = &ridgerunner("../../data/sticktrefoil.vect","--NoPNGOutput --StopTime=5 --StopRes=0.01 $rrargs");
+print "sticktrefoil test completed in $results{steps} steps with final residual of $results{residual}.\n";
 
-  my $ridgerunner; 
-  $ridgerunner = `which ridgerunner`;
-  chomp($ridgerunner);
+%results = &ridgerunner("../../data/9.2.3.vect","--NoPNGOutput --StopTime=10 --StopRes=0.1 $rrargs");
+print "9.2.3 test completed in $results{steps} steps with final residual of $results{residual}.\n";
+
+%results = &ridgerunner("../../data/3.1.vect","--NoPNGOutput --StopTime=10 --StopRes=0.1 $rrargs");
+print "3.1 test completed in $results{steps} steps with final residual of $results{residual}.\n";
+
+%results = &ridgerunner("../../data/simple_clasp.vect","--NoPNGOutput --StopTime=10 --StopRes=0.1 $rrargs");
+print "simple clasp test completed in $results{steps} steps with final residual of $results{residual}.\n";
+
+%results = &ridgerunner("../../data/kl_10_18_dt.vect","--NoPNGOutput --StopTime=10 --StopRes=0.1 $rrargs");
+print "10_18 dt test completed in $results{steps} steps with final residual of $results{residul}.\n";
+
+$after = Benchmark->new;
+
+print "@runs";
+
+my $td;
+my $ts;
+$td = timediff($after, $before);
+$ts = timestr($td);
+
+print "The RATS benchmarks took: $ts \n";
+my $seconds;
+$ts =~ /(\d+) wallclock/;
+$seconds = $1;
+
+chdir("..") or die("Couldn't chdir to parent directory.");
+
+my $DBFILE = read_file('ratsDB.pl');
+my %ratsdata;
+eval($DBFILE);
+
+$ratsdata{$timestamp}{seconds} = $seconds;
+$ratsdata{$timestamp}{rrversion} = $svnversion;
+$ratsdata{$timestamp}{ratsversion} = $ratsversion;
+$ratsdata{$timestamp}{host} = $hostname;
+
+open(KNOTDB,'>ratsDB.pl') or die "Unable to create ratsDB file.";
+print KNOTDB Data::Dumper->Dump([\%ratsdata],['*ratsdata']),"\n";
+close KNOTDB;
+
+die();
+
+open(PROGRESS_COMPLETE,">./rats_report.txt");
+
+foreach (@files) {
+
+  $filename = $_;
+  $ropelen_before = &ropelength("./inputs/$filename");
+  $ropelen_after = &ropelength("./outputs/$filename");
+  $residual_before = &residual("./inputs/$filename");
+  $residual_after = &residual("./outputs/$filename");
   
-  my $wd;
-  $wd = `pwd`;
-  chomp($wd);
+  write(PROGRESS_COMPLETE);
   
-  
-  if ($gridstuffer) {
-
-    print "GRIDSTUFFER mode\n\n";
-
-    # open the GridStuffer script file. 
-    
-    $ridgerunner = "~/../..".$ridgerunner;
-
-    # we need to construct a relative path for ridgerunner in order to 
-    # ensure that this version of rr will be uploaded to all of the grid
-    # machines. 
-
-    open (GRIDSTUFFER, '>gridstuffer.txt');
-
-    print GRIDSTUFFER "-dirs $wd/inputs \n";
-    
-    foreach (@runfiles) { 
-
-	print GRIDSTUFFER "$ridgerunner $_ $rrargs \n";
-
-    }
-
-    close(GRIDSTUFFER);
-
-    print "Generated file gridstuffer.txt. Contents: \n\n";
-    print `cat gridstuffer.txt`;
-    print "\n\n";
-
-    print <<EndInstructions
-
-	The next step is for you to feed the file gridstuffer.txt to 
-        GridStuffer as a metajob. You should set the output directory
-	to $wd/working. 
-
-	You can collect the results with 
-
-	batchrunner --harvest --gridstuffer
-
-	which will move completed files to ./outputs and generate 
-        a report in progress_report.txt in this directory. You can 
-        run batchrunner --harvest --gridstuffer as many times as 
-        you like as long as you don't delete anything in ./working.
-
-EndInstructions
-
-  }
-
-  if ($local) {
-
-      my $hostname;
-
-      $hostname = `hostname`;
-      chomp($hostname);
-
-      print("LOCAL mode\n");
-
-      print "Copying input files to ./working.\n";
-
-      foreach (@runfiles) {
-	  
-	  copy($_,"./working/") or die("Couldn't copy $_ to ./working.");
-	  
-      }
-
-      chdir("./working");
-
-      my @workingfiles = <*.vect>;
-      
-      print("Generating a shell script to do runs on $hostname.\n");
-
-      open (LOCALSCRIPT,">start_runs.sh");
-
-      my $timestamp;
-      $timestamp = `date`;
-      chomp($timestamp);
-
-      print LOCALSCRIPT "echo Starting ".scalar @runfiles." ridgerunner runs.\n";
-      print LOCALSCRIPT "echo This script autogenerated by batchrunner at $timestamp.\n";
-
-      foreach (@workingfiles) {
-
-	  my $outputname;
-
-	  $outputname = $_;
-	  $outputname =~ s/vect/output/;
-
-      print LOCALSCRIPT "nohup nice -n 20  $ridgerunner $_ $rrargs 2>$outputname 1>$outputname ".' &'."\n";
-
-      }
-
-      close(LOCALSCRIPT);
-
-      chmod 0755, "start_runs.sh"; # corresponds to rwxr-xr-x
-
-      print "Running the shell script ./working/start_runs.sh.\n\n";
-
-      my $scriptresults = '';
-      $scriptresults = `./start_runs.sh`;
-
-      print "Output: \n\n$scriptresults\n";
-
-  } 
-
-  #
-  # Need to develop some scripts for the ACCRE qsub environment.
-  #
-
-  if ($accre) {
-
-      print "ACCRE/qsub environment not yet implemented.\n";
-      die();
-
-  }
-      
 }
 
-if ($reap) {
+close(PROGRESS_COMPLETE);
 
-    if ($gridstuffer) {
+open(BRP,"<./batchrunner_progress.txt");
+while (<BRP>) { print $_; }
+close(BRP);
 
-     print("Copying completed files to ./outputs...\n");
+die();
 
-     # We expect to find outputs in ./working/1/ ./working/2/ and so forth.
-     
-     my @gridstufferdirs = <./working/[0-9]*>;  # Ok, this is everything that starts with a number.
+# The point of the ridgerunner command is to allow the user to call ridgerunner in a way that automatically harvests the
+# data that you are most likely to want to know from the run (either by reading stdout or by looking at logfiles).
 
-     print "Found gridstuffer dirs: @gridstufferdirs\n";
+sub ridgerunner {  
+     my $filename = $_[0];
+     my $cmds = $_[1];
+     my $steps;
+     my $rop;
+     my $str;
+     my $mrstruts;
+     my $residual;
+     my $tailflag;
+     my @endbecause;
 
-     foreach (@gridstufferdirs) {
+     $tailflag = "false";
 
-      if (-d $_) {
+     open(RR,"ridgerunner $filename --Display=\"residual\" $cmds |") || die("Can't spawn a ridgerunner $filename --Display=\"residual\" $cmds");
 
-        my @rrdirs = <$_/*.rr/>;
-        my $thisdir;
+     while(<RR>) {
 
-        print("\tContains rr dirs: @rrdirs.\n");
+       if (/Rop: (\S+)/) { 
+       
+	 $rop = $1;
 
-        foreach $thisdir (@rrdirs) {
-
-           my $basename;
-
-           $thisdir =~ m/.+\/(.+)\.rr/;
-           $basename = $1;
-
-           print "Looking for $thisdir$basename.final.vect...\n";
-           if (-e "$thisdir$basename.final.vect") {
-
-              copy("$thisdir$basename.final.vect","./outputs/$basename.vect") or die("Couldn't copy $thisdir/$basename.final.vect to ./outputs/$basename.vect");
- 
-           }
-          
-         }  
- 
        }
 
-      }
+       if (/(\d+) Rop/) {
+
+	 $steps = $1;
+
+       }
+
+       if (/Residual: (\S+)/) {
+
+	 $residual = $1;
+
+       }
+
+       if (/Str: (\S+)/) {
+
+	 $str = $1;
+
+       }
+
+       if (/MRstruts: (\S+)/) {
+
+	 $mrstruts = $1;
+
+       }
      
-    }
+       if (/run complete/) {
 
-    if ($local) {  
+	 $tailflag = "true";
 
-      #
-      # We expect to find output files in the ./working subdirectory 
-      # The first step is to copy the files to ./outputs
-      #
+       }
 
-      my @rrdirs = <./working/*.rr>;
-      my @inputfiles  = <./inputs/*.vect>;
+       if ($tailflag eq "true") {
 
-      foreach (@rrdirs) { 
+	 push(@endbecause,$_);
 
-	my $basename;
+       }
 
-	$_ =~ m/\.\/working\/(.+)\.rr/g;
-	$basename = $1;
+     }
 
-	if (-e "$_/$basename.final.vect") {
+     my %rrhash;
 
-	  copy("$_/$basename.final.vect","./outputs/$basename.vect") or 
-	    die("Couldn't copy $basename.final.vect to ./outputs");
+     $rrhash{ropelength} = $rop;
+     $rrhash{steps} = $steps;
+     $rrhash{terminated} = "@endbecause";
+     $rrhash{struts} = $str;
+     $rrhash{mrstruts} = $mrstruts;
+     $rrhash{residual} = $residual;
 
-	}
+     %rrhash;
 
-      }
-
-    }
-
-    #
-    # In order to conserve coding effort, we assume that whatever our batch computing model
-    # we have now moved any outputs that we have into ./outputs and that filenames match from
-    # ./inputs to ./outputs. 
-    #
-    # We are going to recompute ropelengths and residuals as we prepare the output report. 
-    # This is a little slow, but it's easier to code than trying to pry that out of the 
-    # .rr directories in ./working.
-    #
-
-    my @inputfiles = <./inputs/*.vect>;
-    my @outputfiles = <./outputs/*.vect>;
-
-    #
-    # The first step is to match inputfiles and outputfiles to figure out what has completed.
-    #
-
-    my @completed;
-    my @incomplete;
-
-    foreach (@inputfiles) {
-
-      my $filename;
-      m/\.\/inputs\/(.+)/;
-      $filename = $1;
-
-      if ( grep { $_ eq "./outputs/$filename" } @outputfiles ) {
-
-	push(@completed,$filename);
-
-      } else {
-
-	push(@incomplete,$filename);
-
-      }
-         
-    }
-
-    print scalar @completed." of ".scalar @inputfiles." files completed.\n";
-    print "Preparing progress report (saved to batchrunner_progress.txt):\n";
-
-    open(PROGRESS_COMPLETE,">./batchrunner_progress.txt");
-
-    foreach (@completed) {
-
-      $filename = $_;
-      $ropelen_before = &ropelength("./inputs/$filename");
-      $ropelen_after = &ropelength("./outputs/$filename");
-      $residual_before = &residual("./inputs/$filename");
-      $residual_after = &residual("./outputs/$filename");
-
-      write(PROGRESS_COMPLETE);
-
-    }
-
-    close(PROGRESS_COMPLETE);
-
-    open(PROGRESS_INCOMPLETE,">>./batchrunner_progress.txt"); #append the new results
-
-    foreach (@incomplete) {
-
-      $filename = $_;
-      write(PROGRESS_INCOMPLETE);
-
-    }
-
-    close(PROGRESS_INCOMPLETE);
-
-    open(BRP,"<./batchrunner_progress.txt");
-    while (<BRP>) { print $_; }
-    close(BRP);
-
-}
+   }
+     
 
 sub ropelength { 
      my $filename;
