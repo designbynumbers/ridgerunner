@@ -33,7 +33,7 @@ src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAP
 
 # We include a copy of the knotplot distribution of loose knots for testing.
 
-data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
+dist_data_PKGDATA = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 	10.10.vect 10.100.vect 10.101.vect 10.102.vect 10.103.vect  \
 	10.104.vect 10.105.vect 10.106.vect 10.107.vect 10.108.vect  \
 	10.109.vect 10.11.vect 10.110.vect 10.111.vect 10.112.vect  \
@@ -108,7 +108,8 @@ data_DIST = 0.1.vect 0.2.1.vect 0.3.1.vect 0.4.1.vect 10.1.vect  \
 	9.33.vect 9.34.vect 9.35.vect 9.36.vect 9.37.vect  \
 	9.38.vect 9.39.vect 9.4.1.vect 9.4.vect 9.40.vect  \
 	9.41.vect 9.42.vect 9.43.vect 9.44.vect 9.45.vect  \
-	9.46.vect 9.47.vect 9.48.vect 9.49.vect 9.5.vect  
+	9.46.vect 9.47.vect 9.48.vect 9.49.vect 9.5.vect \
+	sticktrefoil.vect  
 
 #install various supporting PERL scripts in $(bindir)
 
