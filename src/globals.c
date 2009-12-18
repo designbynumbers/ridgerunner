@@ -14,6 +14,7 @@ int gLsqrLogging = 1;
 int gNoTimeWarp = 1;  /* By Default, we turn timewarp OFF */
 int gEqIt = 0; /* By default, we never equilateralize */
 int gAnimationStepper = 0; /* By default, we use the steepest descent stepper. */
+int gConjugateGradient = 0;
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 

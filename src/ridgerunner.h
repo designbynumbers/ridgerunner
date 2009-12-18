@@ -54,6 +54,7 @@ extern int gLsqrLogging; /* Used to enable lsqr output logging. */
 extern int gNoTimeWarp; /* If true, turns off "timewarp" acceleration of free vertices */
 extern int gEqIt; /* If true, runs the equilaterization code every time max/min > 3. */
 extern int gAnimationStepper;
+extern int gConjugateGradient;
 
 #ifdef CURSES_DISPLAY
 
@@ -160,6 +161,8 @@ typedef struct
   /* Geometric data about the current state of the link. */
 
   plc_vector *newDir;    // The computed step direction for the current link.
+  plc_vector *lastGrad;  // The (constrained) gradient descent direction at the last step
+
   double  minrad;	 // Rawdon's minimum radius of curvature
   double  ropelength;	 // the ropelength of the link
   double  length;	 // the polygonal length of the link

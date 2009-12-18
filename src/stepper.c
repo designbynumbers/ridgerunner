@@ -1817,13 +1817,13 @@ double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, do
 
   }
 
-  if (!gNoTimeWarp) {
+  //if (!gNoTimeWarp) {
 
-    score += 2*(9*strut_free_length(workerLink,inState));
+  //  score += 2*(9*strut_free_length(workerLink,inState));
     /* The portion of the curve which is strut free is weighted 10x more heavily. 
        We've already counted it once. But we need to add the extra weight. */
 
-  }
+  //}
 
   plc_free(workerLink);
 
@@ -1977,16 +1977,16 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
      stepDir if we succeed. We do not return if we fail. */
 
   plCurve *workerLink;
-  plc_vector *newDir = NULL;
+  plc_vector *newGrad = NULL;
   double StepSize;
 
-  for(StepSize = 2*InitialStepSize;newDir==NULL;) {
+  for(StepSize = 2*InitialStepSize;newGrad==NULL;) {
 
     StepSize /= 2.0;  /* We change StepSize here so that it's correct when we exit the loop */
 
     workerLink = plc_copy(inLink);
     step(workerLink, StepSize, dVdt);
-    newDir = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
+    newGrad = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
     
     if (StepSize < 1e-9) { 
 
@@ -2039,16 +2039,53 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
   // grab average dvdt now that we have finished mungering it
   inState->avgDvdtMag=0;
   for( dvdtItr=0; dvdtItr<inState->totalVerts; dvdtItr++ ) {
-
     inState->avgDvdtMag += plc_M_norm(dVdt[dvdtItr]);
-  
   }
   inState->avgDvdtMag /= inState->totalVerts;
 
-  /* Now it's safe to destroy dVdt. */
+  if (gConjugateGradient) {
 
-  free(inState->newDir);
-  inState->newDir = newDir;
+    /* We now update the conjugate gradient direction. 
+       
+       We have the last (h) step direction (inState->newDir), the last gradient (inState->lastGrad),
+       and the current negative gradient (newGrad). We try to assemble these into the new search direction
+       using the Polack-Ribiere formula:
+       
+       h = newGrad - (lastGrad - newgrad).(newgrad)/(lastGrad.lastGrad) newDir;
+       
+    */
+    
+    plc_vector *newDir;
+    newDir = calloc(inState->totalVerts,sizeof(plc_vector));
+    
+    double num,denom;
+    int dotItr;
+    
+    for(num=0,denom=0,dotItr = 0;dotItr < inState->totalVerts;dotItr++) {
+      
+      num += (plc_dot_prod(plc_vect_diff(inState->lastGrad[dotItr],newGrad[dotItr]),newGrad[dotItr]));
+      denom += plc_dot_prod(inState->lastGrad[dotItr],inState->lastGrad[dotItr]);
+      
+    }
+    
+    for(dotItr=0;dotItr<inState->totalVerts;dotItr++) {
+      
+      newDir[dotItr] = plc_vlincomb(1,newGrad[dotItr],-num/denom,inState->newDir[dotItr]);
+      
+    }
+    
+    free(inState->newDir);
+    inState->newDir = newDir;
+
+    free(inState->lastGrad);
+    inState->lastGrad = newGrad;
+    
+  } else { /* Use ordinary gradient descent */
+
+    free(inState->newDir);
+    inState->newDir = newGrad;
+
+  }
 
   inState->last_step_attempts = 0; /* This is no longer recorded, as it doesn't really make sense. */
   inState->minrad = newmr;
@@ -2111,6 +2148,7 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 {
   double best_step,best_score;
   plc_vector *dVdt;
+  int itr;
 
   if (inState->newDir != NULL) {  /* We may have cached a step direction. If we did, use it! */
     dVdt = inState->newDir;
@@ -2131,6 +2169,15 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
       FatalError(errMsg, __FILE__, __LINE__ );
 
     }
+
+    /* We are starting (or restarting) the cached-direction process. We reset the CG apparatus as well,
+       copying both initial directions to the negative gradient. */
+
+    inState->newDir = calloc(inState->totalVerts,sizeof(plc_vector));
+    if (inState->lastGrad != NULL) {free(inState->lastGrad);}
+    inState->lastGrad = calloc(inState->totalVerts,sizeof(plc_vector));
+
+    for(itr=0;itr < inState->totalVerts;itr++) { inState->lastGrad[itr] = dVdt[itr]; inState->newDir[itr] = dVdt[itr];}
 
   }
 
@@ -2169,6 +2216,9 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 	for(i=0,nv=plc_num_verts(inLink);i<nv;i++) { dVdt[i] = dLen[i]; }
 	best_step = best_dLen_step;
 	best_score = best_dLen_score;
+
+	free(dVdt);
+	dVdt = dLen; // We need to reset the direction, because we're actually going to take a dLen step here.
 	
 	logprintf("(dLen step)");
 	
@@ -2176,17 +2226,26 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 	
 	best_step = 1e-6; 
 	best_score = stepScore(inLink, inState, dVdt, 1e-6);
+
+	free(dLen); // We're not actually going to use dLen, so we should kill it.
 	
       }
 
-      free(dLen);
-
     }
 
-  }  else { /* Normal step was of an ok size. */
+  } else { /* Normal step was of an ok size. We check to make sure that it's not too big. */
 
-    best_step = best_dVdt_step;
-    best_score = best_dVdt_score;
+    if (best_dVdt_step > 1e-2) { 
+
+      best_step = 1e-2;
+      best_score = stepScore(inLink,inState,dVdt,1e-2);
+
+    } else {
+
+      best_step = best_dVdt_step;
+      best_score = best_dVdt_score;
+
+    }
 
   }
   

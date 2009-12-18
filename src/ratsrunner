@@ -126,6 +126,8 @@ GetOptions ( 'rrargs=s' => \$rrargs );
 # And we're now ready to start the actual RATS runs.
 #  
 
+print "Using ridgerunner arguments $rrargs.\n";
+
 chdir("./ratsworking") or die("Couldn't chdir to ./ratsworking");
 
 my @runs;
@@ -151,7 +153,7 @@ print "3.1 test completed in $results{steps} steps with final residual of $resul
 print "simple clasp test completed in $results{steps} steps with final residual of $results{residual}.\n";
 
 %results = &ridgerunner("../../data/kl_10_18_dt.vect","--NoPNGOutput --StopTime=10 --StopRes=0.1 $rrargs");
-print "10_18 dt test completed in $results{steps} steps with final residual of $results{residul}.\n";
+print "10_18 dt test completed in $results{steps} steps with final residual of $results{residual}.\n";
 
 $after = Benchmark->new;
 
