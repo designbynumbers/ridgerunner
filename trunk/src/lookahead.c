@@ -28,6 +28,7 @@ struct arg_lit  *arg_logsampling;
 struct arg_dbl  *arg_lambda;
 struct arg_dbl  *target_thickness; 
 struct arg_lit  *arg_dumpAxb;
+struct arg_lit  *arg_timewarp;
 
 struct arg_lit  *verbose;
 struct arg_file *arg_infile;
@@ -83,6 +84,7 @@ int main(int argc,char *argv[])
      arg_lambda = arg_dbl0("l","lambda","<double>",
 			   "minimum radius of curvature for unit rope"),
 
+     arg_timewarp = arg_lit0(NULL,"Timewarp","turn on timewarp to accelerate convergence of strut-free sections of tube"),
      arg_dumpAxb = arg_lit0(NULL,"dumpAxb","dump the rigidity matrix, right-hand side, and solution"),
      verbose = arg_lit0("v","verbose","print debugging information"),
      arg_infile  = arg_filen(NULL,NULL,"<file>",1,100000,"input files"),
@@ -134,7 +136,8 @@ int main(int argc,char *argv[])
     
   }
 
-  gNoTimeWarp = true;
+  if (arg_timewarp->count > 0) { gNoTimeWarp = false; } else { gNoTimeWarp = true; }
+
   QUIET = quiet->count > 0; /* Register if we're in batch mode */
 
   if (arg_scale->count > 0) { scale = arg_scale->dval[0]; }
@@ -522,8 +525,8 @@ int main(int argc,char *argv[])
 
     for(i=0;i<samps;i++) {
 
-      scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - state.ropelength;
-      dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - state.ropelength;
+      scores[i] = stepScore(link,&state,stepDir,sample_x[i]) - stepScore(link,&state,stepDir,0);
+      dlscores[i] = stepScore(link,&state,dLen,sample_x[i]) - stepScore(link,&state,dLen,0);
       prescores[i] = predict_deltarop(link,stepDir,sample_x[i],tube_radius,gLambda);
       predlscores[i] = predict_deltarop(link,dLen,sample_x[i],tube_radius,gLambda);
 
@@ -605,10 +608,10 @@ int main(int argc,char *argv[])
       for(i=0,x=a;i<samps;i++,x+=(b-a)/(samps-1),dItr++) {
 
 	data[dItr].x = x;
-	data[dItr].y = stepScore(link,&state,stepDir,x) - state.ropelength;
+	data[dItr].y = stepScore(link,&state,stepDir,x) - stepScore(link,&state,stepDir,0);
 
 	dldata[dItr].x = x;
-	dldata[dItr].y = stepScore(link,&state,dLen,x) - state.ropelength;
+	dldata[dItr].y = stepScore(link,&state,dLen,x) - stepScore(link,&state,dLen,0);
 
 	predata[dItr].x = x;
 	predata[dItr].y = predict_deltarop(link,stepDir,x,tube_radius,gLambda);

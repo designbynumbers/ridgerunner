@@ -44,6 +44,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_timewarp = arg_lit0(NULL,"Timewarp","accelerate shrinking of strut-free sections of curve");
 
+  struct arg_lit  *arg_cg = arg_lit0(NULL,"ConjugateGradient","turn on conjugate gradient mode (experimental)");
+
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
@@ -145,7 +147,7 @@ main( int argc, char* argv[] )
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
-		      arg_animation, arg_timewarp,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
+		      arg_animation, arg_timewarp,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_snapinterval,
 		      arg_rcond,
@@ -256,6 +258,8 @@ main( int argc, char* argv[] )
 
   if (arg_rcond->count > 0) { gNoRcond = 0; } else {gNoRcond = 1;}
 
+  if (arg_cg->count > 0) {gConjugateGradient = 1;} else {gConjugateGradient = 0;}
+
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
 
   if (arg_suppressfiles->count > 0) { gSuppressOutput = 1; }
@@ -339,6 +343,7 @@ main( int argc, char* argv[] )
   }
 
   state.newDir = NULL;
+  state.lastGrad = NULL;
   state.correctionStepDefault = correctionStepSize;
   state.movie = movie;
   state.moviefactor = 1.0;
