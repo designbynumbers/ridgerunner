@@ -5,7 +5,7 @@
                                          'rrversion' => '294:295M',
                                          'host' => 'jason.math.uga.edu'
                                        },
-              '2009-12-18 14:11:38' => {
+              '2009-12-18 14:10:46' => {
                                          'seconds' => '3',
                                          'ratsversion' => '$Revision$',
                                          'rrversion' => '294:295M',
@@ -17,7 +17,7 @@
                                          'rrversion' => '294:295',
                                          'host' => 'jason.math.uga.edu'
                                        },
-              '2009-12-18 14:10:46' => {
+              '2009-12-18 14:11:38' => {
                                          'seconds' => '3',
                                          'ratsversion' => '$Revision$',
                                          'rrversion' => '294:295M',
@@ -31,6 +31,12 @@
                                        },
               '2009-12-18 14:12:57' => {
                                          'seconds' => '3',
+                                         'ratsversion' => '$Revision$',
+                                         'rrversion' => '294:295M',
+                                         'host' => 'jason.math.uga.edu'
+                                       },
+              '2009-12-18 15:58:56' => {
+                                         'seconds' => '650',
                                          'ratsversion' => '$Revision$',
                                          'rrversion' => '294:295M',
                                          'host' => 'jason.math.uga.edu'
