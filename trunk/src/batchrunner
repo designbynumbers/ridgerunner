@@ -162,7 +162,24 @@ if ($sow) {
 
   }
 
-  my @runfiles = <./inputs/*.vect>;
+  my @inputfiles = <./inputs/*.vect>;
+  my @donefiles = <./outputs/*.vect>;
+  my @runfiles;
+
+  #
+  #  We now need to take the runfiles and subtract the donefiles.
+  #
+
+  foreach (@inputfiles) {
+
+    my $donename;
+
+    /.\/inputs\/(.+)/;
+    $donename = "./outputs/$1";
+
+    unless (grep /$donename/, @donefiles) { push @runfiles,$_; }
+
+  }
 
   unless (-d "./working") {
 
