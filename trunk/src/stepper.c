@@ -2073,6 +2073,11 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
       newDir[dotItr] = plc_vlincomb(1,newGrad[dotItr],-num/denom,inState->newDir[dotItr]);
       
     }
+
+    /* Now here's a serious question: should we resolve newDir against the struts? */
+    /* In principle, if the strut set is stable, we don't need to. However, if the strut set is unstable, 
+       this might make a real difference. The question is nontrivial because it essentially doubles the 
+       step time (we've already made a linear algebra call when we got newGrad. */
     
     free(inState->newDir);
     inState->newDir = newDir;
@@ -2217,9 +2222,6 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 	best_step = best_dLen_step;
 	best_score = best_dLen_score;
 
-	free(dVdt);
-	dVdt = dLen; // We need to reset the direction, because we're actually going to take a dLen step here.
-	
 	logprintf("(dLen step)");
 	
       } else {
@@ -2227,9 +2229,9 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 	best_step = 1e-6; 
 	best_score = stepScore(inLink, inState, dVdt, 1e-6);
 
-	free(dLen); // We're not actually going to use dLen, so we should kill it.
-	
       }
+
+      free(dLen);
 
     }
 
