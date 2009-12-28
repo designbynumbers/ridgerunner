@@ -46,6 +46,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_cg = arg_lit0(NULL,"ConjugateGradient","turn on conjugate gradient mode (experimental)");
 
+  struct arg_dbl  *arg_minstep = arg_dbl0(NULL,"MinStep","<double>","minimum size for step");
+
   /*  struct arg_dbl  *arg_resolution = arg_dbl0("r","res","<verts/rop>",
       "spline curve to this resolution"); */
 
@@ -127,6 +129,8 @@ main( int argc, char* argv[] )
   struct arg_int  *arg_maxcorr = arg_int0(NULL,"MaxCorrectionAttempts","<n>",
 					  "maximum # of Newton steps in error correction");
 
+  struct arg_lit  *arg_trynewton = arg_lit0(NULL,"TryNewtonCorrection","always attempt to correct with Newton steps");
+
   struct arg_int  *arg_snapinterval = arg_int0(NULL,"SnapshotInterval","<n>",
 					       "save a complete snapshot "
 					       "of computation every <n> steps");
@@ -149,7 +153,7 @@ main( int argc, char* argv[] )
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_animation, arg_timewarp,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
-		      arg_maxstep,arg_snapinterval,
+		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
 		      arg_rcond,
 
 		      arg_bl8,arg_dispopts,arg_bl9,
@@ -182,7 +186,7 @@ main( int argc, char* argv[] )
   double        stop20 = -1000;        /* For this to fail, ropelength would have to climb! */
   double        eqMult = 0.0;
 
-  double	maxStep = -1;
+  double	maxStep = -1,minStep = 1e-6;
   long		maxItrs = 10000000;
   double	correctionStepSize = 0.25;
   double	minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
@@ -251,6 +255,8 @@ main( int argc, char* argv[] )
 
   if (arg_maxstep->count > 0) { maxStep = arg_maxstep->dval[0]; }
 
+  if (arg_minstep->count > 0) { minStep = arg_minstep->dval[0]; }
+
   /* Note: there used to be a way to turn on "gSurfaceBuilding" 
      and "gVerboseFiling" */
 
@@ -261,6 +267,8 @@ main( int argc, char* argv[] )
   if (arg_cg->count > 0) {gConjugateGradient = 1;} else {gConjugateGradient = 0;}
 
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
+
+  if (arg_trynewton->count > 0) {gTryNewton = 1;} 
 
   if (arg_suppressfiles->count > 0) { gSuppressOutput = 1; }
 
@@ -532,6 +540,7 @@ main( int argc, char* argv[] )
   /* Now complete state initializations which depend on the curve. */
 
   state.maxStepSize = 100; // 0.1*plCurve_short_edge(link); /* We are experimenting with large steps. */
+  state.minStep = minStep;
   state.minrad = octrope_minradval(link);
   state.totalVerts = plc_num_verts(link);
   state.stepSize = 0.01;

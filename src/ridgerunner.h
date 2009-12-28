@@ -55,6 +55,7 @@ extern int gNoTimeWarp; /* If true, turns off "timewarp" acceleration of free ve
 extern int gEqIt; /* If true, runs the equilaterization code every time max/min > 3. */
 extern int gAnimationStepper;
 extern int gConjugateGradient;
+extern int gTryNewton; /* Try the Newton stepper first -- good for trouble cases */
 
 #ifdef CURSES_DISPLAY
 
@@ -171,6 +172,7 @@ typedef struct
   double  score;         // the current score of the link
 
   double  factor;	 // curvature scaling factor
+  double  minStep;       // current minimum stepsize
 
   /* Data about the current run. */
 
