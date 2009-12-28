@@ -1752,7 +1752,7 @@ plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,tube_radius); }  // This feature tries to straighten free sections faster
+  if (!gNoTimeWarp) { if (inState->steps % 3) { accelerate_free_vertices(dLen,inLink,tube_radius); } }  // This feature tries to straighten free sections faster
   eqForce(dLen,inLink,eqMultiplier,inState);
   specialForce(dLen,inLink,inState);
   constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
@@ -2074,10 +2074,10 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
       
     }
 
-    /* Now here's a serious question: should we resolve newDir against the struts? */
+    /* Now here's a serious question: should we resolve newDir against the struts? In practice, it's a disaster. */
     /* In principle, if the strut set is stable, we don't need to. However, if the strut set is unstable, 
        this might make a real difference. The question is nontrivial because it essentially doubles the 
-       step time (we've already made a linear algebra call when we got newGrad. */
+       step time (we've already made a linear algebra call when we got newGrad). */
     
     free(inState->newDir);
     inState->newDir = newDir;

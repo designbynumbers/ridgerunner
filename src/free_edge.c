@@ -136,7 +136,7 @@ void highlight_curve(plCurve *L, search_state *state)
      
   
 void accelerate_free_vertices( plc_vector *dLen, plCurve *L, double tube_radius)
-/* Scales up the dLen force on vertices that are not close to any vertex with a strut. */
+/* Just step the free vertices. */
 {
 
   int nStrutFree;
@@ -151,7 +151,7 @@ void accelerate_free_vertices( plc_vector *dLen, plCurve *L, double tube_radius)
 
     for(vt=0;vt<L->cp[cp].nv;vt++,i++) {
 
-      if (freeFlag[i]) { dLen[i] = plc_scale_vect(10,dLen[i]); }
+      if (!freeFlag[i]) { dLen[i] = plc_build_vect(0,0,0); }
 
     }
 
