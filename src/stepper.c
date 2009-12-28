@@ -1752,7 +1752,7 @@ plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier
   fatalifnull_(dLen);
     
   dlenForce(dLen,inLink,inState);
-  if (!gNoTimeWarp) { if (inState->steps % 3) { accelerate_free_vertices(dLen,inLink,tube_radius); } }  // This feature tries to straighten free sections faster
+  if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,tube_radius); }  // This feature tries to straighten free sections faster
   eqForce(dLen,inLink,eqMultiplier,inState);
   specialForce(dLen,inLink,inState);
   constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.

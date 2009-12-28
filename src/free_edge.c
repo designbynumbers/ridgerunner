@@ -136,7 +136,7 @@ void highlight_curve(plCurve *L, search_state *state)
      
   
 void accelerate_free_vertices( plc_vector *dLen, plCurve *L, double tube_radius)
-/* Just step the free vertices. */
+/* Make the free vertices "faster" than the other verts. */
 {
 
   int nStrutFree;
@@ -151,7 +151,7 @@ void accelerate_free_vertices( plc_vector *dLen, plCurve *L, double tube_radius)
 
     for(vt=0;vt<L->cp[cp].nv;vt++,i++) {
 
-      if (!freeFlag[i]) { dLen[i] = plc_build_vect(0,0,0); }
+      if (freeFlag[i]) { dLen[i] = plc_scale_vect(5,dLen[i]); }
 
     }
 
