@@ -231,10 +231,15 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
 	}
 
-      } else { 
-
+      } else {        	  
 	if (inState->oktoscale) { 
-	  plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda)); 
+	  if (gTryNewton) {
+	    if (!correct_thickness(*inLink,inState)) {
+	      plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	    }
+	  } else {
+	    plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	  }	    
 	} else { 
 	  if (!correct_thickness(*inLink,inState)) { 
 	    NonFatalError("Newton error correction failed. Will try to continue run anyway.\n",__FILE__,__LINE__);
@@ -2191,12 +2196,12 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   /* Now we are going to loop to figure out the best step in the current direction. */
  
-  if (best_dVdt_step < 1e-6) { 
+  if (best_dVdt_step < inState->minStep) { 
 
-    if (inState->residual > 0.05) { /* We only try alternate step directions if residual is low */
+    if (inState->residual > 1) { /* We only try alternate step directions if residual is low */
 
-      best_step = 1e-6;
-      best_score = stepScore(inLink, inState, dVdt, 1e-6);
+      best_step = inState->minStep;
+      best_score = stepScore(inLink, inState, dVdt, inState->minStep);
 
     } else {
 
@@ -2208,10 +2213,10 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
       double best_dLen_score,best_dLen_step;
       best_dLen_score = brentSearch(inLink,inState,dLen,&best_dLen_step);
       
-      if (best_dLen_step < 1e-6) {
+      if (best_dLen_step < inState->minStep) {
 	
-	best_dLen_step = 1e-6;
-	best_dLen_score = stepScore(inLink,inState,dLen,1e-6);
+	best_dLen_step = inState->minStep;
+	best_dLen_score = stepScore(inLink,inState,dLen,inState->minStep);
 	
       }
       
@@ -2226,8 +2231,8 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 	
       } else {
 	
-	best_step = 1e-6; 
-	best_score = stepScore(inLink, inState, dVdt, 1e-6);
+	best_step = inState->minStep; 
+	best_score = stepScore(inLink, inState, dVdt, inState->minStep);
 
       }
 
