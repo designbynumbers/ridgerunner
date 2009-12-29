@@ -131,6 +131,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_trynewton = arg_lit0(NULL,"TryNewtonCorrection","always attempt to correct with Newton steps");
 
+  struct arg_lit  *arg_sono = arg_lit0(NULL,"SONO","emulate Pieranski's SONO");
+
   struct arg_int  *arg_snapinterval = arg_int0(NULL,"SnapshotInterval","<n>",
 					       "save a complete snapshot "
 					       "of computation every <n> steps");
@@ -154,7 +156,7 @@ main( int argc, char* argv[] )
 		      arg_animation, arg_timewarp,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
-		      arg_rcond,
+		      arg_sono, arg_rcond,
 
 		      arg_bl8,arg_dispopts,arg_bl9,
 		      arg_display,

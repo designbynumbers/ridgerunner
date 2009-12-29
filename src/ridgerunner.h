@@ -56,6 +56,7 @@ extern int gEqIt; /* If true, runs the equilaterization code every time max/min 
 extern int gAnimationStepper;
 extern int gConjugateGradient;
 extern int gTryNewton; /* Try the Newton stepper first -- good for trouble cases */
+extern int gSONO; /* Always do a dlen step */
 
 #ifdef CURSES_DISPLAY
 
