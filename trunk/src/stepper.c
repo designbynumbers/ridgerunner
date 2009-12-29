@@ -1776,11 +1776,14 @@ plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultipl
   plc_vector  *dVdt;
   plc_vector  *dLen; 
   
-  dLen = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
-  dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
+  if (!gSONO) {
+    dLen = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
+    dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
+    free(dLen);
+  } else {
+    dVdt = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
+  }
   
-  free(dLen);
-
   return dVdt;
 }
 
