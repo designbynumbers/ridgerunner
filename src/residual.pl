@@ -9,6 +9,8 @@ use strict;
 use File::Temp;
 use File::Copy;
 use File::Slurp qw( slurp ) ;
+use File::Spec;
+
 use warnings;
 
 my @files;
@@ -59,14 +61,7 @@ unless (-e $files[0]) {
 
 }
 
-my $fname;
-
-if ($files[0] =~ m/\/.+\/(.+)/) { # Match out the base filename (if a path is given)
-    $fname = $1;
-} else { # assume that the whole thing is the filename
-    $fname = $files[0];
-}
-
+my ($volume,$directories,$fname) = File::Spec->splitpath( $files[0] );
 
 copy($files[0],$tempdir."/".$fname) or die("residual: Could not copy $files[0] to $tempdir/$fname");
 chdir($tempdir) or die("residual: Could not chdir to $tempdir.\n");
