@@ -309,6 +309,8 @@ main( int argc, char* argv[] )
   
   if (arg_eqit->count > 0) { gEqIt = 1; }
 
+  if (arg_sono->count > 0) { gSONO = 1; }
+
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
 

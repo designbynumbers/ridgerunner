@@ -84,6 +84,8 @@ my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or die("Could
 $resfile =~ /1 (.+)/g;
 my $resnumber = $1;
 
+unless (defined $resnumber) { $resnumber = 1.0; }
+
 print "Residual: $resnumber\n";
 
 
