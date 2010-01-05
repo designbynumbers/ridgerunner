@@ -79,12 +79,17 @@ my @rroutput;
 $rrdir = $fname;
 $rrdir =~ s/vect/rr/; # replace extension
 
-my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or die("Couldn't slurp $tempdir/$rrdir/logfiles/residual.dat");
+my $resnumber;
 
-$resfile =~ /1 (.+)/g;
-my $resnumber = $1;
+my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or $resnumber = 1.0;
 
-unless (defined $resnumber) { $resnumber = 1.0; }
+if (defined $resfile) {
+
+  $resfile =~ /1 (.+)/g;
+  $resnumber = $1;
+  unless (defined $resnumber) { $resnumber = 1.0; }
+
+}
 
 print "Residual: $resnumber\n";
 
