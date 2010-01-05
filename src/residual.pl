@@ -88,6 +88,7 @@ unless (defined $resnumber) { $resnumber = 1.0; }
 
 print "Residual: $resnumber\n";
 
+`rm -fr $tempdir`;
 
 
 
