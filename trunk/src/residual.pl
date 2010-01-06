@@ -8,7 +8,6 @@
 use strict;
 use File::Temp;
 use File::Copy;
-use File::Slurp qw( slurp ) ;
 use File::Spec;
 
 use warnings;
@@ -81,7 +80,9 @@ $rrdir =~ s/vect/rr/; # replace extension
 
 my $resnumber;
 
-my $resfile = slurp ($tempdir."/".$rrdir."/logfiles/residual.dat") or $resnumber = 1.0;
+open RFILE, "<$tempdir/$rrdir/logfiles/residual.dat" or $resnumber = 1.0;
+my $resfile = <RFILE>;
+close RFILE;
 
 if (defined $resfile) {
 

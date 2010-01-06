@@ -138,6 +138,8 @@ print <<EndUsage
  
 EndUsage
 
+die;
+
 }
 
 if ($sow && $reap) { die("batchrunner: Can't sow and reap on the same run.\n"); }
