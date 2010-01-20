@@ -17,8 +17,8 @@ my @rrargs;
 
 if (scalar @ARGV == 0) {
 
-    print "Rcond computes the reciprocal condition number the rigidity matrix of a VECT file.\n";
-    print "Usage: residual.pl <file.vect> <--lambda=(stiffness) > \n\n";
+    print "Rcond computes the reciprocal condition number of the rigidity matrix of a VECT file.\n";
+    print "Usage: rcond <file.vect> <--lambda=(stiffness) > \n\n";
     print "Note: Any valid ridgerunner argument may be added to the rcond\n";
     print "      command line (though most will have no visible effect).\n";
     die();
