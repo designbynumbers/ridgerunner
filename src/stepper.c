@@ -2002,9 +2002,10 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
     step(workerLink, StepSize, dVdt);
     newGrad = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
     
-    if (StepSize < 1e-9) { 
+    if (StepSize < 1e-7*inState->maxStepSize) { 
 
-      /* We couldn't get the linear algebra to work at any step size. */
+      /* We couldn't get the linear algebra to work at any step size (note that we scale this relative
+         to the maximum allowed step size). */
 
       char errmsg[1024],dumpname[1024];
 
@@ -2251,10 +2252,10 @@ steepest_descent_step( plCurve *inLink, search_state *inState)
 
   } else { /* Normal step was of an ok size. We check to make sure that it's not too big. */
 
-    if (best_dVdt_step > 1e-2) { 
+    if (best_dVdt_step > inState->maxStepSize) { 
 
-      best_step = 1e-2;
-      best_score = stepScore(inLink,inState,dVdt,1e-2);
+      best_step = inState->maxStepSize;
+      best_score = stepScore(inLink,inState,dVdt,inState->maxStepSize);
 
     } else {
 
