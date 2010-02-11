@@ -58,9 +58,9 @@ double  shortest,max_curv,min_curv,curv_length;
 
 /* These are the main colors for the plot. */
 
-const plc_color checkercolors[2] = {
+plc_color checkercolors[2] = {
 
-   {0.9647,0.9098,0.7647},  //cream 
+   {1.02 * 0.9647,1.02 * 0.9098,1.02  * 0.7647},  //cream 
    // {0.78039,0.9176,0.8980}, //ltgreenblue 
    {0.6784,0.8,0.79215} // ltblue
   //{1.0,1.0,179.0/255.0,1.0},	                /* Cream */
@@ -68,7 +68,14 @@ const plc_color checkercolors[2] = {
     
   };
 
-const plc_color strutcolors[5] = 
+plc_color sciencechecker[2] = {
+
+  {79.0/255.0,83.0/255.0,105.0/255.0},
+  {86.0/255.0,89.0/255.0,99.0/255.0}
+
+};
+
+plc_color strutcolors[5] = 
     
   /* These are from ColorBrewer 7 class sequentil YlGn (last 4 classes) */
     {
@@ -79,6 +86,8 @@ const plc_color strutcolors[5] =
       {0/255.0,90/255.0,50/255.0,1.0} 
 
     };
+
+const plc_color sciencestrutcolor = {216.0/255.0,222.0/255.0,45.0/255.0};
 
 const plc_color compressioncolor = {12.0/255,44.0/255,132.0/255,1.0};
 
@@ -482,7 +491,7 @@ void create_st_plot(plCurve *L,
 
   }
   
-  boxwidth = tot_length/(double)(NBOXES);
+  boxwidth = tot_length/(double)(NBOXES); // Changing to 1/100 from (double)(NBOXES)
   avg_edgelength = tot_length/(double)(plc_num_edges(L));
   
 
@@ -986,8 +995,10 @@ void create_st_plot(plCurve *L,
     }
     fprintf(outfile,
 	    "gsave "
-	    "0.85 setgray "
-	    "%g  setlinewidth \n",0.75/plotscale);
+	    "%g %g %g setrgbcolor "
+	    "%g  setlinewidth \n",
+	    0.8*checkercolors[0].r,0.8*checkercolors[0].g,0.8*checkercolors[0].b,
+	    0.75/plotscale);
     
     for(i=1;i<NTICKS;i++) {
       
@@ -1016,9 +1027,11 @@ void create_st_plot(plCurve *L,
       for(i=1;i<NTICKS;i++) {
 	
 	fprintf(outfile,
-		"0.8  setgray newpath %g 0  moveto 0 %g rlineto stroke\n"
-		"0.85 setgray newpath %g %g moveto 0 %g rlineto stroke\n",
+		"%g %g %g  setrgbcolor newpath %g 0  moveto 0 %g rlineto stroke\n"
+		"%g %g %g setrgbcolor newpath %g %g moveto 0 %g rlineto stroke\n",
+		0.8*checkercolors[0].r,0.8*checkercolors[0].g,0.8*checkercolors[0].b,		
 		i*tickplotstep,-0.5*tickplotstep,
+		0.8*checkercolors[0].r,0.8*checkercolors[0].g,0.8*checkercolors[0].b,
 		i*tickplotstep,-0.5*tickplotstep,-2*tickplotstep);
 	
       }
@@ -1529,6 +1542,7 @@ int main(int argc,char *argv[]) {
   struct arg_dbl  *epsilon     = arg_dbl0("e","epsilon","<x>","find struts within this tolerance of minimum length");
   struct arg_dbl  *tube_radius = arg_dbl0("r","radius","<x>","plot all struts with length < x");
   struct arg_dbl  *arg_lambda = arg_dbl0("l","lambda","<x>","set stiffness lambda");
+  struct arg_lit  *sciencecolors = arg_lit0(NULL,"sciencecolors","use different color scheme");
 
   struct arg_lit  *help        = arg_lit0("h","help","display help message");
   
@@ -1566,7 +1580,7 @@ int main(int argc,char *argv[]) {
   void *argtable[] = {help, epsilon, tube_radius, arg_lambda,levels, debuglevel, 
 		      nokinks, nogrid, noss,
                       nokappaplot, ticks, plotwidth, maxstruts, outfile,
-                      infile, strutfile, combineplots, nokey, compressions,
+                      infile, strutfile, combineplots, nokey, compressions, sciencecolors,
                       strutsize, slo, shi, tlo, thi, nobg, nodsc, whole,
                       epsplot, pscomments, dataincomments,end}; 
   
@@ -1715,11 +1729,21 @@ int main(int argc,char *argv[]) {
 
     BOXMULT = *(strutsize->dval);
 
-  }
+  } 
 
   if (dataincomments->count > 0) {
 
     DATA_IN_COMMENTS = 1;
+
+  }
+
+  if (sciencecolors->count > 0) {
+
+    checkercolors[0] = sciencechecker[0];
+    checkercolors[1] = sciencechecker[1];
+    
+    int i;
+    for(i=0;i<5;i++) {strutcolors[i] = sciencestrutcolor;}
 
   }
 
@@ -2053,6 +2077,8 @@ int main(int argc,char *argv[]) {
       }
 
     }
+
+    BOXMULT *= (double)(plc_num_edges(L))/250.0;
 
     /* We now have a list of struts and an output file. Go ahead and plot. */
       

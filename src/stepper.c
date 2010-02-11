@@ -1082,16 +1082,22 @@ void correct_constraints(plCurve *inLink,search_state *inState)
   
   /* Now we come up with new buffers for the strutSet and mrLocSet and copy over */
   
-  assert(inState->lastStepStruts != NULL && inState->lastStepMRlist != NULL);
-   
-  free(inState->lastStepStruts);
-  free(inState->lastStepMRlist);
+  if (inState->lastStepStruts != NULL) { free(inState->lastStepStruts); }
+  if (inState->lastStepMRlist != NULL) { free(inState->lastStepMRlist); }
   
-  inState->lastStepStruts = (octrope_strut *)(malloc(strutCount*sizeof(octrope_strut)));
-  inState->lastStepMRlist = (octrope_mrloc *)(malloc(minradCount*sizeof(octrope_mrloc)));
+  if (strutCount > 0) {
+    inState->lastStepStruts = (octrope_strut *)(malloc((strutCount)*sizeof(octrope_strut)));
+    fatalifnull_(inState->lastStepStruts);
+  } else {
+    inState->lastStepStruts = NULL;
+  }
 
-  fatalifnull_(inState->lastStepStruts);
-  fatalifnull_(inState->lastStepMRlist);
+  if (minradCount > 0) {
+    inState->lastStepMRlist = (octrope_mrloc *)(malloc((minradCount)*sizeof(octrope_mrloc)));
+    fatalifnull_(inState->lastStepMRlist);
+  } else {
+    inState->lastStepMRlist = NULL;
+  }
 
   int sItr;
   
@@ -3275,9 +3281,20 @@ taucs_ccs_matrix *buildRigidityMatrix(plCurve *inLink,double tube_radius,double 
     if (inState->lastStepStruts != NULL) { free(inState->lastStepStruts); }
     if (inState->lastStepMRlist != NULL) { free(inState->lastStepMRlist); }
     
-    inState->lastStepStruts = strutSet;
-    inState->lastStepMRlist = minradSet;
+    if (strutCount > 0) {
+      inState->lastStepStruts = strutSet;
+    } else {
+      free(strutSet);
+      inState->lastStepStruts = NULL;
+    }
 
+    if (minradLocs > 0 || minradSet == NULL) {
+      inState->lastStepMRlist = minradSet;
+    } else {
+      free(minradSet);
+      inState->lastStepMRlist = NULL;
+    }
+      
   }
     
   /* We now build the rigidity matrix. */
