@@ -2002,7 +2002,7 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
     step(workerLink, StepSize, dVdt);
     newGrad = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
     
-    if (StepSize < 1e-7*inState->maxStepSize) { 
+    if (StepSize < 1e-11*inState->maxStepSize) { 
 
       /* We couldn't get the linear algebra to work at any step size (note that we scale this relative
          to the maximum allowed step size). */
