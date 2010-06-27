@@ -17,6 +17,8 @@ int gAnimationStepper = 0; /* By default, we use the steepest descent stepper. *
 int gConjugateGradient = 0;
 int gTryNewton = 0;
 int gSONO = 0;
+int gSpinForce = 0;
+int gStrutFreeResidual = 0;
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 

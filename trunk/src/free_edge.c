@@ -206,3 +206,4 @@ double strut_free_length( plCurve *L, search_state *state)
   return sfLen;
 
 }
+

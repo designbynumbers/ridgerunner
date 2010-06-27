@@ -57,6 +57,8 @@ extern int gAnimationStepper;
 extern int gConjugateGradient;
 extern int gTryNewton; /* Try the Newton stepper first -- good for trouble cases */
 extern int gSONO; /* Always do a dlen step */
+extern int gSpinForce; /* Add a spin component to the force */
+extern int gStrutFreeResidual; /* Log the portion of residual on strut-free sections of curve */
 
 #ifdef CURSES_DISPLAY
 
@@ -98,6 +100,7 @@ enum GraphTypes
   kMemused,  // total amount of memory allocated
   kEffectiveness, // a measure of how successful we are in avoiding error
   kScore, // the total "score" assigned to each configuration
+  kStrutFreeResidual, // the portion of the residual on strut-free sections of curve
   
   kTotalLogTypes
 };
@@ -236,6 +239,7 @@ typedef struct
   double  maxPush;	// the maximum of all the strut force compression sums
   double  avgDvdtMag;   // avg of all dvdt norms
   double  residual;	// residual of last snnls call
+  double  strutfreeresidual; // portion of residual on strut-free sections of the curve
   
   double  oldLength;
   double  oldLengthTime;
@@ -299,6 +303,9 @@ void bsearch_stepper( plCurve** inLink, search_state* inState );
  
  *
  */
+
+plCurve* sono_step( plCurve *inLink, search_state *inState);
+
 
 double plc_l2norm(plc_vector *V,int n);
 /* Computes the l2 norm of a multivector of n plc_vectors. */
@@ -449,6 +456,9 @@ int strut_free_vertices( plCurve* inLink, double tube_radius, bool *freeFlag);
 /* Fills a "flat" buffer freeFlag, expected to be plc_num_verts(inLink) in size, 
    with "true" if the vertex is no closer than 4 vertices to a strut and "false" otherwise.
    The buffer refers to vertices on the plCurve inlink in dictionary order on (cp,vt). */
+
+double strut_free_residual( plCurve *L, search_state *state);
+/* Records the residual (of dLen) on strut-free portions of the curve. */
 
 void highlight_curve( plCurve *L, search_state *state );
 /* Highlight straight segments, kinks, and other understood regions of the curve. */

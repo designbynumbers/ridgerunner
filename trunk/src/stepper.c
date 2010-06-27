@@ -198,64 +198,69 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     }
     
     /* Decide whether to initiate thickness correction. */
+
+    if (!gSONO) { /* SONO mode is self-correcting, so we don't run the correction stepper at any point. */
     
-    if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
-	(inState->minrad < gLambda*inState->tube_radius*(1-inState->minradOverstepTol))) {
-
-      if (gAnimationStepper) { 
-
-	/* The correct_thickness Newton's method produces a very small correction which looks good
-	   in animation. It is _really_ slow for highres knots, and can fail completely when coupled
-	   with the steepest_descent stepper, which is too aggressive for correct_thickness to work. */
-
-	if (!correct_thickness(*inLink,inState)) {
-
-	  if (inState->oktoscale) {
+      if( (inState->shortest < (2*inState->tube_radius*(1-inState->overstepTol))) ||
+	  (inState->minrad < gLambda*inState->tube_radius*(1-inState->minradOverstepTol))) {
+	
+	if (gAnimationStepper) { 
+	  
+	  /* The correct_thickness Newton's method produces a very small correction which looks good
+	     in animation. It is _really_ slow for highres knots, and can fail completely when coupled
+	     with the steepest_descent stepper, which is too aggressive for correct_thickness to work. */
+	  
+	  if (!correct_thickness(*inLink,inState)) {
 	    
-	    plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
-	    logprintf("Correction stepper failed. Rescaled manually.\n");
-
-	  } else {
-
-	    char errmsg[1024],dumpname[1024];
-
-	    dumpLink(*inLink,inState,dumpname);
-	    sprintf(errmsg,
-		    "Correction stepper failed, and we cannot rescale due to constraints of type \"fixed\".\n"
-		    "Dumped link to %s.\n"
-		    "Terminating run.\n",
-		    dumpname);
-	    FatalError(errmsg,__FILE__,__LINE__);
-
-	  }
-
-	}
-
-      } else {        	  
-	if (inState->oktoscale) { 
-	  if (gTryNewton) {
-	    if (!correct_thickness(*inLink,inState)) {
+	    if (inState->oktoscale) {
+	      
 	      plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	      logprintf("Correction stepper failed. Rescaled manually.\n");
+	      
+	    } else {
+	      
+	      char errmsg[1024],dumpname[1024];
+	      
+	      dumpLink(*inLink,inState,dumpname);
+	      sprintf(errmsg,
+		      "Correction stepper failed, and we cannot rescale due to constraints of type \"fixed\".\n"
+		      "Dumped link to %s.\n"
+		      "Terminating run.\n",
+		      dumpname);
+	      FatalError(errmsg,__FILE__,__LINE__);
+	      
 	    }
-	  } else {
-	    plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
-	  }	    
-	} else { 
-	  if (!correct_thickness(*inLink,inState)) { 
-	    NonFatalError("Newton error correction failed. Will try to continue run anyway.\n",__FILE__,__LINE__);
+
 	  }
+	  
+	} else {        	  
+	  if (inState->oktoscale) { 
+	    if (gTryNewton) {
+	      if (!correct_thickness(*inLink,inState)) {
+		plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	      }
+	    } else {
+	      plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+	    }	    
+	  } else { 
+	    if (!correct_thickness(*inLink,inState)) { 
+	      NonFatalError("Newton error correction failed. Will try to continue run anyway.\n",__FILE__,__LINE__);
+	    }
+	  }
+	  
+	  free(inState->newDir); inState->newDir = NULL; 
+	  inState->score = stepScore(*inLink,inState,NULL,0); /* We have changed the curve, so reset the score */
+	  
 	}
+	
+      }   
 
-	free(inState->newDir); inState->newDir = NULL; 
-	inState->score = stepScore(*inLink,inState,NULL,0); /* We have changed the curve, so reset the score */
-
-      }
-
-    }        
+    }
   
     /************************************************************************/
     
     if (gAnimationStepper) { *inLink = bsearch_step(*inLink, inState); } 
+    else if (gSONO) { *inLink = sono_step(*inLink,inState); }
     else { *inLink = steepest_descent_step(*inLink,inState); }
 
     correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
@@ -1766,6 +1771,7 @@ plc_vector *inputForce( plCurve *inLink, double tube_radius, double eqMultiplier
   if (!gNoTimeWarp) { accelerate_free_vertices(dLen,inLink,tube_radius); }  // This feature tries to straighten free sections faster
   eqForce(dLen,inLink,eqMultiplier,inState);
   specialForce(dLen,inLink,inState);
+  if (gSpinForce) { spinForce(dLen,inLink,inState); }
   constraintForce(dLen,inLink); // Make sure that dLen doesn't try to violate constraints.
 
   return dLen;
@@ -1782,14 +1788,10 @@ plc_vector *stepDirection( plCurve *inLink, double tube_radius, double eqMultipl
   plc_vector  *dVdt;
   plc_vector  *dLen; 
   
-  if (!gSONO) {
-    dLen = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
-    dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
-    free(dLen);
-  } else {
-    dVdt = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
-  }
-  
+  dLen = inputForce(inLink,tube_radius,eqMultiplier,lambda,inState);
+  dVdt = resolveForce(dLen,inLink,tube_radius,lambda,inState); 
+  free(dLen);
+    
   return dVdt;
 }
 
@@ -2157,6 +2159,48 @@ double brentSearch(plCurve *inLink,search_state *inState,plc_vector *dVdt,double
 
   return best_score;
 }
+
+plCurve* 
+sono_step( plCurve *inLink, search_state *inState)
+
+/* We try a version of the stepper which takes a large number of SONO steps in a streamlined
+   way, then attempts to compute the usual stuff as an afterthought. */
+
+{
+  plc_vector *dVdt;
+  int itr;
+  plCurve *workerA;
+  double rop,thi,len,mr,poca;
+  double newrop, newthi, newlen, newmr, newpoca;
+
+  workerA = plc_copy(inLink);
+
+  for (itr=0;itr<1000;itr++) {
+
+    octrope(workerA,&rop,&thi,&len,&mr,&poca,
+	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	    gOctmem,gOctmem_size,gLambda);
+
+    dVdt = inputForce(workerA,inState->tube_radius,inState->eqMultiplier,gLambda,inState); 
+    step(workerA, 0.001, dVdt);    
+
+    octrope(workerA,&newrop,&newthi,&newlen,&newmr,&newpoca,
+	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	    gOctmem,gOctmem_size,gLambda);
+    
+    plc_scale(workerA,(inState->tube_radius)/newthi);
+    
+    octrope(workerA,&rop,&thi,&len,&mr,&poca,
+	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
+	    gOctmem,gOctmem_size,gLambda);
+    	    
+  }
+  
+  plc_free(inLink);  
+  return workerA;
+
+}
+
 
 plCurve* 
 steepest_descent_step( plCurve *inLink, search_state *inState)
@@ -3404,78 +3448,78 @@ void freeRigidityMatrix(taucs_ccs_matrix **A)
     
 /************************************************************************/
 
-void
-spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
+/* void */
+/* spinForce( plc_vector* dlen, plCurve* inLink, search_state* inState ) */
 
-     /* This adds to dlen a tangential force causing the tube to spin
-	as it is tightening. This doesn't seem to have any useful
-	numerical effect. */
+/*      /\* This adds to dlen a tangential force causing the tube to spin */
+/* 	as it is tightening. This doesn't seem to have any useful */
+/* 	numerical effect. *\/ */
 
-{
-  int cItr, vItr;
-  int *edges = malloc(sizeof(int)*inLink->nc);
+/* { */
+/*   int cItr, vItr; */
+/*   int *edges = malloc(sizeof(int)*inLink->nc); */
 
-  // note to self - this can be made much faster by not being dumb
+/*   // note to self - this can be made much faster by not being dumb */
   
-  plc_fix_wrap(inLink);
-  plc_edges(inLink,edges);
+/*   plc_fix_wrap(inLink); */
+/*   plc_edges(inLink,edges); */
   
-  for( cItr=0; cItr<inLink->nc; cItr++ ) {
+/*   for( cItr=0; cItr<inLink->nc; cItr++ ) { */
 
-    if (!inLink->cp[cItr].open) {  
+/*     if (!inLink->cp[cItr].open) {   */
       
-      /* We can only spin _closed_ components. */
+/*       /\* We can only spin _closed_ components. *\/ */
 
-      // the first thing to do is grab edge lengths
-      plc_vector* sides;
-      plc_vector* adjustments;
+/*       // the first thing to do is grab edge lengths */
+/*       plc_vector* sides; */
+/*       plc_vector* adjustments; */
       
-      sides = (plc_vector*)malloc(sizeof(plc_vector)*edges[cItr]);
-      adjustments = (plc_vector*)calloc(edges[cItr], sizeof(plc_vector));
+/*       sides = (plc_vector*)malloc(sizeof(plc_vector)*edges[cItr]); */
+/*       adjustments = (plc_vector*)calloc(edges[cItr], sizeof(plc_vector)); */
       
-      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
+/*       for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) { */
 	
-	bool ok = true;
-	char errmsg[1024],dumpname[1024];
+/* 	bool ok = true; */
+/* 	char errmsg[1024],dumpname[1024]; */
 
-	sides[vItr] = plc_normalize_vect(
-					 plc_vect_diff(inLink->cp[cItr].vt[vItr+1],
-						       inLink->cp[cItr].vt[vItr]),
-					 &ok);
+/* 	sides[vItr] = plc_normalize_vect( */
+/* 					 plc_vect_diff(inLink->cp[cItr].vt[vItr+1], */
+/* 						       inLink->cp[cItr].vt[vItr]), */
+/* 					 &ok); */
 
-	if (!ok) { 
+/* 	if (!ok) {  */
 
-	  dumpLink(inLink,inState,dumpname);
-	  sprintf(errmsg,
-		  "ridgerunner: spinforce can't normalize side %d of component %d\n"
-		  "             of link %s.\n",vItr,cItr,dumpname);
-	  FatalError(errmsg, __FILE__ , __LINE__ );
+/* 	  dumpLink(inLink,inState,dumpname); */
+/* 	  sprintf(errmsg, */
+/* 		  "ridgerunner: spinforce can't normalize side %d of component %d\n" */
+/* 		  "             of link %s.\n",vItr,cItr,dumpname); */
+/* 	  FatalError(errmsg, __FILE__ , __LINE__ ); */
 
-	}
+/* 	} */
 	
-      }
+/*       } */
 
-      double spinFactor = 0.5;
-      // fix zero and compute the tangential change necessary for the rest of the vertices
-      for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) {
+/*       double spinFactor = 0.5; */
+/*       // fix zero and compute the tangential change necessary for the rest of the vertices */
+/*       for( vItr=0; vItr<inLink->cp[cItr].nv; vItr++ ) { */
 	
-	adjustments[vItr] = plc_scale_vect(spinFactor,sides[vItr]);
+/* 	adjustments[vItr] = plc_scale_vect(spinFactor,sides[vItr]); */
 
-	dlen[((vItr)) + inState->compOffsets[cItr]].c[0] += adjustments[(vItr)].c[0];
-	dlen[((vItr)) + inState->compOffsets[cItr]].c[1] += adjustments[(vItr)].c[1];
-	dlen[((vItr)) + inState->compOffsets[cItr]].c[2] += adjustments[(vItr)].c[2];
-      }
+/* 	dlen[((vItr)) + inState->compOffsets[cItr]].c[0] += adjustments[(vItr)].c[0]; */
+/* 	dlen[((vItr)) + inState->compOffsets[cItr]].c[1] += adjustments[(vItr)].c[1]; */
+/* 	dlen[((vItr)) + inState->compOffsets[cItr]].c[2] += adjustments[(vItr)].c[2]; */
+/*       } */
       
-      free(sides);
-      free(adjustments);
+/*       free(sides); */
+/*       free(adjustments); */
     
-    }
+/*     } */
 
-  }
+/*   } */
   
-  free(edges);
+/*   free(edges); */
 
-}
+/* } */
 
 void
 specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
@@ -3487,6 +3531,49 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 { 
 
 }
+
+void
+spinForce ( plc_vector *dlen, plCurve *inLink, search_state *inState) 
+
+/* Adds a small component to the force in the tangent direction to the curve */
+
+{
+
+  int cmp;
+  int vt;
+
+  for(cmp=0;cmp < inLink->nc; cmp++) {
+
+    if (!inLink->cp[cmp].open) {
+
+      for(vt=0;vt < inLink->cp[cmp].nv;vt++) {
+	
+	int dlp;
+	bool ok;
+	
+	dlp = dlenPos(inLink,cmp,vt);
+	dlen[dlp] = plc_vect_sum(dlen[dlp],plc_scale_vect(0.01,plc_mean_tangent(inLink,cmp,vt,&ok)));
+	
+	if (!ok) {
+	  
+	  char errMsg[1024];
+	  char dumpName[1024];
+	  dumpLink(inLink,inState,dumpName);
+	  
+	  sprintf(errMsg,"ridgerunner: Couldn't compute tangent vector to vert %d of component %d of inlink.\n"
+		  "             Dumped offending link to %s.\n",cmp,vt,dumpName);
+	  
+	  FatalError(errMsg,__FILE__,__LINE__);
+	  
+	}
+	
+      }
+      
+    }
+
+  }
+    
+}			       
 
 int dlenPos(plCurve *inLink,int cmp,int vt) 
 
@@ -3909,6 +3996,13 @@ plc_vector
     if (inState != NULL) { 
 
       inState->residual = l2ResidualNorm/minusDLnorm;  
+      /* We now update the strutfree residual if we are keeping track of this... */
+
+      if (gStrutFreeResidual) {
+
+	inState->strutfreeresidual = strut_free_residual(inLink,inState);
+
+      }
     
       /* We have survived the linear algebra step! We record our victory in inState. */
       
@@ -4033,4 +4127,52 @@ computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
 				octrope_mrloc* minradSet, int strutCount, int minradLocs )
 {
 	
+}
+
+ double strut_free_residual( plCurve *L, search_state *state) 
+
+ /* Returns the residual of the curve which results from strut-free portions of the curve only. */
+
+ {
+   int nStrutFree;
+   bool *freeFlag;
+   plc_vector *dLen = NULL;
+   double dLenNorm;
+
+   dLen = (plc_vector *)(calloc(plc_num_verts(L), sizeof(plc_vector)));
+  /* Note: this must be calloc since the xxxForce procedures add to given buffer. */
+  fatalifnull_(dLen);
+
+  freeFlag = malloc_or_die(sizeof(bool)*plc_num_verts(L), __FILE__ , __LINE__ );
+  nStrutFree = strut_free_vertices(L,state->tube_radius,freeFlag);
+  dlenForce(dLen,L,state);
+
+  int cmpItr,vItr;
+  double l2free = 0;
+
+  for(cmpItr=0;cmpItr < L->nc;cmpItr++) {
+
+    for(vItr=0;vItr < L->cp[cmpItr].nv;vItr++) {
+
+      if (freeFlag[vItr]) {
+
+	l2free += pow(plc_norm(dLen[dlenPos(L,cmpItr,vItr)]),2.0);
+
+      }
+
+    } 
+
+  }
+
+  l2free = sqrt(l2free);
+  free(freeFlag);
+
+  /* We now compute the l2norm of dLen itself. */
+
+  dLenNorm = plc_l2norm(dLen,state->totalVerts);
+   
+  free(dLen);
+
+  return l2free/dLenNorm;
+
 }
