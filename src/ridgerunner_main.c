@@ -133,11 +133,15 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_sono = arg_lit0(NULL,"SONO","emulate Pieranski's SONO");
 
+  struct arg_lit  *arg_spin = arg_lit0(NULL,"spinForce","add spin force");
+
   struct arg_int  *arg_snapinterval = arg_int0(NULL,"SnapshotInterval","<n>",
 					       "save a complete snapshot "
 					       "of computation every <n> steps");
   
   struct arg_lit *arg_rcond = arg_lit0(NULL,"Rcond","log condition number for matrices");
+
+  struct arg_lit *arg_sfr = arg_lit0(NULL,"StrutFreeResidual","log the portion of residual on strut-free sections of curve");
 
   struct arg_rem  *arg_bl8 = arg_rem("","");
   struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
@@ -154,9 +158,9 @@ main( int argc, char* argv[] )
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
 		      arg_animation, arg_timewarp,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
-		      /*arg_eqmult,arg_eq,*/arg_overstep,arg_mroverstep,
+		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
-		      arg_sono, arg_rcond,
+		      arg_sono, arg_spin, arg_rcond, arg_sfr,
 
 		      arg_bl8,arg_dispopts,arg_bl9,
 		      arg_display,
@@ -266,6 +270,8 @@ main( int argc, char* argv[] )
 
   if (arg_rcond->count > 0) { gNoRcond = 0; } else {gNoRcond = 1;}
 
+  if (arg_sfr->count > 0) { gStrutFreeResidual = 1; } else { gStrutFreeResidual = 0;}
+
   if (arg_cg->count > 0) {gConjugateGradient = 1;} else {gConjugateGradient = 0;}
 
   if (arg_mroverstep->count > 0) {minradOverstepTol = arg_mroverstep->dval[0];}
@@ -310,6 +316,8 @@ main( int argc, char* argv[] )
   if (arg_eqit->count > 0) { gEqIt = 1; }
 
   if (arg_sono->count > 0) { gSONO = 1; }
+
+  if (arg_spin->count > 0) { gSpinForce = 1; }
 
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
@@ -612,7 +620,7 @@ main( int argc, char* argv[] )
       
       logprintf("Scaled curve has thickness %g.\n",thickness);
       
-      if ((state.tube_radius + t_margin) - thickness > 1e-12) {  
+      if (fabs((state.tube_radius + t_margin) - thickness) > 1e-5) {  
 	/* Make sure that our thickness is close to the desired value */
 	
 	sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
@@ -708,6 +716,7 @@ main( int argc, char* argv[] )
   state.ropelength = octrope_ropelength(link,NULL,0,gLambda);
   state.shortest = octrope_poca(link,NULL,0);
   state.residual = DBL_MAX;
+  state.strutfreeresidual = DBL_MAX; // This is a nonsense value to be logged if we don't turn this computation on
   state.score = stepScore(link,&state,NULL,0);
 
   state.totalVerts = plc_num_verts(link);
@@ -845,7 +854,7 @@ initializeState( search_state* state )
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
     "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance",
-    "lsqroutput","memused","effectiveness","score"
+    "lsqroutput","memused","effectiveness","score","strutfreeresidual"
   }; 
 
   search_state *zerostate;

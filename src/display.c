@@ -137,6 +137,10 @@ void parse_display_arg(search_state *inState, struct arg_str *display)
 
       inState->runtime_display[inState->ndisplay++] = kScore;
 
+    } else if (!strcmp(display->sval[n],"strutfreeresidual")) {
+
+      inState->runtime_display[inState->ndisplay++] = kStrutFreeResidual;
+
     }
     
   }
@@ -300,6 +304,7 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
     case kRcond : printf("Rcond: %g ",inState->rcond); break;
     case kEffectiveness : printf("Eff: %1.4f MrEff: %1.4f ",inState->lastStepPocaEffectiveness,inState->lastStepMREffectiveness); break;
     case kScore : printf("Sco: %3.11f ",inState->score); break;
+    case kStrutFreeResidual : printf("Sfr: %1.8f ",inState->strutfreeresidual); break;
     default: break;
       
     }
