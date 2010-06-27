@@ -194,6 +194,9 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
       free(inState->newDir); inState->newDir = NULL; /* Change the link, frag the direction. */
       logprintf("Max edgelength/min edgelength = %g > 3. After equilateralization, max/min = %g.\n",maxmin,
 		plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink));
+
+      plc_scale(*inLink,(inState->tube_radius + 0.01)/octrope_thickness(*inLink,NULL,0,gLambda));
+      logprintf("Rescaled to thickness %g.\n",octrope_thickness(*inLink,NULL,0,gLambda));
       
     }
     
