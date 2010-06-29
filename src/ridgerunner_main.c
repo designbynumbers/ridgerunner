@@ -613,14 +613,15 @@ main( int argc, char* argv[] )
     if(( arg_autoscale->count > 0 || thickness < state.tube_radius + t_margin)) {  
       
       logprintf("Curve has thickness %g. Scaling to thickness %g.\n",
-		thickness,state.tube_radius + t_margin);
+		thickness,state.tube_radius + 10*t_margin);
       
-      plc_scale(link,(state.tube_radius + t_margin)/thickness);
+      plc_scale(link,(state.tube_radius + 10*t_margin)/thickness);
       thickness = octrope_thickness(link,NULL,0,gLambda);
       
       logprintf("Scaled curve has thickness %g.\n",thickness);
       
-      if (fabs((state.tube_radius + t_margin) - thickness) > 1e-5) {  
+      if (thickness < state.tube_radius + t_margin) {
+
 	/* Make sure that our thickness is close to the desired value */
 	
 	sprintf(errmsg,"ridgerunner: Failed to scale %s to thickness %g."
