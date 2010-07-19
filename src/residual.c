@@ -124,7 +124,7 @@ int main(int argc,char *argv[]) {
 
     /* We now have the data inside inState. */
 
-    printf("%s rop: %g thi: %g struts: %d mrstruts: %d residual: %g \n",
+    printf("%s Rop: %g Thi: %g Struts: %d MrStruts: %d Residual: %g \n",
 	   infile->basename[filenum],inState.ropelength,inState.thickness,
 	   inState.lastStepStrutCount,inState.lastStepMinradStrutCount,inState.residual);
 
