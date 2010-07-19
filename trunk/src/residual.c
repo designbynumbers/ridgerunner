@@ -88,6 +88,8 @@ int main(int argc,char *argv[]) {
   inState.dumpAxb = 0;
   inState.snapinterval = 1000;
   inState.steps = 0;
+  inState.lastStepStruts = NULL;
+  inState.lastStepMRlist = NULL;
 
   const char *FILENAME;
 
