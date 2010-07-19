@@ -5,7 +5,7 @@
 AM_CFLAGS = -g -finline-functions -Wall
 AM_CPPFLAGS = -I$(srcdir)/src/
 
-bin_PROGRAMS = src/ridgerunner src/strutplot
+bin_PROGRAMS = src/ridgerunner src/strutplot src/residual
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
 	src/linklib_additions.c \
@@ -27,7 +27,7 @@ src_strutplot_SOURCES = src/strutplot.c \
 
 src_strutplot_LDADD = -lplCurve -largtable2 -loctrope -ltsnnls $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
-man1_MANS = doc/strutplot.1 doc/ridgerunner.1
+dist_man1_MANS = doc/strutplot.1 doc/ridgerunner.1
 
 src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
@@ -219,3 +219,21 @@ src_rownumcvctest_SOURCES =  src/errors.c \
 	src/rownumcvctest.c 
 
 src_rownumcvctest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
+
+src_residual_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	src/residual.c 
+
+src_residual_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
