@@ -1593,7 +1593,7 @@ int main(int argc,char *argv[]) {
 
   dollar = strchr(&revision[1],'$');
   dollar[0] = '\0';
-  printf("Strutplot v%s, liboctrope v%s\n",&revision[11],PACKAGE_VERSION);
+  printf("Strutplot v%s, ridgerunner v%s\n",&revision[11],PACKAGE_VERSION);
  /* The PACKAGE_VERSION preprocessor symbol is defined in "config.h" by autoconf. */
 
   printf("  Produce a Postscript plot of the struts for a polygonal knot.\n");
