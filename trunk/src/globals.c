@@ -19,6 +19,7 @@ int gTryNewton = 0;
 int gSONO = 0;
 int gSpinForce = 0;
 int gStrutFreeResidual = 0;
+int gMangleMode = 0;
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 

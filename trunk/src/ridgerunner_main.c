@@ -44,6 +44,10 @@ main( int argc, char* argv[] )
 
   struct arg_lit  *arg_timewarp = arg_lit0(NULL,"Timewarp","accelerate shrinking of strut-free sections of curve");
 
+  struct arg_lit  *arg_mangler = arg_lit0(NULL,"MangleMode","instead of trying to reduce length, try to change configuration");
+
+  struct arg_int  *arg_manglesteps = arg_int0(NULL,"MangleSteps","<#steps>","switch mangling algorithm after this many steps");
+
   struct arg_lit  *arg_cg = arg_lit0(NULL,"ConjugateGradient","turn on conjugate gradient mode (experimental)");
 
   struct arg_dbl  *arg_minstep = arg_dbl0(NULL,"MinStep","<double>","minimum size for step");
@@ -157,7 +161,7 @@ main( int argc, char* argv[] )
 
 		      arg_bl6,arg_progopts,arg_bl7,
 		      arg_quiet,arg_verbose,arg_vverbose,arg_help,
-		      arg_animation, arg_timewarp,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
+		      arg_animation, arg_timewarp,arg_mangler,arg_manglesteps,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
 		      arg_sono, arg_spin, arg_rcond, arg_sfr,
@@ -288,6 +292,8 @@ main( int argc, char* argv[] )
 
   if (arg_stop20->count > 0) { stop20 = arg_stop20->dval[0]; }
 
+  if (arg_mangler->count > 0) { gMangleMode = 1; }
+
   /*   if (arg_resolution->count > 0) { refineUntil = arg_resolution->dval[0]; } */
  
   if (arg_stopRes->count > 0) { residualThreshold = arg_stopRes->dval[0]; }
@@ -374,6 +380,19 @@ main( int argc, char* argv[] )
   
   state.eqMultiplier = eqMult;
   state.snapinterval = snapinterval;
+
+  state.manglemode = torusrotate;
+  state.this_manglemode_startstep = 0;
+
+  if (arg_manglesteps->count > 0) {
+
+    state.steps_in_mode = arg_manglesteps->ival[0];
+
+  } else {
+
+    state.steps_in_mode = 30000;
+
+  }
 
   /* We now do a little bit of filename mangling. */
 
@@ -515,6 +534,18 @@ main( int argc, char* argv[] )
   }
   
   fclose(linkFile);
+
+  if (gMangleMode) {
+
+    logprintf("Running in MangleMode.\n");
+
+  }
+
+  if (gAnimationStepper) { 
+
+    logprintf("Running with Animation Stepper.\n");
+    
+  }
 
   logprintf("Loaded %d component, %d vertex plCurve from %s.\n",
 	    link->nc,plc_num_verts(link),state.fname);

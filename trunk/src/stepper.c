@@ -3532,6 +3532,91 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 	gravity or something). */
 
 { 
+  int dlp;
+  int cp,vt;
+
+  if (gMangleMode) {
+
+    if (inState->steps % inState->steps_in_mode == 0) {  
+
+      /* Time to pick a new axis and radius for the torus rotation randomly. */
+
+      plc_vector com;
+      double     diameter;
+
+      com = plc_center_of_mass(inLink);
+      diameter = plc_pointset_diameter(inLink);
+
+      inState->torusrotate_axis = plc_random_vect();
+      inState->torusrotate_center = plc_vect_sum(plc_scale_vect(0.3*diameter*rand()/RAND_MAX,plc_random_vect()),com);
+      inState->torusrotate_radius = 0.2*diameter + 0.3*diameter*rand()/RAND_MAX;
+
+      logprintf("----------------------------------------------\n");
+      logprintf("\nChanged Mangle settings to mode torusrotate.\n");
+      logprintf("\tRotating around axis (%g,%g,%g).\n",plc_M_clist(inState->torusrotate_axis));
+      logprintf("\tRotating with center (%g,%g,%g).\n",plc_M_clist(inState->torusrotate_center));
+      logprintf("\tRotating with distance to focus %g.\n",inState->torusrotate_radius);
+
+    }
+
+    for(cp=0;cp<inLink->nc;cp++) {
+
+      for(vt=0;vt<inLink->cp[cp].nv;vt++) {
+
+	dlp = dlenPos(inLink,cp,vt);
+
+	/* The vectorfield in torus_rotate is the field in toroidal
+	   coordinates in the tau direction (around the tori). To
+	   compute this, we need to figure out the location of the
+	   current point in (sigma,tau,phi) coordinates.
+
+	   We then took the derivative of each of the expressions for
+	   x, y, and z in terms of the toroidal coordinate variables
+	   with respect to tau. These are the three coordinates of the
+	   vectors below.
+
+	   We don't quite know quite how to scale this yet.
+
+	*/
+	
+	plc_vector v;
+	double tau,cos_sigma,phi,d12,d22,rho,a,sin_sigma;
+	
+	a = inState->torusrotate_radius;
+	v = inLink->cp[cp].vt[vt];
+
+	phi = atan2(v.c[1],v.c[0]);
+	rho = sqrt(v.c[0]*v.c[0] + v.c[1]*v.c[1]);
+	d12 = (rho + a)*(rho + a) + v.c[2]*v.c[2];
+	d22 = (rho - a)*(rho - a) + v.c[2]*v.c[2];
+
+	if (d22 > 0.01) { 
+
+	  tau = 0.5 * log(d12/d22); 
+
+	  cos_sigma = - (4*a*a - d12 - d22)/(2*sqrt(d12*d22));
+	  
+	  sin_sigma = sqrt(1 - cos_sigma*cos_sigma);
+	  if (v.c[2] < 0) { sin_sigma *= -1.0; }
+	  
+	  
+	  dlen[dlp] = plc_vect_sum(dlen[dlp],
+				   plc_build_vect( 
+						  (a*cos(phi)*cosh(tau))/(-cos_sigma + cosh(tau)) - 
+						  (a*cos(phi)*pow(sinh(tau),2))/pow(-cos_sigma + cosh(tau),2),
+						  (a*cosh(tau)*sin(phi))/(-cos_sigma + cosh(tau)) - 
+						  (a*sin(phi)*pow(sinh(tau),2))/pow(-cos_sigma + cosh(tau),2),
+						  -((a*sin_sigma*sinh(tau))/pow(-cos_sigma + cosh(tau),2)) 
+						   )
+				   );
+	  
+	} /* else we're on the central circle and don't move */
+				   
+      }
+	 
+    }
+
+  }
 
 }
 
