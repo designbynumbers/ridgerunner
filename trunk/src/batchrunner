@@ -218,7 +218,10 @@ if ($sow) {
     print "GRIDSTUFFER mode\n\n";
 
     # open the GridStuffer script file. 
+
     
+    $ridgerunner = `which ridgerunnerstatic`;
+    chomp($ridgerunner);
     $ridgerunner = "~/../..".$ridgerunner;
 
     # we need to construct a relative path for ridgerunner in order to 

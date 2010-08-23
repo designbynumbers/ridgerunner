@@ -115,7 +115,7 @@ AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename ope
 
 # Checks for libraries.
 AC_CHECK_LIB(m,sqrt)
-AC_CHECK_LIB(plCurve,plc_new,[],AC_MSG_ERROR([ridgerunner requires the plCurve library]))
+AC_CHECK_LIB(plCurveStatic,plc_new,[],AC_MSG_ERROR([ridgerunner requires the plCurve library]))
 AC_CHECK_LIB(octrope,octrope,[],AC_MSG_ERROR([ridgerunner requires the octrope library]))
 AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_ERROR([ridgerunner requires the argtable2 library]))
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
