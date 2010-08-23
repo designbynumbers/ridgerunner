@@ -113,7 +113,7 @@ GetOptions ( 'accre' => \$accre, 'gridstuffer' => \$gridstuffer, 'local' => \$lo
 
 if (!($sow || $reap) || !($gridstuffer || $accre || $local) || ($sow && !$rrargs)) {
 
-print <<EndUsage 
+print <<"EndUsage";
 
   batchrunner is used in a directory of VECT files to run them
   in an organized way. A valid batchrunner command line must include
@@ -138,9 +138,10 @@ print <<EndUsage
  
 EndUsage
 
-die("");
+die("Died after usage");
 
 }
+
 
 if ($sow && $reap) { die("batchrunner: Can't sow and reap on the same run.\n"); }
 
