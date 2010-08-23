@@ -59,6 +59,7 @@ extern int gTryNewton; /* Try the Newton stepper first -- good for trouble cases
 extern int gSONO; /* Always do a dlen step */
 extern int gSpinForce; /* Add a spin component to the force */
 extern int gStrutFreeResidual; /* Log the portion of residual on strut-free sections of curve */
+extern int gMangleMode; /* Go into MangleMode and try to change configuration */
 
 #ifdef CURSES_DISPLAY
 
@@ -103,6 +104,12 @@ enum GraphTypes
   kStrutFreeResidual, // the portion of the residual on strut-free sections of curve
   
   kTotalLogTypes
+};
+
+enum MangleTypes { 
+
+  torusrotate
+
 };
 
 /* "State" a long data structure for holding everything related to the 
@@ -248,6 +255,17 @@ typedef struct
   /*  double  checkThreshold; */ // the amount to check for */
   
   /* This have been replaced by stop20 and maxItrs */
+
+  /* options related to manglemode */
+
+  enum MangleTypes manglemode;
+
+  int   this_manglemode_startstep;
+  int   steps_in_mode;
+  
+  plc_vector torusrotate_center;
+  plc_vector torusrotate_axis;
+  double     torusrotate_radius;
 
   double  minminrad;
   
