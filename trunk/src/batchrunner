@@ -341,39 +341,86 @@ if ($reap) {
      # We expect to find outputs in ./working/1/ ./working/2/ and so forth.
      
      my @gridstufferdirs = <./working/[0-9]*>;  # Ok, this is everything that starts with a number.
+     my $gsdir;
+     my $thisdir;
 
-     print "Found gridstuffer dirs: @gridstufferdirs\n";
+     print "Found ".scalar @gridstufferdirs." gridstuffer dirs: @gridstufferdirs\n";
 
-     foreach (@gridstufferdirs) {
+     foreach $gsdir (@gridstufferdirs) {
 
-      if (-d $_) {
+       # print("\tgsdir $gsdir\n");
+       
+       if (-d $gsdir) {
 
-        my @rrdirs = <$_/*.rr/>;
-        my $thisdir;
+        my @rrdirs = <$gsdir/*.rr/>;
+	my @resultsdirs = <$gsdir/results_*/>;
 
-        print("\tContains rr dirs: @rrdirs.\n");
+        #print("\tContains rr dirs: @rrdirs.\n");
+	#print("\tContains results dirs: @resultsdirs.\n");
 
-        foreach $thisdir (@rrdirs) {
+	if (scalar @resultsdirs > 0) { 
 
-           my $basename;
+	  my @sorted_results;
+	  @sorted_results = sort @resultsdirs;
 
-           $thisdir =~ m/.+\/(.+)\.rr/;
-           $basename = $1;
+	  my $resdir; 
+	  $resdir = pop(@sorted_results);
+	  
+	  my @localrrdirs = <$resdir*.rr/>; 
 
-           print "Looking for $thisdir$basename.final.vect...\n";
-           if (-e "$thisdir$basename.final.vect") {
+	  if (scalar @localrrdirs > 0) {
+	    
+	    $thisdir = pop(@localrrdirs);
 
-              copy("$thisdir$basename.final.vect","./outputs/$basename.vect") or die("Couldn't copy $thisdir/$basename.final.vect to ./outputs/$basename.vect");
- 
-           }
+	  } else {
+
+	    print "\t\t$resdir contains no .rr directories. Skipping this job.\n";
+	    $thisdir = undef;
+
+	  }
+
+	} elsif (scalar @rrdirs > 0) {
+
+	  $thisdir = pop(@rrdirs);
+
+	} else {
+
+	  print "\t\t$gsdir contains neither results_<n> nor .rr directories. Skipping this job.\n";
+	  $thisdir = undef;
+	
+	}
+
+	#print ("got here\n");
+	
+	if (defined($thisdir)) {
+
+	  my $basename;
+	  
+	  $thisdir =~ m/.+\/(.+)\.rr/;
+	  $basename = $1;
+	  
+	  print "\t$thisdir$basename.final.vect -> ";
+
+	  if (-e "$thisdir$basename.final.vect") {
+	    
+	    copy("$thisdir$basename.final.vect","./outputs/$basename.vect") 
+	      or die("Couldn't copy $thisdir/$basename.final.vect to ./outputs/$basename.vect");
+
+	    print "copied to output.\n";
+	    
+	  } else {
+
+	    print "doesn't exist.\n";
+
+	  }
+
+	}
           
-         }  
- 
-       }
-
-      }
-     
+      }  
+          
     }
+     
+   }
 
     if ($local) {  
 

@@ -3549,13 +3549,31 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
       inState->torusrotate_axis = plc_random_vect();
       inState->torusrotate_center = plc_vect_sum(plc_scale_vect(0.3*diameter*rand()/RAND_MAX,plc_random_vect()),com);
-      inState->torusrotate_radius = 0.2*diameter + 0.3*diameter*rand()/RAND_MAX;
+      inState->torusrotate_radius = fabs(0.2*diameter + 0.3*diameter*rand()/RAND_MAX);
 
       logprintf("----------------------------------------------\n");
       logprintf("\nChanged Mangle settings to mode torusrotate.\n");
       logprintf("\tRotating around axis (%g,%g,%g).\n",plc_M_clist(inState->torusrotate_axis));
       logprintf("\tRotating with center (%g,%g,%g).\n",plc_M_clist(inState->torusrotate_center));
       logprintf("\tRotating with distance to focus %g.\n",inState->torusrotate_radius);
+
+      /* what we need to do now is translate the entire link so that the center is at the origin */
+
+      for(cp=0;cp<inLink->nc;cp++) {
+
+	for(vt=0;vt<inLink->cp[cp].nv;vt++) {
+
+	  plc_M_sub_vect(inLink->cp[cp].vt[vt],inState->torusrotate_center);
+
+	}
+
+      }
+
+      plc_fix_wrap(inLink);
+
+      /* now we rotate to make the axis the z - axis. */
+
+      plc_random_rotate(inLink,inState->torusrotate_axis);
 
     }
 
