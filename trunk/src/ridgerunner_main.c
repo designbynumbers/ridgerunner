@@ -201,9 +201,9 @@ main( int argc, char* argv[] )
   double	correctionStepSize = 0.25;
   double	minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
   int           i,j;
-  
-  srand(time(NULL));
 
+
+ 
   /* Display opening message. */
 
   printf("Ridgerunner %s\n",PACKAGE_VERSION);
@@ -534,6 +534,28 @@ main( int argc, char* argv[] )
   }
   
   fclose(linkFile);
+
+  /* We have some fairly serious randomness needs when running manglemode. Try to get a seed from dev/random. */
+  
+  FILE *devrand;
+  unsigned int seed;
+
+  devrand = fopen("/dev/random","r");
+  if (devrand != NULL) {
+  
+    fread(&seed,sizeof(unsigned int),1,devrand);
+    fclose(devrand);
+    logprintf("Seeded from dev/random with seed %d.\n",seed);
+
+  } else {
+ 
+    seed = time(NULL);
+    logprintf("Seeded from time with seed %d.\n",seed);
+
+  }
+
+  srand(seed);
+
 
   if (gMangleMode) {
 
