@@ -77,14 +77,14 @@ format PROGRESS_COMPLETE_TOP =
 
      Completed Files
 
-     Filename               Ropelength                              Residual
-                            Before              After               Before    After
-     ---------------------  ------------------  ------------------  --------  --------
+     Filename                      Ropelength                              Residual
+                                   Before              After               Before    After
+     ----------------------------  ------------------  ------------------  --------  --------
 .
 
 format PROGRESS_COMPLETE = 
-     @<<<<<<<<<<<<<<<<<<<<  @####.############  @####.############  @#.#####  @#.#####
-     $filename,             $ropelen_before,    $ropelen_after,     $residual_before, $residual_after 
+     @<<<<<<<<<<<<<<<<<<<<<<<<<<<  @####.############  @####.############  @#.#####  @#.#####
+     $filename,                    $ropelen_before,    $ropelen_after,     $residual_before, $residual_after 
 .
 
 format PROGRESS_INCOMPLETE_TOP = 
