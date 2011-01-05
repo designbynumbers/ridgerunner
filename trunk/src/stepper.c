@@ -3583,50 +3583,34 @@ specialForce( plc_vector* dlen, plCurve* inLink, search_state* inState )
 
 	dlp = dlenPos(inLink,cp,vt);
 
-	/* The vectorfield in torus_rotate is the field in toroidal
-	   coordinates in the tau direction (around the tori). To
-	   compute this, we need to figure out the location of the
-	   current point in (sigma,tau,phi) coordinates.
+	/* The vector field is computed to be tangent to the tau = constant tori
+	   in toroidal coordinates. Our strategy is to compute the cylindrical 
+	   radius of the center ring of the torus containing (x,y,z) and use it
+	   to come up with the direction of the field. 
 
-	   We then took the derivative of each of the expressions for
-	   x, y, and z in terms of the toroidal coordinate variables
-	   with respect to tau. These are the three coordinates of the
-	   vectors below.
-
-	   We don't quite know quite how to scale this yet.
+	   See the Mathematica notebook (MangleModePics.nb) in rrpaper/talks
+	   for a more complete explanation of the code below.
 
 	*/
 	
 	plc_vector v;
-	double tau,cos_sigma,phi,d12,d22,rho,a,sin_sigma;
+	double tau,d12,d22,rho,a,torusC;
 	
 	a = inState->torusrotate_radius;
 	v = inLink->cp[cp].vt[vt];
 
-	phi = atan2(v.c[1],v.c[0]);
 	rho = sqrt(v.c[0]*v.c[0] + v.c[1]*v.c[1]);
 	d12 = (rho + a)*(rho + a) + v.c[2]*v.c[2];
 	d22 = (rho - a)*(rho - a) + v.c[2]*v.c[2];
 
 	if (d22 > 0.01) { 
 
-	  tau = 0.5 * log(d12/d22); 
-
-	  cos_sigma = - (4*a*a - d12 - d22)/(2*sqrt(d12*d22));
-	  
-	  sin_sigma = sqrt(1 - cos_sigma*cos_sigma);
-	  if (v.c[2] < 0) { sin_sigma *= -1.0; }
+	  tau = log(d12/d22); 
+	  torusC = a / tanh(tau);
 	  
 	  
 	  dlen[dlp] = plc_vect_sum(dlen[dlp],
-				   plc_build_vect( 
-						  (a*cos(phi)*cosh(tau))/(-cos_sigma + cosh(tau)) - 
-						  (a*cos(phi)*pow(sinh(tau),2))/pow(-cos_sigma + cosh(tau),2),
-						  (a*cosh(tau)*sin(phi))/(-cos_sigma + cosh(tau)) - 
-						  (a*sin(phi)*pow(sinh(tau),2))/pow(-cos_sigma + cosh(tau),2),
-						  -((a*sin_sigma*sinh(tau))/pow(-cos_sigma + cosh(tau),2)) 
-						   )
-				   );
+				   plc_build_vect(-v.c[2]*v.c[0]/rho,-v.c[2]*v.c[1],(rho - torusC)));
 	  
 	} /* else we're on the central circle and don't move */
 				   
