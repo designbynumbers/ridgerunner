@@ -292,7 +292,7 @@ main( int argc, char* argv[] )
 
   if (arg_stop20->count > 0) { stop20 = arg_stop20->dval[0]; }
 
-  if (arg_mangler->count > 0) { gMangleMode = 1; }
+  if (arg_mangler->count > 0) { if (arg_animation->count == 0) { arg_animation->count = 1; printf("Warning: --MangleMode requires --AnimationStepper. Faking --AnimationStepper.\n");} gMangleMode = 1; }
 
   /*   if (arg_resolution->count > 0) { refineUntil = arg_resolution->dval[0]; } */
  

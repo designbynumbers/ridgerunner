@@ -139,6 +139,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   double rop_20_itrs_ago = {DBL_MAX};
   double oldrops[20];
   int rItr;
+  plCurve *tempLink;
   
 #ifdef HAVE_TIME  
   
@@ -178,22 +179,79 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     maxmin = plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink);
     inState->lastMaxMin = maxmin;
    
-    if( gEqIt && maxmin > 3.0) {
+    if( gEqIt && (maxmin > 3.0 || plc_num_verts(*inLink)/inState->ropelength < 1.5)) {
       
       int i;
-      plCurve *tempLink;
-      
-      for(i=0;i<3;i++) {
-	
-	tempLink = *inLink;
-	*inLink = octrope_fixlength(tempLink);
-	plc_free(tempLink);
-	
-      }
     
+      if (plc_num_verts(*inLink)/inState->ropelength < 1.5) { 
+
+	logprintf("Resolution = %g < 1.5. ",plc_num_verts(*inLink)/inState->ropelength);
+
+	/* Ridgerunner won't work reliably below resolution 2. We need to spline up to more verts. */
+      
+	double     *length = malloc(sizeof(double)*(*inLink)->nc);
+	int        *nv = malloc(sizeof(int)*(*inLink)->nc);
+	double      totlen,thi;
+	int         j;
+
+	assert(nv != NULL);
+	assert(length != NULL);
+	
+	totlen = plc_arclength((*inLink),length);
+	thi = inState->thickness;
+	
+	for(j=0;j<(*inLink)->nc;j++) { length[j] /= thi; }
+	totlen /= thi;
+	
+	if (thi < 1e-10) { 
+	  
+	  FatalError("ridgerunner: Thickness of curve is %g, which is too small to respline.\n",__FILE__,__LINE__);
+	  
+	}
+	
+	/* Computes an effective resolution */
+	
+	double res;
+	res = 2.0;
+	
+	int totvt = 0;
+	
+	for(j=0;j<(*inLink)->nc;j++) {nv[j] = ceil(res*length[j]); totvt += nv[j];}  
+	
+	plc_spline *spline;
+	bool ok;
+   
+	spline = plc_convert_to_spline((*inLink),&ok);
+	if (!ok) { FatalError("ridgerunner: Couldn't spline to resolution 2.0.\n",__FILE__,__LINE__); }
+	plc_free(*inLink);
+	(*inLink) = plc_convert_from_spline(spline,nv);
+
+	free(nv);
+	free(length);
+
+	logprintf("After splining, resolution = %g.\n",plc_num_verts(*inLink)/octrope_ropelength(*inLink,NULL,0,gLambda));
+	 
+      } else {  /* We can use the ordinary fixlength method to distribute the vertices that we've got */
+      
+	for(i=0;i<3;i++) {
+	
+	  tempLink = *inLink;
+	  *inLink = octrope_fixlength(tempLink);
+	  plc_free(tempLink);
+	  
+	}
+
+      }
+	
       free(inState->newDir); inState->newDir = NULL; /* Change the link, frag the direction. */
-      logprintf("Max edgelength/min edgelength = %g > 3. After equilateralization, max/min = %g.\n",maxmin,
-		plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink));
+
+      
+      if (maxmin > 3.0) {
+
+	logprintf("Max edgelength/min edgelength = %g > 3. After equilateralization, max/min = %g.\n",maxmin,
+		  plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink));
+
+      } 
 
       plc_scale(*inLink,(inState->tube_radius + 0.01)/octrope_thickness(*inLink,NULL,0,gLambda));
       logprintf("Rescaled to thickness %g.\n",octrope_thickness(*inLink,NULL,0,gLambda));
@@ -213,7 +271,11 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	     in animation. It is _really_ slow for highres knots, and can fail completely when coupled
 	     with the steepest_descent stepper, which is too aggressive for correct_thickness to work. */
 	  
-	  if (!correct_thickness(*inLink,inState)) {
+	  if (gMangleMode) {
+
+	     plc_scale(*inLink,(inState->tube_radius)/octrope_thickness(*inLink,NULL,0,gLambda));
+
+	  } else if (!correct_thickness(*inLink,inState)) {
 	    
 	    if (inState->oktoscale) {
 	      
