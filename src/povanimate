@@ -91,10 +91,10 @@ my $snapdirname;
 
 foreach $tubename (@offs) {
 
-  if ($opt_s) { `povsnap -s $tubename 2>1 1>/dev/null`; }
-  elsif ($opt_v) {  `povsnap -v $tubename 2>1 1>/dev/null`; }
-  elsif ($opt_p) {  `povsnap -p $tubename 2>1 1>/dev/null`; }
-  else {  `povsnap -v $tubename 2>1 1>/dev/null`; }
+  if ($opt_s) { `povsnap --NoDisplay -s $tubename 2>1 1>/dev/null`; }
+  elsif ($opt_v) {  `povsnap --NoDisplay -v $tubename 2>1 1>/dev/null`; }
+  elsif ($opt_p) {  `povsnap --NoDisplay -p $tubename 2>1 1>/dev/null`; }
+  else {  `povsnap --NoDisplay -v $tubename 2>1 1>/dev/null`; }
   
   $pngname = $tubename;
   $pngname =~ s/off/png/g;
