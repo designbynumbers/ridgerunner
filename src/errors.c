@@ -622,6 +622,7 @@ void snapshot( plCurve *inLink,
   char filename[1024];
   plCurve *VFcurve;
   plc_color col;
+  taucs_ccs_matrix*  A = NULL;
  
   /* We drop a complete snapshot of the link, together with a geomview
      file tying everything together, to the snapshot directory. */
@@ -671,6 +672,32 @@ void snapshot( plCurve *inLink,
 
   fprintf(gfp,"}\n");
   fclose(gfp);
+
+  /* Part of the snapshot is a drop of the current rigidity matrix A */
+
+  A = buildRigidityMatrix(inLink,inState->tube_radius,gLambda,inState);
+
+  if (A != NULL) {
+
+    sprintf(filename,"%s.%d.A.sparse",inState->snapprefix,inState->steps);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_sparse(fp,A);
+    fclose(fp);
+
+    sprintf(filename,"%s.%d.A.mat",inState->snapprefix,inState->steps);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_mat(fp,A);
+    fclose(fp);
+
+    sprintf(filename,"%s.%d.A.dat",inState->snapprefix,inState->steps);
+    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
+    taucs_ccs_write_dat(fp,A);
+    fclose(fp);
+
+  }
+
+  taucs_ccs_free(A);
+  
 }
   
 void dumpLink( plCurve *inLink, search_state *inState, char *dumpname) 
