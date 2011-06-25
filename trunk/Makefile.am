@@ -19,7 +19,10 @@ src_ridgerunnerstatic_SOURCES = src/errors.c \
 	src/ridgerunner.h \
 	src/portability.h \
 	src/free_edge.c \
-	src/globals.c
+	src/globals.c \
+	src/symmetries.c \
+	src/symmetries.h \
+	src/no_cblas_header.h
 
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
@@ -33,7 +36,10 @@ src_ridgerunner_SOURCES = src/errors.c \
 	src/ridgerunner.h \
 	src/portability.h \
 	src/free_edge.c \
-	src/globals.c
+	src/globals.c \
+	src/symmetries.c \
+	src/symmetries.h \
+	src/no_cblas_header.h
 
 src_strutplot_SOURCES = src/strutplot.c \
 	src/free_edge.c \

@@ -80,6 +80,20 @@ which need to be provided if system libraries are lacking.
   #endif
 #endif
 
+#ifdef HAVE_CBLAS_H
+  #include <cblas.h>
+#else 
+  #ifdef HAVE_ATLAS_CBLAS_H
+     #include <atlas/cblas.h>
+  #else
+     #ifdef HAVE_VECLIB_CBLAS_H
+       #include <vecLib/cblas.h>
+     #else
+       #include <no_cblas_header.h>
+     #endif
+  #endif
+#endif
+
 #ifdef WITH_DMALLOC
   #include <dmalloc.h>
 #endif

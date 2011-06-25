@@ -18,6 +18,7 @@
 
 #include "portability.h"
 #include "errors.h"
+#include "symmetries.h"
 
 #include "plCurve.h"
 #include "octrope.h"
