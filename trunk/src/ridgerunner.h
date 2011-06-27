@@ -18,7 +18,6 @@
 
 #include "portability.h"
 #include "errors.h"
-#include "symmetries.h"
 
 #include "plCurve.h"
 #include "octrope.h"
@@ -103,6 +102,7 @@ enum GraphTypes
   kEffectiveness, // a measure of how successful we are in avoiding error
   kScore, // the total "score" assigned to each configuration
   kStrutFreeResidual, // the portion of the residual on strut-free sections of curve
+  kSymmetryError, // The error in symmetrization for the curve. 
   
   kTotalLogTypes
 };

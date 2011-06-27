@@ -108,7 +108,7 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
   esac
 
 # Checks for header files.
-AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h cblas.h atlas/cblas.h vecLib/cblas.h malloc.h malloc/malloc.h])
+AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/malloc.h])
 
 # Checks for system functions.
 AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename opendir getpid mallinfo]) 

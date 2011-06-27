@@ -315,6 +315,10 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	  
 	  free(inState->newDir); inState->newDir = NULL; 
 	  inState->score = stepScore(*inLink,inState,NULL,0); /* We have changed the curve, so reset the score */
+
+	  /* We have changed the curve, so attempt to resymmetrize. Harmless if we have no symmetry group. */
+
+	  plc_symmetrize(*inLink);
 	  
 	}
 	
@@ -329,6 +333,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     else { *inLink = steepest_descent_step(*inLink,inState); }
 
     correct_constraints(*inLink,inState); // This is lightweight, so just keep us honest.
+    plc_symmetrize(*inLink); // Likewise: if we are symmetrizing, this keeps us honest. 
 
     /************************************************************************/
     
@@ -4237,6 +4242,11 @@ plc_vector
   /* We have now generated dVdt. Go ahead and free memory and then return it. */
 
   taucs_ccs_free(A);
+
+  /* If we are running with a symmetry, we should now symmetrize the resolved force. */
+  /* This will do nothing if inLink->G == NULL. */
+
+  plc_symmetrize_variation(inLink,dVdt);
 
   return dVdt;
 
