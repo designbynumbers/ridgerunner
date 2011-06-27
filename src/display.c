@@ -141,6 +141,10 @@ void parse_display_arg(search_state *inState, struct arg_str *display)
 
       inState->runtime_display[inState->ndisplay++] = kStrutFreeResidual;
 
+    } else if (!strcmp(display->sval[n],"symmetryerror")) {
+
+      inState->runtime_display[inState->ndisplay++] = kSymmetryError;
+
     }
     
   }
@@ -305,6 +309,8 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
     case kEffectiveness : printf("Eff: %1.4f MrEff: %1.4f ",inState->lastStepPocaEffectiveness,inState->lastStepMREffectiveness); break;
     case kScore : printf("Sco: %3.11f ",inState->score); break;
     case kStrutFreeResidual : printf("Sfr: %1.8f ",inState->strutfreeresidual); break;
+    case kSymmetryError : printf("SymErr: %1.8f ",plc_symmetry_group_check(inLink)); break;
+
     default: break;
       
     }

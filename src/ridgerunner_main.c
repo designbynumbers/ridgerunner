@@ -147,6 +147,9 @@ main( int argc, char* argv[] )
 
   struct arg_lit *arg_sfr = arg_lit0(NULL,"StrutFreeResidual","log the portion of residual on strut-free sections of curve");
 
+  struct arg_str  *arg_symmetry = arg_strn(NULL,"Symmetry","Z/pZ,D2",
+					   0,1,"rotation/reflection symmetry group (around z-axis) to enforce on curve");
+
   struct arg_rem  *arg_bl8 = arg_rem("","");
   struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
   struct arg_rem  *arg_bl9 = arg_rem("","");
@@ -164,7 +167,7 @@ main( int argc, char* argv[] )
 		      arg_animation, arg_timewarp,arg_mangler,arg_manglesteps,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
-		      arg_sono, arg_spin, arg_rcond, arg_sfr,
+		      arg_sono, arg_spin, arg_rcond, arg_sfr, arg_symmetry,
 
 		      arg_bl8,arg_dispopts,arg_bl9,
 		      arg_display,
@@ -202,8 +205,6 @@ main( int argc, char* argv[] )
   double	minradOverstepTol = 0.00005; /* Used to be abs val of 0.499975 */
   int           i,j;
 
-
- 
   /* Display opening message. */
 
   printf("Ridgerunner %s\n",PACKAGE_VERSION);
@@ -336,6 +337,27 @@ main( int argc, char* argv[] )
   if (arg_sono->count > 0) { gSONO = 1; }
 
   if (arg_spin->count > 0) { gSpinForce = 1; }
+
+  if (arg_symmetry->count > 0) { 
+
+    if (arg_animation->count == 0) {
+
+      printf("Warning: --Symmetry requires --AnimationStepper. Faking --AnimationStepper.\n"); 
+      gAnimationStepper = 1; 
+      eqMult = 1.0;
+
+    }
+
+    if (gEqIt == 1) {
+
+      printf("Warning: --EqOn is incompatible with --Symmetry. Turning off --EqOn.\n");
+      gEqIt = 0;
+
+    }
+
+    /* We will revisit arg_symmmetry later AFTER loading the curve. */
+
+  }
 
   /* Note: There used to be a way to set "movie", "gPaperInfoinTmp", "ignorecurvature",
      and "fancyviz" from the cmdline. */
@@ -581,6 +603,12 @@ main( int argc, char* argv[] )
     
   }
 
+  if (arg_symmetry->count > 0) {
+
+    logprintf("Running with symmetry %s.\n",arg_symmetry->sval[0]);
+
+  }
+
   logprintf("Loaded %d component, %d vertex plCurve from %s.\n",
 	    link->nc,plc_num_verts(link),state.fname);
   
@@ -805,6 +833,61 @@ main( int argc, char* argv[] )
 	 "               ropelength decrease over last 20 steps < %g.\n\n",
 	 state.maxItrs,state.residualThreshold,state.stop20);
 
+  /* We are now going to parse the symmetry argument, if present, 
+     and attempt to associate the corresponding symmetry group 
+     with the actual link plCurve. */
+
+  if (arg_symmetry->count > 0) {
+
+    /* The first thing we have to do is try to scanf the string and recognize it. */
+
+    int p;
+    if (sscanf(arg_symmetry->sval[0],"Z/%dZ",&p) == 1) {
+
+      plc_vector zaxis = {{0,0,1}};
+      /* We recognize the symmetry as rotational. */
+
+      logprintf("Recognized symmetry as rotational (Z/%dZ) around z-axis.\n",p);
+      link->G = plc_rotation_group(link,zaxis,p);
+      
+      if (link->G == NULL) {
+
+	char errmsg[1024];
+	sprintf(errmsg,"Couldn't build Z/%dZ symmetry on input link. Aborting run.\n",p);
+	FatalError(errmsg, __FILE__, __LINE__);
+
+      }
+
+      plc_symmetrize(link);
+      logprintf("Built Z/%dZ symmetry on link and symmetrized to initial error %g.\n",p,plc_symmetry_group_check(link));
+      
+    } else if (strcmp(arg_symmetry->sval[0],"D2") == 0) {
+
+      plc_vector zaxis = {{0,0,1}};
+      logprintf("Recognized symmetry as reflection (D2) over z-axis.\n");
+      link->G = plc_reflection_group(link,zaxis);
+
+      if (link->G == NULL) {
+
+	char errmsg[1024];
+	sprintf(errmsg,"Couldn't build D2 reflection symmetry on input link. Aborting run.\n");
+	FatalError(errmsg, __FILE__, __LINE__);
+
+      }
+
+      plc_symmetrize(link);
+      logprintf("Built D2 reflection symmetry on link and symmetrized to initial error %g.\n",p,plc_symmetry_group_check(link));
+    
+    } else {
+
+      	char errmsg[1024];
+	sprintf(errmsg,"Couldn't parse symmetry group %s. Aborting run.\n",arg_symmetry->sval[0]);
+	FatalError(errmsg, __FILE__, __LINE__);
+
+    }
+
+  }
+      
   /* Now we actually run the stepper. */
   
   bsearch_stepper(&link, &state);
@@ -920,7 +1003,7 @@ initializeState( search_state* state )
   static char *log_fnames[] = {
     "length","ropelength","strutcount","stepsize","thickness","minrad","residual",
     "maxovermin","rcond","walltime","maxvertforce","csteps_to_converge","edgelenvariance",
-    "lsqroutput","memused","effectiveness","score","strutfreeresidual"
+    "lsqroutput","memused","effectiveness","score","strutfreeresidual","symmetryerror"
   }; 
 
   search_state *zerostate;
