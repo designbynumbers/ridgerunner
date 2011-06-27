@@ -677,7 +677,7 @@ void snapshot( plCurve *inLink,
 
   A = buildRigidityMatrix(inLink,inState->tube_radius,gLambda,inState);
 
-  if (A != NULL) {
+  if (A != NULL && A->n > 0 && A->m > 0) {  /* There has to BE a matrix to drop */
 
     sprintf(filename,"%s.%d.A.sparse",inState->snapprefix,inState->steps);
     fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 

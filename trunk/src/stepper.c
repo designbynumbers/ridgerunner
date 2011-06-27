@@ -2471,7 +2471,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
 		
     // move along dVdt
 	
-    if( workerLink != NULL ) plc_free(workerLink);
+    if( workerLink != NULL ) { plc_free(workerLink); }
     workerLink = plc_copy(inLink); 
 
     step(workerLink, inState->stepSize, dVdt);
