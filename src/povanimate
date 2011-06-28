@@ -8,13 +8,17 @@ use warnings;
 use File::Copy;
 use File::Path;
 use Term::ProgressBar;
-use Getopt::Std;
+use Getopt::Long;
 
-getopts('svpt:S:');
+my $spinFrames = '';
+my $spinOnly = '';
+my $numSec = 20;
+
+GetOptions ( 'spinFrames=i' => \$spinFrames, 'numSec=i' => \$numSec);
 
 my $nsec;
 $nsec = 20;
-if (defined $opt_t) { $nsec = $opt_t; }
+if (defined $numSec) { $nsec = $numSec; }
 
 my $nframes;
 $nframes = $nsec*24; # 20 seconds at 24 fps
@@ -111,11 +115,8 @@ foreach $tubename (@offs) {
   
 }
  
-my $spinFrames;
-if (defined $opt_S) {
+if (defined $spinFrames) {
 
-    $spinFrames = $opt_S*24;  # Spin at 24 fps 
-	
     print "Now generating spin frames...\n";
     `orient -a 2 -s $spinFrames $offs[-1]`;
 
