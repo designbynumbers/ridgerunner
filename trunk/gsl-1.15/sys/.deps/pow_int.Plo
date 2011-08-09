@@ -1,0 +1,17 @@
+pow_int.lo pow_int.o: pow_int.c ../config.h /usr/include/math.h \
+  /usr/include/architecture/i386/math.h /usr/include/sys/cdefs.h \
+  ../build.h ../gsl/gsl_pow_int.h ../gsl/gsl_inline.h
+
+../config.h:
+
+/usr/include/math.h:
+
+/usr/include/architecture/i386/math.h:
+
+/usr/include/sys/cdefs.h:
+
+../build.h:
+
+../gsl/gsl_pow_int.h:
+
+../gsl/gsl_inline.h:

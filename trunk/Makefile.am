@@ -2,8 +2,11 @@
 # This is a starter Automake file for ridgerunner created 3/22/7
 #
 
+SUBDIRS = argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls
+
 AM_CFLAGS = -g -finline-functions -Wall
-AM_CPPFLAGS = -I$(srcdir)/src/
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/plCurve -I$(top_srcdir)/octrope/src/octropesrc -I$(top_srcdir)/tsnnls/tsnnls -I$(top_srcdir)/gsl-1.15 -I$(top_srcdir)/argtable2-13/src
+AM_LDFLAGS = -L$(top_srcdir)/plCurve/ -lplCurve -L$(top_srcdir)/octrope/src/octropesrc -loctrope -L$(top_srcdir)/tsnnls/tsnnls -ltsnnls -L$(srcdir)/gsl-1.15 -lgsl -L$(srcdir)/argtable2-13/src -largtable2
 
 bin_PROGRAMS = src/ridgerunner src/strutplot src/residual src/ridgerunnerstatic
 
