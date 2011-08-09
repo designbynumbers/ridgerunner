@@ -20,6 +20,7 @@ AC_COPYRIGHT(
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
 AC_INIT(ridgerunner,2.0.0,cantarel@math.uga.edu)
+AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE
 
 #
@@ -113,22 +114,23 @@ AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/mal
 # Checks for system functions.
 AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename opendir getpid mallinfo]) 
 
+AC_MSG_NOTICE([checking required libraries: on a first time install these tests will print warnings which should be ignored])
 # Checks for libraries.
 AC_CHECK_LIB(m,sqrt)
-AC_CHECK_LIB(plCurveStatic,plc_new,[],AC_MSG_ERROR([ridgerunner requires the plCurve library]))
-AC_CHECK_LIB(octrope,octrope,[],AC_MSG_ERROR([ridgerunner requires the octrope library]))
-AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_ERROR([ridgerunner requires the argtable2 library]))
+AC_CHECK_LIB(plCurveStatic,plc_new,[],AC_MSG_WARN([ridgerunner requires the plCurve library]),[])
+AC_CHECK_LIB(octrope,octrope,[],AC_MSG_WARN([ridgerunner requires the octrope library]))
+AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_WARN([ridgerunner requires the argtable2 library]))
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
-AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
+AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_WARN([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
 
-AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library])],[-lgslcblas])
+AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library. If you are installing from the metapackage, you will have to rerun configure and reinstall to pick up this dependency and build the gradient tester])],[-lgslcblas])
 
 #Checks for programs
 AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
 if test "$HAVE_TUBE" == true; then
    AC_DEFINE([HAVE_TUBE],[1],[we have the tube vecttools program])
 else 
-   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner])
+   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner. This will happen automatically during the first ./configure, make, make install cycle of the metapackage and this message should not appear on the second run.])
 fi   
 
 AC_CHECK_PROG([HAVE_GNUPLOT],[gnuplot],[true],[false])
@@ -142,14 +144,14 @@ AC_CHECK_PROG([HAVE_POVSNAP],[povsnap],[true],[false])
 if test "$HAVE_POVSNAP" == true; then
    AC_DEFINE([HAVE_POVSNAP],[1],[we have povsnap and the povrayutils library on this system])
 else 
-   AC_MSG_WARN([it is recommended that you install povrayutils with ridgerunner])
+   AC_MSG_WARN([ It is recommended that you install the povray utilities with ridgerunner. This will happen automatically during the first ./configure, make, make install cycle of the metapackage and this message should not appear on the second run.])
 fi   
 
 AC_CHECK_PROG([HAVE_POVRAY],[povray],[true],[false])
 if test "$HAVE_POVRAY" == true; then
    AC_DEFINE([HAVE_POVRAY],[1],[we have povray on this system])
 else 
-   AC_MSG_WARN([it is recommended that you install povray with ridgerunner])
+   AC_MSG_WARN([it is recommended that you install povray with ridgerunner. Povray is NOT included in the metapackage because it has too many dependencies to be easily built from source on most systems. You should install it using the package manager native to your system (or from binaries).])
 fi   
 
 AC_DEFINE_UNQUOTED([SVNVERSION],["][`svnversion`]["],[the svn revision number (or "exported" if this was not built from svn)])
@@ -173,4 +175,5 @@ AM_WITH_DMALLOC
 
 # Output
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_SUBDIRS([argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls])
 AC_OUTPUT

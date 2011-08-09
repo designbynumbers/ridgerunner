@@ -21,8 +21,8 @@
 
 #include "plCurve.h"
 #include "octrope.h"
-#include "libtsnnls/tsnnls.h"
-#include "libtsnnls/lsqr.h"
+#include "tsnnls.h"
+#include "lsqr.h"
 #include "argtable2.h"
 
 

@@ -1,0 +1,27 @@
+strerror.lo strerror.o: strerror.c ../config.h ../gsl/gsl_errno.h \
+  /usr/include/stdio.h /usr/include/_types.h /usr/include/sys/_types.h \
+  /usr/include/sys/cdefs.h /usr/include/machine/_types.h \
+  /usr/include/i386/_types.h /usr/include/errno.h \
+  /usr/include/sys/errno.h ../gsl/gsl_types.h
+
+../config.h:
+
+../gsl/gsl_errno.h:
+
+/usr/include/stdio.h:
+
+/usr/include/_types.h:
+
+/usr/include/sys/_types.h:
+
+/usr/include/sys/cdefs.h:
+
+/usr/include/machine/_types.h:
+
+/usr/include/i386/_types.h:
+
+/usr/include/errno.h:
+
+/usr/include/sys/errno.h:
+
+../gsl/gsl_types.h:
