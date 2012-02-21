@@ -23,8 +23,22 @@ if (defined $numSec) { $nsec = $numSec; }
 my $nframes;
 $nframes = $nsec*24; # 20 seconds at 24 fps
 
-my @vectfiles;
-@vectfiles = <*.vect>;
+my @rawvectfiles;
+@rawvectfiles = <*.vect>;
+my $file;
+
+# If we're in a snapshot directory, don't try to render the various cruft
+
+foreach $file ( @rawvectfiles ) {
+
+  if ($file !~ /dVdt\.vect/ and $file !~ /dlen\.vect/ and $file !~ /struts\.vect/) {
+
+    push(@vectfiles,$file);
+
+  }
+
+}
+
 
 my $skip;
 $skip = int(scalar @vectfiles / $nframes);
@@ -32,7 +46,7 @@ if ($skip < 1) { $skip = 1; }
 
 print "Animating directory of ".scalar @vectfiles." files, which we will cut down to ".(scalar @vectfiles / $skip)." frames to reach desired 20s time.\n";
 
-my $file;
+
 my $tubename;
 
 my $kpname;
