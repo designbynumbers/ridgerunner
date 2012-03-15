@@ -124,7 +124,7 @@ AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_WARN([ridgerunner requires the argtab
 AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
 AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_WARN([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
 
-AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library. If you are installing from the metapackage, you will have to rerun configure and reinstall to pick up this dependency and build the gradient tester])],[-lgslcblas])
+AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library. If you are installing from the metapackage, you will have to rerun configure and reinstall to pick up this dependency and build the gradient tester])],[-lgslcblas $LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
 
 #Checks for programs
 AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
