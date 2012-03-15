@@ -176,5 +176,5 @@ AM_WITH_DMALLOC
 
 # Output
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_SUBDIRS([argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls])
+#AC_CONFIG_SUBDIRS([argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls])
 AC_OUTPUT
