@@ -12,8 +12,8 @@
 #include<stdio.h>
 #include<stdlib.h>
 
-#include<ridgerunner.h>
-#include<mangle.h>
+#include"ridgerunner.h"
+#include"mangle.h"
 #include<argtable2.h>
 
 /* Global variables live here. */

@@ -21,8 +21,8 @@
 #include <config.h>
 #endif
 
-#include<ridgerunner.h>
-#include<mangle.h>
+#include"ridgerunner.h"
+#include"mangle.h"
 #include<argtable2.h>
 #include<gsl/gsl_fit.h>
 
