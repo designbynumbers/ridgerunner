@@ -20,7 +20,7 @@ AC_COPYRIGHT(
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
 AC_INIT(ridgerunner,2.0.0,cantarel@math.uga.edu)
-#AC_CONFIG_AUX_DIR([.])
+AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE
 
 #
@@ -43,13 +43,10 @@ AM_INIT_AUTOMAKE
 AC_SUBST(LIB_VERSION, 2:0:0)
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AM_CONFIG_HEADER([config.h])
-AC_CONFIG_MACRO_DIR([m4])
 
-LT_INIT
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_F77
-AC_PROG_LIBTOOL
+AC_CHECK_LIB([m],[cos])
 
 # Checks for functions
 AC_CHECK_FUNCS([strncpy strstr])
@@ -57,6 +54,7 @@ AC_CHECK_FUNCS([strncpy strstr])
 # Checks for FORTRAN.
 AC_PROG_FC([gfortran g77])		
 AC_FC_LIBRARY_LDFLAGS
+#LIBS="$LIBS $FCLIBS -lm"
 
 # Checks for Darwin.
 AC_CANONICAL_HOST
@@ -65,8 +63,8 @@ AC_MSG_CHECKING(how to link with BLAS and LAPACK)
 case "${host_os}" in
   darwin*)
     echo -framework vecLib
-    AM_CONDITIONAL([DARWIN],[test 1 == 1])
-    AM_CONDITIONAL([HAVE_LAPACK],[test 1 == 1])
+    AM_CONDITIONAL([DARWIN],[test 1 = 1])
+    AM_CONDITIONAL([HAVE_LAPACK],[test x1 = x1])
     AC_DEFINE([HAVE_DARWIN],[1],[Defined if we are in the Apple environment.])
 #    LIBS="$LIBS -framework vecLib"
     AC_SUBST([LAPACK_LIBS],["-framework vecLib"])
@@ -112,7 +110,7 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
     
   esac
 
-LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS $FCLIBS"
+LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS"
 
 # Checks for header files.
 AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/malloc.h])
@@ -340,7 +338,7 @@ AC_C_CONST
 AM_WITH_DMALLOC
 
 # Output
-AC_CONFIG_FILES([src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
 
 echo \
