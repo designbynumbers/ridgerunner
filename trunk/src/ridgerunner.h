@@ -23,7 +23,7 @@
 #include "octrope.h"
 #include "libtsnnls/tsnnls.h"
 #include "libtsnnls/lsqr.h"
-#include "argtable2.h"
+#include <argtable2.h>
 
 
 #define DEBUG 1 
