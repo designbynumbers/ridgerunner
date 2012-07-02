@@ -20,8 +20,7 @@ AC_COPYRIGHT(
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
 AC_INIT(ridgerunner,2.0.0,cantarel@math.uga.edu)
-AC_CONFIG_AUX_DIR([.])
-AC_CONFIG_MACRO_DIR([m4])
+#AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE
 
 #
@@ -42,9 +41,9 @@ AM_INIT_AUTOMAKE
 # with colons below and one with periods above.  Please keep them in sync!
 #
 AC_SUBST(LIB_VERSION, 2:0:0)
-AC_CONFIG_SRCDIR([configure])
+AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AM_CONFIG_HEADER([config.h])
-#AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_MACRO_DIR([m4])
 
 LT_INIT
 # Checks for programs.
@@ -341,7 +340,7 @@ AC_C_CONST
 AM_WITH_DMALLOC
 
 # Output
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([src/Makefile])
 AC_OUTPUT
 
 echo \
