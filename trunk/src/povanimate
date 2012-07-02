@@ -44,8 +44,8 @@ my $skip;
 $skip = int(scalar @vectfiles / $nframes);
 if ($skip < 1) { $skip = 1; }
 
-print "Animating directory of ".scalar @vectfiles." files, which we will cut down to ".(scalar @vectfiles / $skip)." frames to reach desired 20s time.\n";
-
+print "Animating directory of ".scalar @vectfiles." files\n";
+print "Will create ".(scalar @vectfiles / $skip)." frames to reach desired $nsec second time.\n";
 
 my $tubename;
 
@@ -65,16 +65,17 @@ mkdir("../movie/");
 print "Tubing files...\n";
 
 my $progress;
-$progress = Term::ProgressBar->new( {count => $nframes, ETA => "linear",} );
-$progress->max_update_rate(1);
+$progress = Term::ProgressBar->new( {count => $nframes, ETA => "linear", name => 'Files'} );
+$progress->minor(0);
 
+my $next_update = 0;
 my @offs;
 
 foreach $file ( @vectfiles ) {
 
   if ($skipcount == $skip) { 
 
-    $progress->update($framecount);
+    $next_update = $progress->update($framecount) if $framecount >= $next_update;
 
     `tube -r 0.5 $file 2>1 1>/dev/null`;
     
@@ -83,7 +84,7 @@ foreach $file ( @vectfiles ) {
 
     push(@offs,$tubename);
  
-    $skipcount = 0;
+    $skipcount = 1;
     $framecount++;
 
   } else {
@@ -93,6 +94,8 @@ foreach $file ( @vectfiles ) {
   }
 
 }
+
+$progress->update($nframes) if $nframes >= $next_update;
  
 print "\nOrienting the entire collection of surfaces (could take some time)\n";
 
@@ -101,7 +104,7 @@ print "\nOrienting the entire collection of surfaces (could take some time)\n";
 print "Rendering the frames\n";
 
 $progress = Term::ProgressBar->new( {count => scalar @offs, ETA => "linear",} );
-$progress->max_update_rate(1);
+$next_update = 0;
 
 my $offcount;
 $offcount = 0;
@@ -125,9 +128,12 @@ foreach $tubename (@offs) {
 
   rmtree($snapdirname);
 
-  $progress->update($offcount++);
+  $next_update = $progress->update($offcount) if $offcount >= $next_update;
+  $offcount++;
   
 }
+
+$progress->update(scalar @offs) if (scalar @offs) >= $next_update;
  
 if (defined $spinFrames) {
 
@@ -139,7 +145,8 @@ if (defined $spinFrames) {
     @spinOffs = <spin*off>;
 
     $progress = Term::ProgressBar->new( {count => scalar @spinOffs, ETA => "linear",} );
-    $progress->max_update_rate(1);
+    $next_update = 0;
+
     $offcount = 0;
     
     foreach $tubename (@spinOffs) {
@@ -156,7 +163,8 @@ if (defined $spinFrames) {
 	move($pngname,"../movie/$pngname");
 	unlink($tubename);
 	
-	$progress->update($offcount++);
+	$next_update = $progress->update($offcount) if $offcount >= $next_update;
+	$offcount++;
 
     }
 
