@@ -1,29 +1,14 @@
 #
-# This is a starter Automake file for ridgerunner created 3/22/7
+# Created 3/22/07. Updated to sibling build June 2012.
 #
+ACLOCAL_AMFLAGS = -I m4
 
-#SUBDIRS = argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls
+AM_CPPFLAGS = $(TSNNLS_INCLUDE) $(OCT_INCLUDE) $(PLC_INCLUDE)
+LDADD = $(TSNNLS_LTLIB) $(OCT_LTLIB) $(PLC_LTLIB)
 
-#ACLOCAL_AMFLAGS= -I m4
 AM_CFLAGS = -g -finline-functions -Wall
-#AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/plCurve -I$(top_srcdir)/octrope/src/octropesrc -I$(top_srcdir)/tsnnls/tsnnls -I$(top_srcdir)/gsl-1.15 -I$(top_srcdir)/argtable2-13/src
-#AM_LDFLAGS = -L$(top_srcdir)/plCurve/ -lplCurve -L$(top_srcdir)/octrope/src/octropesrc -loctrope -L$(top_srcdir)/tsnnls/tsnnls -ltsnnls -L$(srcdir)/gsl-1.15 -lgsl -L$(srcdir)/argtable2-13/src -largtable2
 
-bin_PROGRAMS = src/ridgerunner src/strutplot src/residual src/ridgerunnerstatic
-
-src_ridgerunnerstatic_SOURCES = src/errors.c \
-	src/dlen.c \
-	src/linklib_additions.c \
-	src/settings.c \
-	src/ridgerunner_main.c \
-        src/stepper.c \
-	src/dlen.h \
-	src/errors.h \
-	src/display.c \
-	src/ridgerunner.h \
-	src/portability.h \
-	src/free_edge.c \
-	src/globals.c 
+bin_PROGRAMS = src/ridgerunner src/strutplot src/residual 
 
 src_ridgerunner_SOURCES = src/errors.c \
 	src/dlen.c \
@@ -44,14 +29,7 @@ src_strutplot_SOURCES = src/strutplot.c \
 	src/globals.c \
 	src/ordie.c 
 
-src_strutplot_LDADD = -lplCurve -largtable2 -loctrope -ltsnnls $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
-
 dist_man1_MANS = doc/strutplot.1 doc/ridgerunner.1
-
-src_ridgerunner_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
-
-src_ridgerunnerstatic_LDFLAGS = -all-static
-src_ridgerunnerstatic_LDADD = -lncurses -lplCurveStatic -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) 
 
 # We include a copy of the knotplot distribution of loose knots for testing.
 
@@ -166,9 +144,6 @@ src_lookahead_SOURCES =  src/errors.c \
 	src/mangle.c \
 	src/lookahead.c 
 
-src_lookahead_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
-
-
 src_csteptest_SOURCES =  src/errors.c \
 	src/dlen.c \
 	src/linklib_additions.c \
@@ -184,8 +159,6 @@ src_csteptest_SOURCES =  src/errors.c \
 	src/mangle.h \
 	src/mangle.c \
 	src/csteptest.c 
-
-src_csteptest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
 
 src_mrgradtest_SOURCES =  src/errors.c \
 	src/dlen.c \
@@ -203,9 +176,6 @@ src_mrgradtest_SOURCES =  src/errors.c \
 	src/mangle.c \
 	src/mrgradtest.c 
 
-src_mrgradtest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
-
-
 src_strutgradtest_SOURCES =  src/errors.c \
 	src/dlen.c \
 	src/linklib_additions.c \
@@ -221,8 +191,6 @@ src_strutgradtest_SOURCES =  src/errors.c \
 	src/mangle.h \
 	src/mangle.c \
 	src/strutgradtest.c 
-
-src_strutgradtest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas
 
 src_rownumcvctest_SOURCES =  src/errors.c \
 	src/dlen.c \
@@ -240,8 +208,6 @@ src_rownumcvctest_SOURCES =  src/errors.c \
 	src/mangle.c \
 	src/rownumcvctest.c 
 
-src_rownumcvctest_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS)
-
 src_residual_SOURCES =  src/errors.c \
 	src/dlen.c \
 	src/linklib_additions.c \
@@ -257,5 +223,3 @@ src_residual_SOURCES =  src/errors.c \
 	src/mangle.h \
 	src/mangle.c \
 	src/residual.c 
-
-src_residual_LDADD = -lncurses -lplCurve -ltsnnls -largtable2 -loctrope $(LAPACK_LIBS) $(BLAS_LIBS) $(LIBS) $(FLIBS) -lgsl -lgslcblas

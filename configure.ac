@@ -21,6 +21,7 @@ AC_COPYRIGHT(
 # wondering what the numbers mean.
 AC_INIT(ridgerunner,2.0.0,cantarel@math.uga.edu)
 AC_CONFIG_AUX_DIR([.])
+AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE
 
 #
@@ -45,8 +46,11 @@ AC_CONFIG_SRCDIR([configure])
 AM_CONFIG_HEADER([config.h])
 #AC_CONFIG_MACRO_DIR([m4])
 
+LT_INIT
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_F77
+AC_PROG_LIBTOOL
 
 # Checks for functions
 AC_CHECK_FUNCS([strncpy strstr])
@@ -109,29 +113,191 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
     
   esac
 
+LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS $FCLIBS"
+
 # Checks for header files.
 AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/malloc.h])
 
 # Checks for system functions.
 AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename opendir getpid mallinfo]) 
 
-AC_MSG_NOTICE([checking required libraries: on a first time install these tests will print warnings which should be ignored])
 # Checks for libraries.
-AC_CHECK_LIB(m,sqrt)
-AC_CHECK_LIB(plCurveStatic,plc_new,[],AC_MSG_WARN([ridgerunner requires the plCurve library]),[])
-AC_CHECK_LIB(octrope,octrope,[],AC_MSG_WARN([ridgerunner requires the octrope library]))
-AC_CHECK_LIB(argtable2,arg_parse,[],AC_MSG_WARN([ridgerunner requires the argtable2 library]))
-AC_CHECK_LIB(ncurses,initscr,[have_curses=true],[have_curses=false])
-AC_CHECK_LIB(tsnnls,t_snnls,[],AC_MSG_WARN([ridgerunner requires the tsnnls library]),[$LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
+AC_SEARCH_LIBS([sqrt],[m])
+AC_SEARCH_LIBS([arg_parse],[argtable2],[],AC_MSG_ERROR([ridgerunner requires the argtable2 library to compile]))
+AC_SEARCH_LIBS([initscr],[ncurses],[have_curses=true],[have_curses=false])
+AC_SEARCH_LIBS([gsl_fit_linear],[gsl],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([some self-tests require the GNU Scientific Library. Build will proceed, but fewer self-tests will be performed.])],[-lgslcblas])
 
-AC_CHECK_LIB([gsl],[gsl_fit_linear],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([testing the MR gradient requires the gsl library. If you are installing from the metapackage, you will have to rerun configure and reinstall to pick up this dependency and build the gradient tester])],[-lgslcblas $LAPACK_LIBS $BLAS_LIBS $LIBS $FCLIBS])
+# Now the plCurve library must work both as a prior install AND as a "sibling" library during a metapackage install.
+
+AC_ARG_VAR([PLCINC],[The PATH where plCurve.h can be found])
+AC_ARG_VAR([PLCLIB],[The PATH where libplCurve.la can be found])
+
+# Must either specify both or none. 
+
+if (test -n "$PLCINC" && test -z "$PLCLIB") || \
+   (test -n "$PLCLIB" && test -z "$PLCINC"); then 
+
+   AC_MSG_ERROR([Must specify both PLCINC and PLCLIB or neither.])
+
+fi
+
+# If no location is specified on the command line, we search for an installed copy.
+
+if test -z "$PLCLIB"; then 
+   AC_SEARCH_LIBS([plc_new],[plCurve], [have_installed_plcurve=true], [have_installed_plcurve=false])
+   if test "x${have_installed_plcurve}" = xtrue; then
+      AC_CHECK_HEADERS([plCurve.h], [ ], [have_installed_plcurve=false])
+   fi
+
+   if test "x${have_installed_plcurve}" = xfalse; then 
+   # it may be the case that we're installing from a tarball. In this case, plCurve won't be 
+   # installed yet, but it should live in a sister directory from octrope.
+      if test -d "$srcdir/../plCurve/"; then 
+         PLCINC='$(top_srcdir)/../plCurve'
+         PLCLIB='$(top_srcdir)/../plCurve'
+      fi
+   fi
+fi
+
+  
+if (test -z "$PLCLIB" && test "x${have_installed_plCurve}" = xfalse); then 
+   AC_MSG_ERROR([
+-----------------------------------------------------------------------
+ridgerunner requires the plCurve library to compile. You can set the
+location of plCurve manually with the PLCINC and PLCLIB environment
+variables, or install a copy in a standard place like /usr/local/lib
+-----------------------------------------------------------------------
+])
+fi
+
+# Now make these symbols available to automake.
+
+if test -z "$PLCLIB"; then 
+ AC_SUBST([PLC_LTLIB], [" "])
+ AC_SUBST([PLC_INCLUDE], [" "])
+else 
+ AC_SUBST([PLC_LTLIB], ["$PLCLIB/libplCurve.la"])
+ AC_SUBST([PLC_INCLUDE], ["-I$PLCINC"])
+fi
+
+#################### END OF PLCURVE CHECKING #####################
+
+# Now the octrope library must work both as a prior install AND as a "sibling" library during a metapackage install.
+
+AC_ARG_VAR([OCTINC],[The PATH where octrope.h can be found])
+AC_ARG_VAR([OCTLIB],[The PATH where liboctrope.la can be found])
+
+# Must either specify both or none. 
+
+if (test -n "$OCTINC" && test -z "$OCTLIB") || \
+   (test -n "$OCTLIB" && test -z "$OCTINC"); then 
+
+   AC_MSG_ERROR([Must specify both OCTINC and OCTLIB or neither.])
+
+fi
+
+# If no location is specified on the command line, we search for an installed copy.
+
+if test -z "$OCTLIB"; then 
+   AC_SEARCH_LIBS([octrope],[octrope], [have_installed_octrope=true], [have_installed_octrope=false],[-lplCurve])
+   if test "x${have_installed_octrope}" = xtrue; then
+      AC_CHECK_HEADERS([octrope.h], [ ], [have_installed_octrope=false])
+   fi
+
+   if test "x${have_installed_octrope}" = xfalse; then 
+   # it may be the case that we're installing from a tarball. In this case, plCurve won't be 
+   # installed yet, but it should live in a sister directory from octrope.
+      if test -d "$srcdir/../octrope/src/octropesrc"; then 
+         OCTINC='$(top_srcdir)/../octrope/src/octropesrc'
+         OCTLIB='$(top_srcdir)/../octrope/src/octropesrc'
+      fi
+   fi
+fi
+
+  
+if (test -z "$OCTLIB" && test "x${have_installed_octrope}" = xfalse); then 
+   AC_MSG_ERROR([
+-----------------------------------------------------------------------
+ridgerunner requires the octrope library to compile. You can set the
+location of octrope manually with the OCTINC and OCTLIB environment
+variables, or install a copy in a standard place like /usr/local/lib
+-----------------------------------------------------------------------
+])
+fi
+
+# Now make these symbols available to automake.
+
+if test -z "$OCTLIB"; then 
+ AC_SUBST([OCT_LTLIB], [" "])
+ AC_SUBST([OCT_INCLUDE], [" "])
+else 
+ AC_SUBST([OCT_LTLIB], ["$OCTLIB/liboctrope.la"])
+ AC_SUBST([OCT_INCLUDE], ["-I$OCTINC"])
+fi
+
+#################### END OF OCTROPE CHECKING #####################
+
+# Now the tsnnls library must work both as a prior install AND as a "sibling" library during a metapackage install.
+
+AC_ARG_VAR([TSNNLSINC],[The PATH where tsnnls.h can be found])
+AC_ARG_VAR([TSNNLSLIB],[The PATH where libtsnnls.la can be found])
+
+# Must either specify both or none. 
+
+if (test -n "$TSNNLSINC" && test -z "$TSNNLSLIB") || \
+   (test -n "$TSNNLSLIB" && test -z "$TSNNLSINC"); then 
+
+   AC_MSG_ERROR([Must specify both TSNNLSINC and TSNNLSLIB or neither.])
+
+fi
+
+# If no location is specified on the command line, we search for an installed copy.
+
+if test -z "$TSNNLSLIB"; then 
+   AC_SEARCH_LIBS([t_snnls],[tsnnls], [have_installed_tsnnls=true], [have_installed_tsnnls=false],[])
+   if test "x${have_installed_tsnnls}" = xtrue; then
+      AC_CHECK_HEADERS([libtsnnls/tsnnls.h], [ ], [have_installed_tsnnls=false])
+   fi
+
+   if test "x${have_installed_tsnnls}" = xfalse; then 
+   # it may be the case that we're installing from a tarball. In this case, plCurve won't be 
+   # installed yet, but it should live in a sister directory from tsnnls.
+      if test -d "$srcdir/../tsnnls/src/tsnnlssrc"; then 
+         TSNNLSINC='$(top_srcdir)/../tsnnls/tsnnls'
+         TSNNLSLIB='$(top_srcdir)/../tsnnls/tsnnls'
+      fi
+   fi
+fi
+
+  
+if (test -z "$TSNNLSLIB" && test "x${have_installed_tsnnls}" = xfalse); then 
+   AC_MSG_ERROR([
+-----------------------------------------------------------------------
+ridgerunner requires the tsnnls library to compile. You can set the
+location of tsnnls manually with the TSNNLSINC and TSNNLSLIB environment
+variables, or install a copy in a standard place like /usr/local/lib
+-----------------------------------------------------------------------
+])
+fi
+
+# Now make these symbols available to automake.
+
+if test -z "$TSNNLSLIB"; then 
+ AC_SUBST([TSNNLS_LTLIB], [" "])
+ AC_SUBST([TSNNLS_INCLUDE], [" "])
+else 
+ AC_SUBST([TSNNLS_LTLIB], ["$TSNNLSLIB/libtsnnls.la"])
+ AC_SUBST([TSNNLS_INCLUDE], ["-I$TSNNLSINC"])
+fi
+
+#################### END OF TSNNLS CHECKING #####################
 
 #Checks for programs
 AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
 if test "$HAVE_TUBE" == true; then
    AC_DEFINE([HAVE_TUBE],[1],[we have the tube vecttools program])
 else 
-   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner. This will happen automatically during the first ./configure, make, make install cycle of the metapackage and this message should not appear on the second run.])
+   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner])
 fi   
 
 AC_CHECK_PROG([HAVE_GNUPLOT],[gnuplot],[true],[false])
@@ -145,7 +311,7 @@ AC_CHECK_PROG([HAVE_POVSNAP],[povsnap],[true],[false])
 if test "$HAVE_POVSNAP" == true; then
    AC_DEFINE([HAVE_POVSNAP],[1],[we have povsnap and the povrayutils library on this system])
 else 
-   AC_MSG_WARN([ It is recommended that you install the povray utilities with ridgerunner. This will happen automatically during the first ./configure, make, make install cycle of the metapackage and this message should not appear on the second run.])
+   AC_MSG_WARN([ It is recommended that you install the povray utilities with ridgerunner.])
 fi   
 
 AC_CHECK_PROG([HAVE_POVRAY],[povray],[true],[false])
@@ -161,7 +327,7 @@ AC_DEFINE_UNQUOTED([SVNVERSION],["][`svnversion`]["],[the svn revision number (o
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h stdarg.h \
                   string.h stdbool.h float.h \
-                  time.h octrope.h plCurve.h libtsnnls/tsnnls.h time.h \
+                  time.h time.h \
 		  sys/types.h sys/stat.h unistd.h dirent.h errno.h] )
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -176,5 +342,39 @@ AM_WITH_DMALLOC
 
 # Output
 AC_CONFIG_FILES([Makefile])
-#AC_CONFIG_SUBDIRS([argtable2-13 gsl-1.15 plCurve octrope vecttools plsurf povrayutils tsnnls])
 AC_OUTPUT
+
+echo \
+" ----------------------------------------------------------------------
+
+  ${PACKAGE_NAME} Version ${PACKAGE_VERSION}
+
+  Installing to prefix: ${prefix}
+
+  Compiler: '${CC} ${CFLAGS} ${CPPFLAGS}'
+  
+  Package Features:
+     
+      plCurve location: ${PLCINC:-INSTALLED}
+      octrope location: ${OCTINC:-INSTALLED}
+      tsnnls location: ${OCTINC:-INSTALLED}
+
+      plCurve libraries: ${PLCLIB}
+      octrope libraries: ${OCTLIB}
+      tsnnls libraries: ${TSNNLSLIB}
+      
+      LAPACK libraries: ${LAPACK_LIBS}
+      BLAS libraries: ${BLAS_LIBS}
+
+      All libraries: ${LIBS}
+
+  Now type 'make @<:@<target>@:>@'
+
+    where the optional <target> is:
+
+    all					- build all binaries
+    install				- install everything
+    check 				- run self-tests
+
+
+  -----------------------------------------------------------------------"
