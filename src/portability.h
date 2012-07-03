@@ -88,3 +88,11 @@ which need to be provided if system libraries are lacking.
 #ifdef HAVE_MALLOC_H
   #include <malloc.h>
 #endif
+
+#ifdef HAVE_LIBTSNNLS_TSNNLS_H    /* We are including a built tsnnls */
+  #include "libtsnnls/tsnnls.h"
+  #include "libtsnnls/lsqr.h"
+#else   /* We are install tsnnls from a nonstandard location. Assume that there's an -I pointing directly to both headers. */
+  #include "tsnnls.h"
+  #include "lsqr.h"
+#endif
