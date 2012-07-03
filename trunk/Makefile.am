@@ -1,4 +1,4 @@
-#ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS = -I m4
 dist_man1_MANS = doc/strutplot.1 doc/ridgerunner.1
 
 # We include a copy of the knotplot distribution of loose knots for testing.
