@@ -156,7 +156,7 @@ if test -z "$PLCLIB"; then
    # installed yet, but it should live in a sister directory from octrope.
       if test -d "$srcdir/../plCurve/"; then 
          PLCINC='$(top_srcdir)/../plCurve'
-         PLCLIB='$(top_srcdir)/../plCurve'
+         PLCLIB='$(top_builddir)/../plCurve'
       fi
    fi
 fi
@@ -216,7 +216,7 @@ if test -z "$OCTLIB"; then
    # installed yet, but it should live in a sister directory from octrope.
       if test -d "$srcdir/../octrope/src/octropesrc"; then 
          OCTINC='$(top_srcdir)/../octrope/src/octropesrc'
-         OCTLIB='$(top_srcdir)/../octrope/src/octropesrc'
+         OCTLIB='$(top_builddir)/../octrope/src/octropesrc'
       fi
    fi
 fi
@@ -277,7 +277,7 @@ if test -z "$TSNNLSLIB"; then
    # installed yet, but it should live in a sister directory from ridgerunner.
       if test -d "$srcdir/../tsnnls/tsnnls"; then 
          TSNNLSINC='$(top_srcdir)/../tsnnls/tsnnls'
-         TSNNLSLIB='$(top_srcdir)/../tsnnls/tsnnls'
+         TSNNLSLIB='$(top_builddir)/../tsnnls/tsnnls'
       fi
    fi
 fi
