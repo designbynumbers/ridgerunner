@@ -42,7 +42,9 @@ AM_INIT_AUTOMAKE
 #
 AC_SUBST(LIB_VERSION, 2:0:0)
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
+AC_CONFIG_MACRO_DIR([m4])
 AM_CONFIG_HEADER([config.h])
+
 
 LT_INIT
 # Checks for programs.
