@@ -44,9 +44,11 @@ AC_SUBST(LIB_VERSION, 2:0:0)
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AM_CONFIG_HEADER([config.h])
 
+LT_INIT
 # Checks for programs.
 AC_PROG_CC
 AC_CHECK_LIB([m],[cos])
+AC_PROG_LIBTOOL
 
 # Checks for functions
 AC_CHECK_FUNCS([strncpy strstr])
@@ -124,6 +126,7 @@ AC_SEARCH_LIBS([arg_parse],[argtable2],[],AC_MSG_ERROR([ridgerunner requires the
 AC_SEARCH_LIBS([initscr],[ncurses],[have_curses=true],[have_curses=false])
 AC_SEARCH_LIBS([gsl_fit_linear],[gsl],AM_CONDITIONAL([HAVEGSL],[test 1 == 1]),[AM_CONDITIONAL([HAVEGSL],[test 1 == 0]) AC_MSG_WARN([some self-tests require the GNU Scientific Library. Build will proceed, but fewer self-tests will be performed.])],[-lgslcblas])
 
+
 # Now the plCurve library must work both as a prior install AND as a "sibling" library during a metapackage install.
 
 AC_ARG_VAR([PLCINC],[The PATH where plCurve.h can be found])
@@ -179,6 +182,11 @@ fi
 
 #################### END OF PLCURVE CHECKING #####################
 
+#AC_SEARCH_LIBS([plc_new],[plCurve], [have_installed_plcurve=true], [have_installed_plcurve=false])
+#  if test "x${have_installed_plcurve}" = xtrue; then
+#      AC_CHECK_HEADERS([plCurve.h], [ ], [have_installed_plcurve=false])
+#  fi
+
 # Now the octrope library must work both as a prior install AND as a "sibling" library during a metapackage install.
 
 AC_ARG_VAR([OCTINC],[The PATH where octrope.h can be found])
@@ -215,7 +223,7 @@ fi
 if (test -z "$OCTLIB" && test "x${have_installed_octrope}" = xfalse); then 
    AC_MSG_ERROR([
 -----------------------------------------------------------------------
-ridgerunner requires the octrope library to compile. You can set the
+ridgerunner requires the octrope library. You can set the
 location of octrope manually with the OCTINC and OCTLIB environment
 variables, or install a copy in a standard place like /usr/local/lib
 -----------------------------------------------------------------------
@@ -234,7 +242,13 @@ fi
 
 #################### END OF OCTROPE CHECKING #####################
 
-# Now the tsnnls library must work both as a prior install AND as a "sibling" library during a metapackage install.
+ 
+#AC_SEARCH_LIBS([octrope],[octrope], [have_installed_octrope=true], [have_installed_octrope=false],[-lplCurve])
+#   if test "x${have_installed_octrope}" = xtrue; then
+#      AC_CHECK_HEADERS([octrope.h], [ ], [have_installed_octrope=false])
+#   fi
+
+# Now the octrope library must work both as a prior install AND as a "sibling" library during a metapackage install.
 
 AC_ARG_VAR([TSNNLSINC],[The PATH where tsnnls.h can be found])
 AC_ARG_VAR([TSNNLSLIB],[The PATH where libtsnnls.la can be found])
@@ -257,9 +271,9 @@ if test -z "$TSNNLSLIB"; then
    fi
 
    if test "x${have_installed_tsnnls}" = xfalse; then 
-   # it may be the case that we're installing from a tarball. In this case, plCurve won't be 
-   # installed yet, but it should live in a sister directory from tsnnls.
-      if test -d "$srcdir/../tsnnls/src/tsnnlssrc"; then 
+   # it may be the case that we're installing from a tarball. In this case, tsnnls won't be 
+   # installed yet, but it should live in a sister directory from ridgerunner.
+      if test -d "$srcdir/../tsnnls/tsnnls"; then 
          TSNNLSINC='$(top_srcdir)/../tsnnls/tsnnls'
          TSNNLSLIB='$(top_srcdir)/../tsnnls/tsnnls'
       fi
@@ -270,8 +284,8 @@ fi
 if (test -z "$TSNNLSLIB" && test "x${have_installed_tsnnls}" = xfalse); then 
    AC_MSG_ERROR([
 -----------------------------------------------------------------------
-ridgerunner requires the tsnnls library to compile. You can set the
-location of tsnnls manually with the TSNNLSINC and TSNNLSLIB environment
+ridgerunner requires the tsnnls library. You can set the
+location of octrope manually with the TSNNLSINC and TSNNLSLIB environment
 variables, or install a copy in a standard place like /usr/local/lib
 -----------------------------------------------------------------------
 ])
@@ -287,7 +301,12 @@ else
  AC_SUBST([TSNNLS_INCLUDE], ["-I$TSNNLSINC"])
 fi
 
-#################### END OF TSNNLS CHECKING #####################
+## END OF TSNNLS CHECKING
+ 
+#AC_SEARCH_LIBS([t_snnls],[tsnnls], [have_installed_tsnnls=true], [have_installed_tsnnls=false],[])
+#   if test "x${have_installed_tsnnls}" = xtrue; then
+#      AC_CHECK_HEADERS([libtsnnls/tsnnls.h], [ ], [have_installed_tsnnls=false])
+#   fi
 
 #Checks for programs
 AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
@@ -354,7 +373,7 @@ echo \
      
       plCurve location: ${PLCINC:-INSTALLED}
       octrope location: ${OCTINC:-INSTALLED}
-      tsnnls location: ${OCTINC:-INSTALLED}
+      tsnnls location: ${TSNNLSINC:-INSTALLED}
 
       plCurve libraries: ${PLCLIB}
       octrope libraries: ${OCTLIB}
