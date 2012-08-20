@@ -75,6 +75,7 @@ int main(int argc,char *argv[]) {
   if (arg_lambda->count > 0) {
 
     lambda = arg_lambda->dval[0];
+    gLambda = lambda;
 
   }
 
@@ -87,9 +88,10 @@ int main(int argc,char *argv[]) {
   search_state inState;
   inState.dumpAxb = 0;
   inState.snapinterval = 1000;
-  inState.steps = 0;
+  inState.steps = 1; /* Make sure that we don't try to create a snapshot! */
   inState.lastStepStruts = NULL;
   inState.lastStepMRlist = NULL;
+  inState.tube_radius = 0.5;
 
   const char *FILENAME;
 
