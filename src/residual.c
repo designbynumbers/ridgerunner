@@ -32,6 +32,10 @@ int main(int argc,char *argv[]) {
   char revision[20] = "$Revision: 1.20 $";
   char *dollar;
 
+  char winning_file[1024] = "No file";
+  double winning_residual = 2, winning_ropelength = -1, winning_thickness = -1;
+  int    winning_strutcount = -1, winning_mrstruts  = -1;
+
   dollar = strchr(&revision[1],'$');
   dollar[0] = '\0';
   printf("residual v%s, ridgerunner v%s\n",&revision[11],PACKAGE_VERSION);
@@ -133,6 +137,34 @@ int main(int argc,char *argv[]) {
 	   inState.lastStepStrutCount,inState.lastStepMinradStrutCount,inState.residual);
 
     plc_free(L);
+
+    if (infile->count > 1) { /* Keep a record of the minimum residual file among those processed */
+
+      if (inState.residual < winning_residual) { 
+
+	strncpy(winning_file,infile->basename[filenum],sizeof(winning_file));
+	winning_residual = inState.residual;
+	winning_ropelength = inState.ropelength;
+	winning_thickness = inState.thickness;
+	winning_strutcount = inState.lastStepStrutCount;
+	winning_mrstruts = inState.lastStepMinradStrutCount;
+
+      }
+
+    }
+
+  }
+
+  if (infile->count > 1) {
+
+    printf("----------------------------------------------------------\n");
+    printf("         Least Residual among %d files checked            \n",infile->count);
+    printf("----------------------------------------------------------\n");
+
+    printf("%s Rop: %g Thi: %g Struts: %d MrStruts: %d \nResidual: %g \n",
+	   winning_file,winning_ropelength,winning_thickness,winning_strutcount,winning_mrstruts,winning_residual);
+
+    printf("\n\n");
 
   }
 
