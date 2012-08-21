@@ -230,6 +230,10 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	free(length);
 
 	logprintf("After splining, resolution = %g.\n",plc_num_verts(*inLink)/octrope_ropelength(*inLink,NULL,0,gLambda));
+
+	/* Now we've changed the size of the link, so we need to update inState. */
+
+	inState->totalVerts = plc_num_verts(*inLink);
 	 
       } else {  /* We can use the ordinary fixlength method to distribute the vertices that we've got */
       
@@ -1543,7 +1547,7 @@ int correct_thickness(plCurve *inLink,search_state *inState)
 	char dumpname[1024];
 	char errmsg[1024];
 	
-	dumpLink(inLink,inState,dumpname);
+	dumpLink(workerLink,inState,dumpname);
 	sprintf(errmsg,
 		"ridgerunner: octrope found %d struts and %d mrlocs on\n"
 		"             the %d vertex link (dumped to %s), too close to\n"
