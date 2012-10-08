@@ -10,6 +10,8 @@
 #ifndef _H_ridgerunner
 #define _H_ridgerunner
 
+#include<config.h>
+
 #include "ncurses.h"         
 
 /* Ncurses rudely stomps the "bool" type without checking to see if it's already */
@@ -21,7 +23,7 @@
 
 #include "plCurve.h"
 #include "octrope.h"
-#include <argtable2.h>
+#include "argtable2.h"
 
 
 #define DEBUG 1 
