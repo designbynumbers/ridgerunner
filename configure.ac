@@ -117,7 +117,7 @@ don't have a FORTRAN compiler (preferably g77) on your default path.])
 LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS"
 
 # Checks for header files.
-AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/malloc.h])
+AC_CHECK_HEADERS([clapack.h atlas/clapack.h vecLib/clapack.h malloc.h malloc/malloc.h argtable2.h])
 
 # Checks for system functions.
 AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename opendir getpid mallinfo]) 
