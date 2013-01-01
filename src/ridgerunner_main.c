@@ -147,8 +147,8 @@ main( int argc, char* argv[] )
 
   struct arg_lit *arg_sfr = arg_lit0(NULL,"StrutFreeResidual","log the portion of residual on strut-free sections of curve");
 
-  struct arg_str  *arg_symmetry = arg_strn(NULL,"Symmetry","Z/pZ,D2",
-					   0,1,"rotation/reflection symmetry group (around z-axis) to enforce on curve");
+  struct arg_str  *arg_symmetry = arg_strn(NULL,"Symmetry","Z/pZ,D2,cplanes",
+					   0,1,"rotation/reflection symmetry group (around z-axis), or across all coordinate planes to enforce on curve");
 
   struct arg_rem  *arg_bl8 = arg_rem("","");
   struct arg_rem  *arg_dispopts = arg_rem("","Display Options");
@@ -878,6 +878,23 @@ main( int argc, char* argv[] )
       plc_symmetrize(link);
       logprintf("Built D2 reflection symmetry on link and symmetrized to initial error %g.\n",p,plc_symmetry_group_check(link));
     
+    } else if (strcmp(arg_symmetry->sval[0],"cplanes") == 0) {
+
+      logprintf("Recognized symmetry as reflections over coordinate planes (cplanes).\n");
+      link->G = plc_coordplanes_reflection_group(link);
+
+      if (link->G == NULL) {
+
+	char errmsg[1024];
+	sprintf(errmsg,"Couldn't build cplanes reflection symmetry on input link. Aborting run.\n");
+	FatalError(errmsg, __FILE__, __LINE__);
+
+      }
+
+      plc_symmetrize(link);
+      logprintf("Built cplanes reflection symmetry on link and symmetrized to initial error %g.\n",
+		p,plc_symmetry_group_check(link));
+
     } else {
 
       	char errmsg[1024];
