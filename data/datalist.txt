@@ -1,1 +1,0 @@
-datalist.txt. Create this file with ./namecollector > datalist.txt

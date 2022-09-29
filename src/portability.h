@@ -8,91 +8,49 @@ general should appear in this file. This includes making sure that the
 needed BLAS/Lapack calls appear in this file, as well as any functions
 which need to be provided if system libraries are lacking.
 
+Copyright Jason Cantarella.
+
+This file is part of ridgerunner. ridgerunner is free software: you can
+redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
+
+ridgerunner is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+for more details.  You should have received a copy of the GNU General
+Public License along with ridgerunner. If not, see
+<https://www.gnu.org/licenses/>.
+
 */
 
 #include "config.h"
 
-#ifdef HAVE_STDLIB_H
-  #include <stdlib.h>
-#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
-#ifdef HAVE_STDIO_H
-  #include <stdio.h>
-#endif
+#include <errno.h>
+#include <dirent.h>
+#include <math.h>
+#include <float.h>
+#include <assert.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <unistd.h>
 
-#ifdef HAVE_STRING_H
-  #include <string.h>
-#endif
-
-#ifdef HAVE_TIME_H
-  #include <time.h>
-#endif
-
-#ifdef HAVE_SYS_TYPES_H
-  #include <sys/types.h>
-#endif
-
-#ifdef HAVE_SYS_STAT_H
-  #include <sys/stat.h>
-#endif
-
-#ifdef HAVE_ERRNO_H
-  #include <errno.h>
-#endif
-
-#ifdef HAVE_DIRENT_H
-  #include <dirent.h>
-#endif 
-
-#ifdef HAVE_MATH_H
-  #include <math.h>
-#endif
-
-#ifdef HAVE_FLOAT_H
-  #include <float.h>
-#endif
-
-#ifdef HAVE_ASSERT_H
-  #include <assert.h>
-#endif
-
-#ifdef HAVE_STDARG_H
-  #include <stdarg.h>
-#endif
-
-#ifdef HAVE_STDBOOL_H
-  #include <stdbool.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
-  #include <unistd.h>
-#endif
-
-#ifdef HAVE_CLAPACK_H
-  #include <clapack.h>
-#else 
-  #ifdef HAVE_ATLAS_CLAPACK_H
-     #include <atlas/clapack.h>
-  #else
-     #ifdef HAVE_VECLIB_CLAPACK_H
-       #include <vecLib/clapack.h>
-     #endif
-  #endif
-#endif
-
+#include "cblas.h"
+#include "lapacke.h"
+#include "tsnnls.h"
+#include "lsqr.h"
 
 #ifdef WITH_DMALLOC
   #include <dmalloc.h>
 #endif
 
-#ifdef HAVE_MALLOC_H
-  #include <malloc.h>
-#endif
+#include <malloc.h>
 
-#ifdef HAVE_LIBTSNNLS_TSNNLS_H    /* We are including a built tsnnls */
-  #include "libtsnnls/tsnnls.h"
-  #include "libtsnnls/lsqr.h"
-#else   /* We are install tsnnls from a nonstandard location. Assume that there's an -I pointing directly to both headers. */
-  #include "tsnnls.h"
-  #include "lsqr.h"
-#endif
+

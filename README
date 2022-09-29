@@ -1,3 +1,6 @@
+RIDGERUNNER
+
+28 September 2022
 
 1. Installation and dependencies.
 
@@ -5,64 +8,24 @@ Ridgerunner is a program for computing minimum ropelength knots and
 links using a version of constrained gradient descent. The program
 depends on a number of other libraries:
 
-plCurve
-octrope
+plcurve
 tsnnls
-argtable2 (2-7 or later)
-BLAS
-LAPACK
-
-There are also several "optional" dependencies:
-
-vecttools
-povray
-povrayutils
+argtable2
+ncurses
+OpenBlas
 gsl
 
-Ridgerunner ships with a number of helper programs, including
+If you've manually installed all of these dependencies, the program installs via the usual autotools
 
-residual.pl  (display the residual of a VECT file)
-batchrunner  (run ridgerunner on a directory of inputs and collect the results)
-strutplot    (display the self-contacts of a VECT file with ``smart'' coloring)
-povanimate   (create an animation of a tightening run)
+./configure
+make
+make check
+make install
 
-Most of these are Perl scripts. You may need some additional Perl packages
-to run them (for instance, residual.pl and batchrunner require File::Temp).
+process, but a (much better) way to install is to use the Homebrew formula:
 
-You usually use ATLAS Blas/Lapack to satisfy this part of the
-dependency tree.  On certain systems, especially RedHat derived linux
-systems, you need to be careful of the fact that shared libraries are
-not handled particularly well. If you get runtime problems along the
-lines of
-
-george:/> ridgerunner ridgerunner: error while loading shared
-libraries: libplCurve.so.0: cannot open shared object file: No such
-file or directory
-
-then the problem is that the directory in which autoconf has installed
-the shared libraries (usually /usr/local/lib) is not on the path for
-shared libraries established in /etc/ld.so.conf. The standard solution
-is to move the file ridgerunner.conf to the directory /etc/ld.so.conf.d/.
-A model for this file is included here: it should contain one line
-
-/usr/local/lib
-
-or whatever the name of the directory is where you installed plCurve.
-Afterwards, you must run sudo ldconfig to register the new directory.
-
-It is recommended that you also have installed 
-
-ncurses
-vecttools
-geomview
-
-in order to view the results of your tightenings, but this is not
-strictly neccessary. 
-
-The rrpackage script installrr.sh will install all of the needed
-libraries except BLAS and LAPACK in either standard locations (if you
-have admin priviledges on the install machine) or in your account (if
-you don't).
+brew tap designbynumbers/cantarellalab
+brew install ridgerunner
 
 2. The (really brief) user's guide to Ridgerunner.
 
