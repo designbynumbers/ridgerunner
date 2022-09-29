@@ -6,16 +6,15 @@
 ifdef([m4_pattern_allow],
       [m4_pattern_allow([^AM_(CONFIG_HEADER|PROG_LEX)$])])dnl
 
-
-AC_PREREQ(2.57)
-AC_COPYRIGHT(
+AC_PREREQ([2.57])
+AC_COPYRIGHT([
 ------------------------------- ridgerunner ---------------------------------
 
                   Copyright (c) Jason Cantarella, University of Georgia.
 
  Distributed under terms of the GNU General Public License version 2.1
                        or later (see COPYING.LIB-2.1).
-)
+])
 
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
@@ -41,6 +40,7 @@ AM_INIT_AUTOMAKE([subdir-objects])
 # with colons below and one with periods above.  Please keep them in sync!
 #
 AC_SUBST(LIB_VERSION, 2:1:1)
+#AC_CONFIG_SRCDIR([configure])
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
@@ -53,7 +53,16 @@ AC_PROG_CC([clang gcc])
 AC_CHECK_FUNCS([strncpy strstr])
 
 # Checks for header files.
-AC_CHECK_HEADERS([cblas.h lapacke.h malloc.h malloc/malloc.h argtable2.h octrope.h libtsnnls/tsnnls.h plCurve.h])
+
+AC_CHECK_HEADER([argtable2.h], ,AC_MSG_ERROR([ridgerunner requires headers from the argtable library]))
+AC_CHECK_HEADER([octrope.h], ,AC_MSG_ERROR([ridgerunner requires headers from the plcurve library]))
+AC_CHECK_HEADER([libtsnnls/tsnnls.h], ,AC_MSG_ERROR([ridgerunner requires headers from the tsnnls library]))
+AC_CHECK_HEADER([libtsnnls/lsqr.h], ,AC_MSG_ERROR([ridgerunner requires headers from the tsnnls library]))
+AC_CHECK_HEADER([plCurve.h], ,AC_MSG_ERROR([ridgerunner requires headers from the plcurve library]))
+AC_CHECK_HEADER([cblas.h], ,AC_MSG_ERROR([ridgerunner requires headers from the OpenBlas library]))
+AC_CHECK_HEADER([lapacke.h], ,AC_MSG_ERROR([ridgerunner requires headers from the OpenBlas library]))
+
+AC_CHECK_HEADERS([malloc.h malloc/malloc.h])
 
 # Checks for system functions.
 AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename opendir getpid mallinfo]) 
@@ -64,46 +73,15 @@ AC_SEARCH_LIBS([arg_parse],[argtable2],[],AC_MSG_ERROR([ridgerunner requires the
 AC_SEARCH_LIBS([octrope],[plcurve],[],AC_MSG_ERROR([ridgerunner requires the plcurve library]))
 AC_SEARCH_LIBS([t_snnls],[tsnnls],[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]))
 AC_SEARCH_LIBS([cblas_dgemv],[openblas], ,AC_MSG_ERROR([ridgerunner requires the OpenBlas library]))
-
 AC_SEARCH_LIBS([initscr],[ncurses],[have_curses=true],[have_curses=false])
-AC_SEARCH_LIBS([gsl_fit_linear],[gsl], ,AC_MSG_ERROR([ridgerunner requires the gsl library],[-lgslcblas])
+AC_SEARCH_LIBS([gsl_fit_linear],[gsl], ,AC_MSG_ERROR([ridgerunner requires the gsl library]),[-lgslcblas])
 
-#Checks for programs
-AC_CHECK_PROG([HAVE_TUBE],[tube],[true],[false])
-if test "$HAVE_TUBE" == true; then
-   AC_DEFINE([HAVE_TUBE],[1],[we have the tube vecttools program])
-else 
-   AC_MSG_WARN([it is recommended that you install the Vecttools library with ridgerunner])
-fi   
-
-AC_CHECK_PROG([HAVE_GNUPLOT],[gnuplot],[true],[false])
-if test "$HAVE_GNUPLOT" == true; then
-   AC_DEFINE([HAVE_GNUPLOT],[1],[we have gnuplot on this system])
-else 
-   AC_MSG_WARN([it is recommended that you install gnuplot with ridgerunner])
-fi   
-
-AC_CHECK_PROG([HAVE_POVSNAP],[povsnap],[true],[false])
-if test "$HAVE_POVSNAP" == true; then
-   AC_DEFINE([HAVE_POVSNAP],[1],[we have povsnap and the povrayutils library on this system])
-else 
-   AC_MSG_WARN([ It is recommended that you install the povray utilities with ridgerunner.])
-fi   
-
-AC_CHECK_PROG([HAVE_POVRAY],[povray],[true],[false])
-if test "$HAVE_POVRAY" == true; then
-   AC_DEFINE([HAVE_POVRAY],[1],[we have povray on this system])
-else 
-   AC_MSG_WARN([it is recommended that you install povray with ridgerunner. Povray is NOT included in the metapackage because it has too many dependencies to be easily built from source on most systems. You should install it using the package manager native to your system (or from binaries).])
-fi   
-
-AC_DEFINE_UNQUOTED([SVNVERSION],["][`svnversion`]["],[the svn revision number (or "exported" if this was not built from svn)])
+# At this point, we used to check for various other packages, such as gnuplot and povray.
+# This kind of thing is handled by the homebrew package manager now, so we no longer try
+# to implement it through autoconf.
 
 # Checks for header files.
-AC_CHECK_HEADERS([stdlib.h math.h stdio.h assert.h stdarg.h \
-                  string.h stdbool.h float.h \
-                  time.h time.h \
-		  sys/types.h sys/stat.h unistd.h dirent.h errno.h] )
+
 
 # Checks for typedefs, structures, and compiler characteristics.
 
@@ -116,7 +94,7 @@ AC_C_CONST
 AM_WITH_DMALLOC
 
 # Output
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 
 echo \

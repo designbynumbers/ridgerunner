@@ -44,13 +44,18 @@ Public License along with ridgerunner. If not, see
 
 #include "cblas.h"
 #include "lapacke.h"
-#include "tsnnls.h"
-#include "lsqr.h"
+#include "libtsnnls/tsnnls.h"
+#include "libtsnnls/lsqr.h"
 
 #ifdef WITH_DMALLOC
   #include <dmalloc.h>
 #endif
 
-#include <malloc.h>
-
+#ifdef HAVE_MALLOC_H
+  #include <malloc.h>
+#else
+  #ifdef HAVE_MALLOC_MALLOC_H
+    #include<malloc/malloc.h>
+  #endif
+#endif
 

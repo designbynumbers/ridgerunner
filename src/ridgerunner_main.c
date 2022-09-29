@@ -220,15 +220,7 @@ main( int argc, char* argv[] )
 
   /* Display opening message. */
 
-  printf("Ridgerunner %s\n",PACKAGE_VERSION);
-  
-  char svntag[1024];
-
-  sprintf(svntag,"%s",SVNVERSION);
-  if (!strstr("exported",svntag)) {  /* We were built from svn */
-      printf("svn version %s\n",SVNVERSION);
-  }
-  
+  printf("Ridgerunner %s\n",PACKAGE_VERSION);  
   printf("Built %s, %s.\n", __DATE__ , __TIME__ );
 
   plc_version(NULL,0);
@@ -497,12 +489,7 @@ main( int argc, char* argv[] )
   fprintf(gLogfile,"Ridgerunner logfile.\n");
 
   fprintf(gLogfile,"Ridgerunner %s\n",PACKAGE_VERSION);
-  
-  sprintf(svntag,"%s",SVNVERSION);
-  if (!strstr("exported",svntag)) {  /* We were built from svn */
-    fprintf(gLogfile,"svn version %s\n",SVNVERSION);
-  }
-  
+   
   fprintf(gLogfile,"Built %s, %s.\n", __DATE__ , __TIME__ );
 
   

@@ -330,14 +330,7 @@ int main(int argc,char *argv[])
     fprintf(gLogfile,"csteptest logfile.\n");
     
     fprintf(gLogfile,"csteptest %s\n",PACKAGE_VERSION);
-    
-    char svntag[1024];
-
-    sprintf(svntag,"%s",SVNVERSION);
-    if (!strstr("exported",svntag)) {  /* We were built from svn */
-      fprintf(gLogfile,"svn version %s\n",SVNVERSION);
-    }
-    
+        
     fprintf(gLogfile,"Built %s, %s.\n", __DATE__ , __TIME__ );
     
 #ifdef HAVE_ASCTIME

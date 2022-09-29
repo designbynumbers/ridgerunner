@@ -21,9 +21,6 @@
 
 */
 
-
-*/
-
 #ifndef _H_ridgerunner
 #define _H_ridgerunner
 
