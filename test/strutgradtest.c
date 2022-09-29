@@ -1,21 +1,23 @@
 /*******************************************************************
 
-   strutgradtest.c : Perform some consistency checks on the minrad gradient 
-                  code to make sure that it behaves like the actual gradient
-                  of minrad. 
+strutgradtest.c : Performs some checks on the gradient of minimum distance between 
+simple polygons to make sure that we're generating compression forces correctly.
 
-                  We do this by coming up with some 3 vertex vect files, 
-                  adjusting the angle between the edges to suit our purposes
-                  varying by the minrad gradient and checking minrad before 
-                  and after. 
+Copyright Jason Cantarella.
 
-                  If the minrad gradient is correct, then 
+This file is part of ridgerunner. ridgerunner is free software: you can
+redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
 
-                  lim_{h -> 0} (h <var, gradMR> - (MR(x + h grad MR) - MR(x))/h = 0.
+ridgerunner is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+for more details.  You should have received a copy of the GNU General
+Public License along with ridgerunner. If not, see
+<https://www.gnu.org/licenses/>.
 
-                  This is our first test. 
-
-	   ************************************************************/
+*/
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
