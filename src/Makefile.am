@@ -2,10 +2,6 @@
 # Created 3/22/07. Updated to sibling build June 2012.
 #
 
-AM_CPPFLAGS = $(TSNNLS_INCLUDE) $(OCT_INCLUDE) $(PLC_INCLUDE)
-LDADD = $(TSNNLS_LTLIB) $(OCT_LTLIB) $(PLC_LTLIB) 
-AM_LDFLAGS =  
-
 AM_CFLAGS = -g -finline-functions -Wall
 
 bin_PROGRAMS = ridgerunner strutplot residual 
@@ -30,8 +26,7 @@ strutplot_SOURCES = strutplot.c \
 	ordie.c 
 
 #install various supporting PERL scripts in $(bindir)
-
-dist_bin_SCRIPTS = shortestknot.pl povanimate gridrunner.pl residual.pl batchrunner rcond
+#dist_bin_SCRIPTS = shortestknot.pl povanimate gridrunner.pl residual.pl batchrunner rcond
 
 # Now include some testing stuff
 if HAVEGSL

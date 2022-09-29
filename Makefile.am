@@ -1,3 +1,8 @@
+#
+# Updated to non-recursive build and new directory structure Sept. 2022. -- JasonC
+#
+
+
 ACLOCAL_AMFLAGS = -I m4
 dist_man1_MANS = doc/strutplot.1 doc/ridgerunner.1
 
@@ -81,4 +86,125 @@ dist_pkgdata_DATA = data/0.1.vect data/0.2.1.vect data/0.3.1.vect data/0.4.1.vec
 	data/9.46.vect data/9.47.vect data/9.48.vect data/9.49.vect data/9.5.vect \
 	data/sticktrefoil.vect  
 
-SUBDIRS = src
+AM_CFLAGS = -g -finline-functions -Wall
+
+bin_PROGRAMS = ridgerunner strutplot residual 
+
+ridgerunner_SOURCES = src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+	src/ridgerunner_main.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c 
+
+strutplot_SOURCES = tools/strutplot.c \
+	src/free_edge.c \
+	src/globals.c \
+	src/ordie.c 
+
+TESTS = csteptest mrgradtest strutgradtest rownumcvctest
+
+check_PROGRAMS = csteptest mrgradtest lookahead strutgradtest rownumcvctest
+
+lookahead_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	tools/lookahead.c 
+
+csteptest_SOURCES = src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	test/csteptest.c 
+
+mrgradtest_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+        src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	test/mrgradtest.c 
+
+strutgradtest_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+	src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	test/strutgradtest.c 
+
+rownumcvctest_SOURCES = src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+	src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	test/rownumcvctest.c 
+
+residual_SOURCES =  src/errors.c \
+	src/dlen.c \
+	src/linklib_additions.c \
+	src/settings.c \
+	src/stepper.c \
+	src/dlen.h \
+	src/errors.h \
+	src/display.c \
+	src/ridgerunner.h \
+	src/portability.h \
+	src/free_edge.c \
+	src/globals.c \
+	src/mangle.h \
+	src/mangle.c \
+	tools/residual.c 
