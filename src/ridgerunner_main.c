@@ -22,6 +22,8 @@
  
 #include"ridgerunner.h"
 
+int PD_VERBOSE = 0;
+
 /* This "main" file is where all of the global variables live. */
 
 void usage();
@@ -200,7 +202,7 @@ main( int argc, char* argv[] )
   plCurve*	link = NULL;
   FILE*		linkFile = NULL;
   search_state	state;
-  short		autoscale = 0, movie = 0;
+  short		movie = 0; // autoscale
   /*  double	refineUntil = -1; *//*  Used to be an int */
   
   double	overstepTol=0.0001; /* Should this only be for tube_radius = 1? */
@@ -323,8 +325,6 @@ main( int argc, char* argv[] )
   /* Note: There used to be a way to change "tube_radius", "scaleamt", and "fixlengths" 
      from the cmdline. */
   
-  if (arg_autoscale->count > 0) { autoscale = 1; }
-
   if (arg_quiet->count > 0) { VERBOSITY = 0; }
 
   if (arg_verbose->count > 0) { VERBOSITY = 5; }

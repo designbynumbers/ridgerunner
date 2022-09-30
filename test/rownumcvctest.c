@@ -29,9 +29,12 @@
 #include <config.h>
 #endif
 
-#include"ridgerunner.h"
-#include"mangle.h"
 #include<argtable2.h>
+
+#include"../src/ridgerunner.h"
+#include"../src/mangle.h"
+
+int PD_VERBOSE = 0;
 
 int rownum(plCurve *inLink, int cmp, int vert, int coord);
 

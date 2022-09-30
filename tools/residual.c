@@ -18,10 +18,13 @@ Public License along with ridgerunner. If not, see
 
 */
 
-#include "portability.h"
-#include "octrope.h"
-#include "ridgerunner.h"
+#include <octrope.h>
 #include <argtable2.h>
+
+#include "../src/portability.h"
+#include "../src/ridgerunner.h"
+
+int PD_VERBOSE = 0;
 
 int main(int argc,char *argv[]) {
 
@@ -111,11 +114,11 @@ int main(int argc,char *argv[]) {
   inState.lastStepMRlist = NULL;
   inState.tube_radius = 0.5;
 
-  const char *FILENAME;
+  //const char *FILENAME;
 
   for (filenum = 0;filenum < infile->count;filenum++) {
     
-    FILENAME = infile->filename[filenum];
+    //FILENAME = infile->filename[filenum];
     
     infile_fptr = fopen(infile->filename[filenum],"r");
     

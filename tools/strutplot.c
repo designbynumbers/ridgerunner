@@ -24,10 +24,13 @@ Public License along with ridgerunner. If not, see
 
 */
 
-#include "portability.h"
-#include "octrope.h"
-#include "ridgerunner.h"
 #include <argtable2.h>
+#include <octrope.h>
+
+int PD_VERBOSE = 0;
+
+#include "../src/portability.h"
+#include "../src/ridgerunner.h"
 
 #ifndef min 
   #define min(A,B) ((A < B) ? A : B)
@@ -453,7 +456,7 @@ void create_st_plot(plCurve *L,
   double yi,yj,mij,predicted_curvk;
   double cmpwidth,cmpstart,cmpheight;
 
-  tag *kinktags;
+  //tag *kinktags;
   int   nkinks = 0;
 
   tag  vtags[1000];
@@ -916,7 +919,7 @@ void create_st_plot(plCurve *L,
 
     /* There may _be_ no kinks, so we might just skip */
 
-    kinktags = calloc(num_min_rad_locs,sizeof(tag));
+    // kinktags = calloc(num_min_rad_locs,sizeof(tag));
     nkinks = 0;
 
     if (pscomments) {

@@ -23,10 +23,13 @@ Public License along with ridgerunner. If not, see
 #include <config.h>
 #endif
 
-#include"ridgerunner.h"
-#include"mangle.h"
 #include<argtable2.h>
 #include<gsl/gsl_fit.h>
+
+#include"../src/ridgerunner.h"
+#include"../src/mangle.h"
+
+int PD_VERBOSE = 0;
 
 bool VERBOSE = false;
 bool gFail = false;
@@ -837,12 +840,12 @@ void test_link(plCurve *L,int ndirs)
     for(h=1e-9,ndata=0;h>1e-11;h/=2.0,ndata++) {
       
       plCurve *workerLink;
-      octrope_strut afterPoca;
+      //octrope_strut afterPoca;
       
       workerLink = plc_copy(L);
       step(workerLink,h,stepDir);
       poca_after = octrope_poca(workerLink,NULL,0);
-      afterPoca = poca(workerLink);
+      //afterPoca = poca(workerLink);
       
       quot = fabs((h*dder - ((poca_after/2.0) - (poca_before/2.0)))/h);
       

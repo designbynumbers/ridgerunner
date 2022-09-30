@@ -25,11 +25,13 @@ Public License along with ridgerunner. If not, see
 #include <config.h>
 #endif
 
-#include"ridgerunner.h"
-#include"mangle.h"
+#include"../src/ridgerunner.h"
+#include"../src/mangle.h"
 #include<argtable2.h>
 
 /* Global variables live here. */
+
+int PD_VERBOSE = 0;
 
 struct arg_dbl  *target_thickness;
 struct arg_dbl  *arg_lambda;

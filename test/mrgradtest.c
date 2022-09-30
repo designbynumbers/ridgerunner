@@ -35,10 +35,13 @@ Public License along with ridgerunner. If not, see
 #include <config.h>
 #endif
 
-#include"ridgerunner.h"
-#include"mangle.h"
 #include<argtable2.h>
 #include<gsl/gsl_fit.h>
+
+#include"../src/ridgerunner.h"
+#include"../src/mangle.h"
+
+int PD_VERBOSE = 0;
 
 bool VERBOSE = false;
 bool gFail = false;
@@ -57,7 +60,7 @@ void compute_pm_minrad_gradient(plCurve *inLink,int cItr,int vItr,
   plc_vector B, A, cross;
   double bmag, amag;
   double angle;
-  double kappa, prevLen, thisLen;
+  double kappa; //, prevLen, thisLen;
   plc_vector  prevSide, thisSide, N, fancyL, fancyM, fancyN;
  		
   prevSide = plc_vect_diff(inLink->cp[cItr].vt[vItr],inLink->cp[cItr].vt[vItr-1]);
@@ -65,8 +68,8 @@ void compute_pm_minrad_gradient(plCurve *inLink,int cItr,int vItr,
   
   /* dot = plc_M_dot(prevSide, thisSide); */
   
-  prevLen = plc_M_norm(prevSide);
-  thisLen = plc_M_norm(thisSide);
+  //prevLen = plc_M_norm(prevSide);
+  //thisLen = plc_M_norm(thisSide);
   
   // B = b-v = thisSide. 
   
@@ -259,7 +262,7 @@ void test_mrgrad_var(int steps)
 
   plCurve *L;
   plc_vector pGrad[3], mGrad[3];
-  double mr_before,mr_after,pMinrad,mMinrad;
+  double mr_before,pMinrad,mMinrad; //,mr_after,
   double hdata[256],pquotdata[256],mquotdata[256];
   int ndata;
   bool newTheta = true;
@@ -384,7 +387,7 @@ void test_mrgrad_var(int steps)
 
 	workerLink = plc_copy(L);
 	step(workerLink,h,stepDir);
-	mr_after = pmMinrad(workerLink,0,1,&pMinrad_after,&mMinrad_after);
+	/*mr_after = */ pmMinrad(workerLink,0,1,&pMinrad_after,&mMinrad_after);
 	
 	pquot = fabs((h*pdder - (pMinrad_after - pMinrad))/h);
 	mquot = fabs((h*mdder - (mMinrad_after - mMinrad))/h);

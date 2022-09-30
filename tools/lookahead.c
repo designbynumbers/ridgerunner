@@ -26,10 +26,12 @@ Public License along with ridgerunner. If not, see
 
 #include<stdio.h>
 #include<stdlib.h>
-
-#include"ridgerunner.h"
-#include"mangle.h"
 #include<argtable2.h>
+
+#include"../src/ridgerunner.h"
+#include"../src/mangle.h"
+
+int PD_VERBOSE = 0;
 
 /* Global variables live here. */
 
