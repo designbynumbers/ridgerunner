@@ -70,7 +70,7 @@ AC_CHECK_FUNCS([asctime localtime time difftime mkstemp fdopen remove rename ope
 # Checks for libraries.
 AC_SEARCH_LIBS([sqrt],[m])
 AC_SEARCH_LIBS([arg_parse],[argtable2],[],AC_MSG_ERROR([ridgerunner requires the argtable2 library]))
-AC_SEARCH_LIBS([octrope],[plcurve],[],AC_MSG_ERROR([ridgerunner requires the plcurve library]))
+AC_SEARCH_LIBS([octrope],[plCurve],[],AC_MSG_ERROR([ridgerunner requires the plcurve library]))
 AC_SEARCH_LIBS([t_snnls],[tsnnls],[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]))
 AC_SEARCH_LIBS([cblas_dgemv],[openblas], ,AC_MSG_ERROR([ridgerunner requires the OpenBlas library]))
 AC_SEARCH_LIBS([initscr],[ncurses],[have_curses=true],[have_curses=false])
