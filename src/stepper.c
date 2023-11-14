@@ -188,6 +188,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
     
     int lastSet;      
     lastSet = inState->lastStepStrutCount;
+    assert(lastSet >= 0);
 
     double maxmin;
     maxmin = plCurve_long_edge(*inLink)/plCurve_short_edge(*inLink);
@@ -212,6 +213,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	assert(length != NULL);
 	
 	totlen = plc_arclength((*inLink),length);
+	assert(totlen > 0);
+
 	thi = inState->thickness;
 	
 	for(j=0;j<(*inLink)->nc;j++) { length[j] /= thi; }
@@ -229,6 +232,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 	res = 2.0;
 	
 	int totvt = 0;
+	assert(totvt==0); /* This is a debugging variable. We just put in the check to prevent compiler warnings here. */
 	
 	for(j=0;j<(*inLink)->nc;j++) {nv[j] = ceil(res*length[j]); totvt += nv[j];}  
 	
@@ -1266,6 +1270,9 @@ double predict_deltarop(plCurve *inLink,plc_vector *stepDir,double stepSize,doub
   double predictedThickness=100000,poca = 100000;
   int ptloc = -1,pocaloc = -1;
   int sitr,mritr;
+
+  assert(ptloc == -1);
+  assert(pocaloc == -1);
 
   for(i=0,sitr = 0;sitr < nstrut;i++,sitr++) {
 
@@ -2980,6 +2987,9 @@ void compute_minrad_gradient(plCurve *inLink,octrope_mrloc mrloc,plc_vector *AAs
   
   prevLen = plc_M_norm(prevSide);
   thisLen = plc_M_norm(thisSide);
+
+  assert(prevLen >= 0.0);  /* These are debugging variables */
+  assert(thisLen >= 0.0);
   
   // B = b-v = thisSide. 
   
@@ -3960,6 +3970,8 @@ void vgscan_taucs_ccs_matrix(taucs_ccs_matrix *A)
 
   }
 
+  assert(i>=0);  
+
 }
 
 
@@ -4088,6 +4100,7 @@ plc_vector
 
     double compmin = 1000000;
     int compminloc = -1;
+    assert(compminloc == -1);
 
     for(dlItr=0;dlItr<A->n;dlItr++) { 
 
@@ -4325,6 +4338,8 @@ computeCompressPush( plCurve* inLink, octrope_strut* strutSet,
 
   freeFlag = malloc_or_die(sizeof(bool)*plc_num_verts(L), __FILE__ , __LINE__ );
   nStrutFree = strut_free_vertices(L,state->tube_radius,freeFlag);
+  assert(nStrutFree >= 0);
+  
   dlenForce(dLen,L,state);
 
   int cmpItr,vItr;

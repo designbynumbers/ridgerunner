@@ -129,7 +129,7 @@ plCurve_fixresolution( plCurve* inLink, double newres)
 
   /* Generate the new curve */
 
-  int failsafe = 0;
+  int failsafe;
 
   /* First, check to see if we need to do anything. */
   
@@ -154,6 +154,8 @@ plCurve_fixresolution( plCurve* inLink, double newres)
       if (newVer->cp[i].nv < nv[i]) { ok = false; }
 
     }
+
+    assert(failsafe < 10); /* If more than 10 doublings are required, something is very wrong */
 
   }
 
