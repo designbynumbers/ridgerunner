@@ -18,7 +18,7 @@ AC_COPYRIGHT([
 
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
-AC_INIT(ridgerunner,2.1.1,jason.cantarella@gmail.com)
+AC_INIT(ridgerunner,2.2.2,jason.cantarella@gmail.com)
 AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE([subdir-objects])
 
@@ -39,7 +39,7 @@ AM_INIT_AUTOMAKE([subdir-objects])
 # Due to various broken ideas, we have to have two versions of this number, one
 # with colons below and one with periods above.  Please keep them in sync!
 #
-AC_SUBST(LIB_VERSION, 2:1:1)
+AC_SUBST(LIB_VERSION, 2:2:2)
 #AC_CONFIG_SRCDIR([configure])
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AC_CONFIG_MACRO_DIR([m4])
