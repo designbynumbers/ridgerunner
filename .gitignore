@@ -11,7 +11,7 @@ config.sub
 *.in
 *~
 Makefile
-aclocal.m4	
+aclocal.m4
 autom4te.cache/
 compile
 configure
@@ -30,3 +30,6 @@ rownumcvctest
 strutgradtest
 strutplot
 test-driver
+test/TAGS
+src/TAGS
+tools/TAGS

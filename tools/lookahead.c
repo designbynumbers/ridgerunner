@@ -31,7 +31,7 @@ Public License along with ridgerunner. If not, see
 #include"../src/ridgerunner.h"
 #include"../src/mangle.h"
 
-int PD_VERBOSE = 0;
+
 
 /* Global variables live here. */
 

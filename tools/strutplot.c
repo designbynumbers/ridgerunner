@@ -27,8 +27,6 @@ Public License along with ridgerunner. If not, see
 #include <argtable2.h>
 #include <octrope.h>
 
-int PD_VERBOSE = 0;
-
 #include "../src/portability.h"
 #include "../src/ridgerunner.h"
 

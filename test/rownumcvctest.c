@@ -34,7 +34,7 @@
 #include"../src/ridgerunner.h"
 #include"../src/mangle.h"
 
-int PD_VERBOSE = 0;
+
 
 int rownum(plCurve *inLink, int cmp, int vert, int coord);
 

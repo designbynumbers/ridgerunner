@@ -24,8 +24,6 @@ Public License along with ridgerunner. If not, see
 #include "../src/portability.h"
 #include "../src/ridgerunner.h"
 
-int PD_VERBOSE = 0;
-
 int main(int argc,char *argv[]) {
 
   FILE *infile_fptr = {NULL};

@@ -22,8 +22,6 @@
  
 #include"ridgerunner.h"
 
-int PD_VERBOSE = 0;
-
 /* This "main" file is where all of the global variables live. */
 
 void usage();
