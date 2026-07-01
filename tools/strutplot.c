@@ -119,7 +119,9 @@ int SS_HIGHLIGHT = {true},
   PLOT_BACKGROUND = {true},
   USE_DSC = {true};
 
-double gLambda;
+/* gLambda is defined once in src/globals.c and declared extern in ridgerunner.h; strutplot
+   links globals.o for it. A file-scope definition here is a duplicate that breaks linking
+   under GCC's -fno-common default (Linux), so it is intentionally omitted. */
 
 /**********************************************************************/
 /*  Horizontal tag plotting (crude)                                   */
