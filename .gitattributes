@@ -1,0 +1,8 @@
+# Files kept out of the source-release tarball (`git archive`). These are repo meta / dev /
+# CI files that are not part of a buildable source distribution. Everything else tracked is
+# shipped, and the release workflow adds the autoconf/automake-generated files on top.
+/.github/         export-ignore
+/.gitignore       export-ignore
+/.gitattributes   export-ignore
+/CLAUDE.md        export-ignore
+/attic/           export-ignore
