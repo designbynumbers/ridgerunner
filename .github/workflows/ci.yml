@@ -1,0 +1,57 @@
+name: CI
+
+# Build and self-test ridgerunner on macOS (ARM + Intel) and Linux against the Homebrew
+# dependency chain. This validates the upstream source; the tap owns formula/packaging CI.
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14,     name: macOS ARM }
+          - { os: macos-13,     name: macOS Intel }
+          - { os: ubuntu-latest, name: Linux }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools and dependencies (Homebrew)
+        run: |
+          brew update
+          brew tap designbynumbers/cantarellalab
+          brew install autoconf automake pkg-config argtable gsl openblas libplcurve libtsnnls
+
+      - name: Install ncurses headers (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+
+      - name: Bootstrap (autogen.sh)
+        run: ./autogen.sh
+
+      - name: Configure
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix openblas)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          ./configure CPPFLAGS="-I$(brew --prefix)/include" LDFLAGS="-L$(brew --prefix)/lib"
+
+      - name: Build
+        run: make
+
+      - name: Self-tests (make check)
+        run: |
+          # No libtool means no baked-in rpath, so point the runtime linker at the Homebrew
+          # (and keg-only OpenBLAS) library dirs for the test binaries.
+          export LD_LIBRARY_PATH="$(brew --prefix)/lib:$(brew --prefix openblas)/lib:${LD_LIBRARY_PATH:-}"
+          export DYLD_LIBRARY_PATH="$(brew --prefix)/lib:$(brew --prefix openblas)/lib:${DYLD_LIBRARY_PATH:-}"
+          make check
+
+      - name: Show test log on failure
+        if: failure()
+        run: cat test-suite.log 2>/dev/null || true

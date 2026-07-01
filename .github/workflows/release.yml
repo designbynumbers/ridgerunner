@@ -1,0 +1,69 @@
+name: Release
+
+# On a version tag (vX.Y.Z), build + self-test, produce the source tarball with `make dist`,
+# and publish it as a GitHub Release asset together with its sha256. The downstream Homebrew
+# formula (designbynumbers/homebrew-cantarellalab) points its url/sha256 at this asset.
+#
+# The tag must match the version in configure.ac (AC_INIT), e.g. tag v2.3.0 -> AC_INIT 2.3.0
+# -> asset ridgerunner-2.3.0.tar.gz.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required to create the GitHub Release
+
+jobs:
+  dist:
+    name: Build tarball and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools and dependencies (Homebrew)
+        run: |
+          brew update
+          brew tap designbynumbers/cantarellalab
+          brew install autoconf automake pkg-config argtable gsl openblas libplcurve libtsnnls
+
+      - name: Install ncurses headers
+        run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+
+      - name: Bootstrap, configure, build, self-test
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix openblas)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export LD_LIBRARY_PATH="$(brew --prefix)/lib:$(brew --prefix openblas)/lib:${LD_LIBRARY_PATH:-}"
+          ./autogen.sh
+          ./configure CPPFLAGS="-I$(brew --prefix)/include" LDFLAGS="-L$(brew --prefix)/lib"
+          make
+          make check
+
+      - name: Build release tarball (make dist)
+        id: dist
+        run: |
+          make dist
+          TARBALL=$(ls ridgerunner-*.tar.gz)
+          SHA=$(sha256sum "$TARBALL" | cut -d' ' -f1)
+          sha256sum "$TARBALL" | tee "$TARBALL.sha256"
+          {
+            echo "tarball=$TARBALL"
+            echo "sha256=$SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.dist.outputs.tarball }}
+            ${{ steps.dist.outputs.tarball }}.sha256
+          body: |
+            Automated source release built with `make dist` and self-tested (`make check`).
+
+            **Asset:** `${{ steps.dist.outputs.tarball }}`
+            **sha256:** `${{ steps.dist.outputs.sha256 }}`
+
+            Downstream Homebrew formula (`designbynumbers/homebrew-cantarellalab`): set the
+            formula `url` to this release asset and `sha256` to the value above. See the
+            upstream `handoff/` note for the required `pkg-config` build-dependency change.
