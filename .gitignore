@@ -1,17 +1,21 @@
 #These files shouldn't be tracked by git
 *.o
+*.a
 *.log
 *.trs
 *.deps
 *.dirstamp
+*.tar.gz
 config.h
 config.guess
 config.status
 config.sub
+stamp-h1
 *.in
 *~
 Makefile
 aclocal.m4
+ar-lib
 autom4te.cache/
 compile
 configure

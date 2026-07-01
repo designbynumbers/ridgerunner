@@ -18,7 +18,7 @@ AC_COPYRIGHT([
 
 # Don't forget to change the LIB_VERSION (and read the note if you are
 # wondering what the numbers mean.
-AC_INIT(ridgerunner,2.2.2,jason.cantarella@gmail.com)
+AC_INIT(ridgerunner,2.3.0,jason.cantarella@gmail.com)
 AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE([subdir-objects])
 
@@ -39,15 +39,25 @@ AM_INIT_AUTOMAKE([subdir-objects])
 # Due to various broken ideas, we have to have two versions of this number, one
 # with colons below and one with periods above.  Please keep them in sync!
 #
-AC_SUBST(LIB_VERSION, 2:2:2)
+AC_SUBST(LIB_VERSION, 2:3:0)
 #AC_CONFIG_SRCDIR([configure])
 AC_CONFIG_SRCDIR([src/ridgerunner_main.c])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 
-LT_INIT
 # Checks for programs.
 AC_PROG_CC([clang gcc])
+
+# Tools for the static convenience library (the shared src/ objects are compiled once into
+# librrcore.a and linked by every program). AM_PROG_AR must appear before it is used.
+AM_PROG_AR
+AC_PROG_RANLIB
+
+# pkg-config: used to locate OpenBLAS, which is keg-only under Homebrew and so is not
+# found on the default header/library search path. Homebrew adds the keg's pkgconfig
+# directory to PKG_CONFIG_PATH automatically, so no manual flags are needed.
+PKG_PROG_PKG_CONFIG
+PKG_CHECK_MODULES([OPENBLAS], [openblas])
 
 # Checks for functions
 AC_CHECK_FUNCS([strncpy strstr])
@@ -59,8 +69,9 @@ AC_CHECK_HEADER([octrope.h], ,AC_MSG_ERROR([ridgerunner requires headers from th
 AC_CHECK_HEADER([libtsnnls/tsnnls.h], ,AC_MSG_ERROR([ridgerunner requires headers from the tsnnls library]))
 AC_CHECK_HEADER([libtsnnls/lsqr.h], ,AC_MSG_ERROR([ridgerunner requires headers from the tsnnls library]))
 AC_CHECK_HEADER([plCurve.h], ,AC_MSG_ERROR([ridgerunner requires headers from the plcurve library]))
-AC_CHECK_HEADER([cblas.h], ,AC_MSG_ERROR([ridgerunner requires headers from the OpenBlas library]))
-AC_CHECK_HEADER([lapacke.h], ,AC_MSG_ERROR([ridgerunner requires headers from the OpenBlas library]))
+
+# The OpenBLAS headers (cblas.h, lapacke.h) are provided via OPENBLAS_CFLAGS from the
+# pkg-config check above, so we do not probe for them on the default search path here.
 
 AC_CHECK_HEADERS([malloc.h malloc/malloc.h])
 
@@ -72,9 +83,13 @@ AC_SEARCH_LIBS([sqrt],[m])
 AC_SEARCH_LIBS([arg_parse],[argtable2],[],AC_MSG_ERROR([ridgerunner requires the argtable2 library]))
 AC_SEARCH_LIBS([octrope],[plCurve],[],AC_MSG_ERROR([ridgerunner requires the plcurve library]))
 AC_SEARCH_LIBS([t_snnls],[tsnnls],[],AC_MSG_ERROR([ridgerunner requires the tsnnls library]))
-AC_SEARCH_LIBS([cblas_dgemv],[openblas], ,AC_MSG_ERROR([ridgerunner requires the OpenBlas library]))
 AC_SEARCH_LIBS([initscr],[ncurses],[have_curses=true],[have_curses=false])
 AC_SEARCH_LIBS([gsl_fit_linear],[gsl], ,AC_MSG_ERROR([ridgerunner requires the gsl library]),[-lgslcblas])
+
+# OpenBLAS is located via pkg-config (PKG_CHECK_MODULES above). Append its libraries after
+# the plCurve/tsnnls libraries so that static linking on Linux resolves symbols correctly
+# (a library must precede the libraries it depends on).
+LIBS="$LIBS $OPENBLAS_LIBS"
 
 # At this point, we used to check for various other packages, such as gnuplot and povray.
 # This kind of thing is handled by the homebrew package manager now, so we no longer try
@@ -89,9 +104,6 @@ AC_SEARCH_LIBS([gsl_fit_linear],[gsl], ,AC_MSG_ERROR([ridgerunner requires the g
 # Can we inline and/or const?
 AC_C_INLINE
 AC_C_CONST
-
-# Add dmalloc support if desired
-AM_WITH_DMALLOC
 
 # Output
 AC_CONFIG_FILES([Makefile])
