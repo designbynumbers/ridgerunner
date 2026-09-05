@@ -37,3 +37,9 @@ test-driver
 test/TAGS
 src/TAGS
 tools/TAGS
+dist/
+__pycache__/
+*.pyc
+build-mingw/
+.idea/
+

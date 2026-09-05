@@ -53,9 +53,13 @@ DebugWarning( int inErr, const char* inFile, long inLine )
 void
 error_write( plCurve* inLink )
 {
-	FILE* fp = fopen("/tmp/err.vect","w");
-	plc_write(fp,inLink);
-	fclose(fp);
+	char path[4096];
+	rr_temp_path(path, sizeof(path), "err.vect");
+	FILE* fp = fopen(path,"w");
+	if (fp != NULL) {
+	  plc_write(fp,inLink);
+	  fclose(fp);
+	}
 }
 
 void FatalError(char *debugmsg,const char *file,int line)
@@ -458,41 +462,72 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
 {
   FILE* fp;
   char filename[1024];
+  int write_dense;
+
+  if (inState == NULL) {
+    return;
+  }
+
+  /* Dense A.mat/A.dat densify the rigidity matrix to m*n doubles and write
+   * them as text (~O(100MB) at N=1200). Only emit those when explicitly
+   * requested via dumpAxb or very-verbose mode. */
+  write_dense = (inState->dumpAxb || VERBOSITY >= 10) ? 1 : 0;
   
   /* Construct filename for A */
 
   if (A != NULL) {
 
     sprintf(filename,"%sA.sparse",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    taucs_ccs_write_sparse(fp,A);
-    fclose(fp);
+    fp = fopen(filename,"w");
+    if (fp == NULL) {
+      NonFatalError("dumpAxb_sparse: could not open A.sparse for write.\n",
+                    __FILE__, __LINE__);
+    } else {
+      taucs_ccs_write_sparse(fp,A);
+      fclose(fp);
+    }
 
-    sprintf(filename,"%sA.mat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    taucs_ccs_write_mat(fp,A);
-    fclose(fp);
+    if (write_dense) {
+      sprintf(filename,"%sA.mat",inState->fprefix);
+      fp = fopen(filename,"w");
+      if (fp == NULL) {
+        NonFatalError("dumpAxb_sparse: could not open A.mat for write.\n",
+                      __FILE__, __LINE__);
+      } else {
+        taucs_ccs_write_mat(fp,A);
+        fclose(fp);
+      }
 
-    sprintf(filename,"%sA.dat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    taucs_ccs_write_dat(fp,A);
-    fclose(fp);
+      sprintf(filename,"%sA.dat",inState->fprefix);
+      fp = fopen(filename,"w");
+      if (fp == NULL) {
+        NonFatalError("dumpAxb_sparse: could not open A.dat for write.\n",
+                      __FILE__, __LINE__);
+      } else {
+        taucs_ccs_write_dat(fp,A);
+        fclose(fp);
+      }
+    }
 
   }
 
   /* Construct filename for x. */
 
-  if (x != NULL) {
+  if (x != NULL && write_dense) {
     
     sprintf(filename,"%sx.mat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    colvector_write_mat(fp,x,A->n,"x");
-    fclose(fp);
+    fp = fopen(filename,"w");
+    if (fp != NULL) {
+      colvector_write_mat(fp,x,A->n,"x");
+      fclose(fp);
+    }
 
     sprintf(filename,"%sx.dat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    colvector_write_dat(fp,x,A->n,"x");
-    fclose(fp);
+    fp = fopen(filename,"w");
+    if (fp != NULL) {
+      colvector_write_dat(fp,x,A->n,"x");
+      fclose(fp);
+    }
 
 
   }
@@ -502,14 +537,20 @@ dumpAxb_sparse( search_state *inState, taucs_ccs_matrix* A, double* x, double* b
   if (b != NULL) {
 
     sprintf(filename,"%sb.mat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    colvector_write_mat(fp,b,A->m,"b");    
-    fclose(fp);
+    fp = fopen(filename,"w");
+    if (fp != NULL) {
+      colvector_write_mat(fp,b,A->m,"b");
+      fclose(fp);
+    }
 
-    sprintf(filename,"%sb.dat",inState->fprefix);
-    fp = fopen_or_die(filename,"w", __FILE__ , __LINE__ ); 
-    colvector_write_dat(fp,b,A->m,"b");    
-    fclose(fp);
+    if (write_dense) {
+      sprintf(filename,"%sb.dat",inState->fprefix);
+      fp = fopen(filename,"w");
+      if (fp != NULL) {
+        colvector_write_dat(fp,b,A->m,"b");
+        fclose(fp);
+      }
+    }
 
   }
 

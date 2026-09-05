@@ -1,0 +1,94 @@
+name: Windows release
+
+# Build a portable MinGW Windows zip with run_all.py and publish it on tags matching v*-win*.
+# Requires MSYS2 MinGW64 on the runner — NOT Visual Studio / MSVC.
+
+on:
+  push:
+    tags: [ 'v*-win*', 'v*-windows*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-zip:
+    name: Build MinGW Windows zip
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ridgerunner
+    steps:
+      - name: Checkout ridgerunner
+        uses: actions/checkout@v4
+        with:
+          path: ridgerunner
+
+      - name: Checkout tsnnls (pinned tag)
+        uses: actions/checkout@v4
+        with:
+          repository: designbynumbers/tsnnls
+          ref: v2.5.1
+          path: ridge_tsnnls
+
+      - name: Checkout plcurve (pinned tag)
+        uses: actions/checkout@v4
+        with:
+          repository: designbynumbers/plcurve
+          ref: v11.2.3
+          path: ridge_plcurve
+
+      - name: Apply deps-overlay
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          Copy-Item -Recurse -Force "ridgerunner\windows\deps-overlay\tsnnls\*" "ridge_tsnnls\"
+          Copy-Item -Recurse -Force "ridgerunner\windows\deps-overlay\plcurve\*" "ridge_plcurve\"
+
+      - name: Setup MSYS2 MinGW64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-gsl
+            mingw-w64-x86_64-argtable
+            mingw-w64-x86_64-ntldd
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: run_all.py --package
+        shell: pwsh
+        run: |
+          $msys = $env:MSYS2_LOCATION
+          if (-not $msys) { $msys = "C:\msys64" }
+          $prefix = Join-Path (Resolve-Path ..).Path "ridge-prefix"
+          python run_all.py --msys $msys --prefix $prefix --package
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ridgerunner-windows-x64
+          path: ridgerunner/dist/*.zip
+
+      - name: Publish GitHub Release (tag builds)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ridgerunner/dist/*.zip
+          body: |
+            Portable **Windows x64** MinGW build (`ridgerunner` + `ridgerunner_multithread`).
+
+            ### Do you need MSYS2 or Visual Studio?
+            - **To run this zip:** neither. Only Python 3 for `.txt` KnotPlot inputs.
+            - **To build from source:** install [MSYS2](https://www.msys2.org/) MinGW64. Do **not** use Visual Studio / MSVC.
+
+            See `BUILD-WINDOWS.md` and the zip `README.md`.

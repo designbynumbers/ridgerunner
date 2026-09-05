@@ -16,7 +16,7 @@ EXTRA_DIST = autogen.sh configsonoma.sh
 # so it can never drift out of sync with the directory.
 include data/knotdata.am
 
-AM_CFLAGS = -g -finline-functions -Wall $(OPENBLAS_CFLAGS)
+AM_CFLAGS = -g -finline-functions -Wall $(OPENBLAS_CFLAGS) $(OPENMP_CFLAGS)
 
 # The core src/ sources are shared by ridgerunner and every companion tool and test. Compile
 # them once into a static convenience library rather than repeating the list per target.
@@ -34,7 +34,8 @@ librrcore_a_SOURCES = \
 	src/globals.c \
 	src/mangle.c src/mangle.h \
 	src/ridgerunner.h \
-	src/portability.h
+	src/portability.h \
+	src/portability.c
 
 bin_PROGRAMS = ridgerunner strutplot residual
 

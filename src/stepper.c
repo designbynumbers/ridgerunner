@@ -23,6 +23,13 @@ Public License along with ridgerunner. If not, see
 
 #include "ridgerunner.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+/* OpenBLAS: keep at 1 thread so OMP octrope/line-search is not oversubscribed. */
+void openblas_set_num_threads(int num_threads);
+
 /* Function prototypes */
 
 plCurve*  bsearch_step( plCurve* inLink, search_state* inState );
@@ -50,6 +57,7 @@ extern int gQuiet;
 extern int gSurfaceBuilding;
 extern int gPaperInfoInTmp;
 extern double gLambda;
+extern int gThreads;
 
 struct ccs_sort {
   
@@ -140,8 +148,75 @@ extern int gVerboseFiling;
 
 int	gCorrectionAttempts = 0;
 
-void   *gOctmem;
-int     gOctmem_size;
+void  **gOctmem_pool = NULL;
+int     gOctmem_pool_n = 0;
+int     gOctmem_size = 0;
+
+static void *
+rr_octmem(void)
+{
+  int tid = 0;
+#ifdef _OPENMP
+  tid = omp_get_thread_num();
+#endif
+  if (gOctmem_pool == NULL || gOctmem_pool_n <= 0) {
+    return NULL;
+  }
+  if (tid < 0 || tid >= gOctmem_pool_n) {
+    tid = 0;
+  }
+  return gOctmem_pool[tid];
+}
+
+static void
+rr_octmem_pool_free(void)
+{
+  int i;
+  if (gOctmem_pool == NULL) {
+    return;
+  }
+  for (i = 0; i < gOctmem_pool_n; i++) {
+    free(gOctmem_pool[i]);
+    gOctmem_pool[i] = NULL;
+  }
+  free(gOctmem_pool);
+  gOctmem_pool = NULL;
+  gOctmem_pool_n = 0;
+}
+
+static void
+rr_octmem_pool_alloc(int nedges)
+{
+  int i;
+  int n;
+
+  n = gThreads;
+  if (n <= 0) {
+    n = octrope_get_threads();
+  }
+  if (n < 1) {
+    n = 1;
+  }
+
+  octrope_set_threads(n);
+#ifdef _OPENMP
+  omp_set_num_threads(n);
+#endif
+  openblas_set_num_threads(1);
+
+  gOctmem_size = octrope_est_mem(nedges);
+  gOctmem_pool_n = n;
+  gOctmem_pool = (void **)malloc_or_die((size_t)n * sizeof(void *),
+                                        __FILE__, __LINE__);
+  for (i = 0; i < n; i++) {
+    gOctmem_pool[i] = malloc_or_die((size_t)gOctmem_size, __FILE__, __LINE__);
+  }
+
+  if (VERBOSITY >= 5 || !gQuiet) {
+    logprintf("OpenMP: using %d thread(s) for octrope/line-search "
+              "(OpenBLAS threads=1).\n", n);
+  }
+}
 
 void 
 bsearch_stepper( plCurve** inLink, search_state* inState )
@@ -172,12 +247,8 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
   inState->steps = 0;
   int stepItr;
 
-  /* We allocate a global buffer for all the octrope calls inside
-     the stepper loop. Note that this means we are assuming that 
-     the number of verts stays more or less constant inside here. */
-
-  gOctmem_size = octrope_est_mem(plc_num_edges(*inLink));
-  gOctmem = malloc_or_die(sizeof(char)*gOctmem_size, __FILE__ , __LINE__ );  
+  /* Per-thread octrope workspaces (number of verts assumed roughly constant). */
+  rr_octmem_pool_alloc(plc_num_edges(*inLink));  
   
   for( stepItr=0; /* Main loop, incorporates stopping criteria. */
        (stepItr < inState->maxItrs) && 
@@ -409,7 +480,7 @@ bsearch_stepper( plCurve** inLink, search_state* inState )
 
   if (inState->newDir != NULL) { free(inState->newDir); inState->newDir = NULL; }
 
-  free(gOctmem);
+  rr_octmem_pool_free();
 
   /* We have now terminated. The final output files will be written 
      in ridgerunner_main.c. However, we log the reason for termination. */
@@ -1838,7 +1909,7 @@ double trialStep( plCurve *inLink, search_state *inState,
 
   octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	  gOctmem,gOctmem_size,gLambda);
+	  rr_octmem(),gOctmem_size,gLambda);
 
   inState->octrope_calls++;
     
@@ -1914,8 +1985,11 @@ double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, do
     
   octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	  gOctmem,gOctmem_size,gLambda);
+	  rr_octmem(),gOctmem_size,gLambda);
 
+#ifdef _OPENMP
+#pragma omp atomic update
+#endif
   inState->octrope_calls++;
   
   if (newmr < gLambda * inState->tube_radius || newpoca < 2*inState->tube_radius) {
@@ -1940,6 +2014,22 @@ double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, do
 
   return score;
 
+}
+
+void
+score_steps_parallel(plCurve *inLink, search_state *inState, plc_vector *dVdt,
+                     const double *steps, double *scores, int n)
+{
+  int i;
+  if (n <= 0) {
+    return;
+  }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 1 && gOctmem_pool_n > 1)
+#endif
+  for (i = 0; i < n; i++) {
+    scores[i] = stepScore(inLink, inState, dVdt, steps[i]);
+  }
 }
 
 #define GOLD 1.618034
@@ -2099,7 +2189,7 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
     step(workerLink, StepSize, dVdt);
     newGrad = stepDirection( workerLink, inState->tube_radius, inState->eqMultiplier, gLambda, inState);
     
-    if (StepSize < 1e-11*inState->maxStepSize) { 
+    if (StepSize < 1e-11*inState->maxStepSize) {
 
       /* We couldn't get the linear algebra to work at any step size (note that we scale this relative
          to the maximum allowed step size). */
@@ -2112,7 +2202,7 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
 	      "Dumping link to %s.\n"
 	      ,StepSize,dumpname);
       FatalError(errmsg,__FILE__,__LINE__);
-      
+
     }
 
   }
@@ -2141,7 +2231,7 @@ plCurve *doStep( plCurve *inLink, plc_vector *dVdt, double InitialStepSize, sear
   
   octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	  0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	  gOctmem,gOctmem_size,gLambda);
+	  rr_octmem(),gOctmem_size,gLambda);
   
   inState->octrope_calls++;
   
@@ -2230,8 +2320,60 @@ double brentSearch(plCurve *inLink,search_state *inState,plc_vector *dVdt,double
 {
   double ax = 0, bx = 1.0*1e-4 /* fabs(inState->stepSize) */, cx = 2.0*1e-4 /*fabs(inState->stepSize) */;
   double fa, fb, fc;
+  int used_grid = 0;
 
-  mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
+  /* Parallel coarse geometric grid (when multi-threaded) to seed a bracket. */
+  if (gOctmem_pool_n > 1) {
+    int ngrid = 2 * gOctmem_pool_n;
+    double *steps = NULL;
+    double *scores = NULL;
+    int i, best;
+    double s0 = 1e-6;
+    double s1 = 1e-2;
+    double ratio;
+
+    if (ngrid < 3) {
+      ngrid = 3;
+    }
+    steps = (double *)malloc((size_t)ngrid * sizeof(double));
+    scores = (double *)malloc((size_t)ngrid * sizeof(double));
+    if (steps != NULL && scores != NULL) {
+      ratio = pow(s1 / s0, 1.0 / (double)(ngrid - 1));
+      for (i = 0; i < ngrid; i++) {
+        steps[i] = s0 * pow(ratio, (double)i);
+      }
+      score_steps_parallel(inLink, inState, dVdt, steps, scores, ngrid);
+
+      best = 0;
+      for (i = 1; i < ngrid; i++) {
+        if (scores[i] < scores[best]) {
+          best = i;
+        }
+      }
+      if (best == 0) {
+        ax = steps[0]; bx = steps[1]; cx = steps[2];
+        fa = scores[0]; fb = scores[1]; fc = scores[2];
+      } else if (best == ngrid - 1) {
+        ax = steps[ngrid - 3]; bx = steps[ngrid - 2]; cx = steps[ngrid - 1];
+        fa = scores[ngrid - 3]; fb = scores[ngrid - 2]; fc = scores[ngrid - 1];
+      } else {
+        ax = steps[best - 1]; bx = steps[best]; cx = steps[best + 1];
+        fa = scores[best - 1]; fb = scores[best]; fc = scores[best + 1];
+      }
+      if (fb <= fa && fb <= fc) {
+        used_grid = 1;
+      }
+    }
+    free(steps);
+    free(scores);
+  }
+
+  if (!used_grid) {
+    ax = 0;
+    bx = 1.0 * 1e-4;
+    cx = 2.0 * 1e-4;
+    mnbrak(&ax,&bx,&cx,&fa,&fb,&fc,inLink,inState,dVdt);
+  }
   
   /* We have now found a bracketing triple axv, bxv, cxv with corresponding step scores fav, fbv, fcv. */
   /* Our goal will be to pass them to brent and take this opportunity to zero in on the best possible step. */
@@ -2274,20 +2416,20 @@ sono_step( plCurve *inLink, search_state *inState)
 
     octrope(workerA,&rop,&thi,&len,&mr,&poca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	    gOctmem,gOctmem_size,gLambda);
+	    rr_octmem(),gOctmem_size,gLambda);
 
     dVdt = inputForce(workerA,inState->tube_radius,inState->eqMultiplier,gLambda,inState); 
     step(workerA, 0.001, dVdt);    
 
     octrope(workerA,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	    gOctmem,gOctmem_size,gLambda);
+	    rr_octmem(),gOctmem_size,gLambda);
     
     plc_scale(workerA,(inState->tube_radius)/newthi);
     
     octrope(workerA,&rop,&thi,&len,&mr,&poca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	    gOctmem,gOctmem_size,gLambda);
+	    rr_octmem(),gOctmem_size,gLambda);
     	    
   }
   
@@ -2485,7 +2627,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   /* We're going to have to call octrope every time we go through this 
      loop in order to compute the level of error we have so far. 
 
-     We will use the globals "gOctmem" and "gOctmem_size" for memory. */
+     We will use the per-thread octmem pool for memory. */
     
   double newthi,newrop,newlen;
   double stepTaken;
@@ -2520,7 +2662,7 @@ bsearch_step( plCurve* inLink, search_state* inState )
   
     octrope(workerLink,&newrop,&newthi,&newlen,&newmr,&newpoca,
 	    0,0,NULL,0,NULL,0,0,NULL,0,NULL,
-	    gOctmem,gOctmem_size,gLambda);
+	    rr_octmem(),gOctmem_size,gLambda);
 
     inState->octrope_calls++;
     
@@ -4077,18 +4219,37 @@ plc_vector
 
     if (inState != NULL) { if (inState->dumpAxb) { dumpAxb_sparse(inState,A,compressions,minusDL); }}
        
-    char *terr;
+    char *terr = NULL;
 
     if (tsnnls_error(&terr)) {  /* If tsnnls throws a code, log it. */
 	
       logprintf("%s",terr);
-      if (inState != NULL) {dumpAxb_sparse(inState,A,NULL,minusDL);}
+      /* Dump rigidity matrix at most once per process: repeated dense dumps
+       * on every LA failure were stalling N1200 stabilize for hours and could
+       * FatalError inside dumpAxb_sparse when A.dat could not be reopened. */
+      {
+        static int dumped_axb_once = 0;
+        if (inState != NULL && !dumped_axb_once) {
+          dumped_axb_once = 1;
+          dumpAxb_sparse(inState,A,NULL,minusDL);
+        }
+      }
 
     }
 
     if (compressions == NULL) {   /* We really failed. We need to free the memory that we've allocated, and return. */
 
       logprintf("resolve_force: Linear algebra failure. Returning control to stepper.\n");
+      /* Ensure ladder recovery has a dump.vect even if a later dump/fatal path runs. */
+      if (inState != NULL) {
+        static int dumped_link_once = 0;
+        if (!dumped_link_once) {
+          char dumpname[1024];
+          dumped_link_once = 1;
+          dumpLink(inLink,inState,dumpname);
+          logprintf("resolve_force: wrote recovery dump %s\n", dumpname);
+        }
+      }
       free(dVdt);
       taucs_ccs_free(A);
       free(minusDL);

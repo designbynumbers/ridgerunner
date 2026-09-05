@@ -58,6 +58,8 @@ AC_PROG_RANLIB
 # directory to PKG_CONFIG_PATH automatically, so no manual flags are needed.
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([OPENBLAS], [openblas])
+AC_OPENMP
+CFLAGS="$CFLAGS $OPENMP_CFLAGS"
 
 # Checks for functions
 AC_CHECK_FUNCS([strncpy strstr])

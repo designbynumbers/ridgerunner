@@ -36,6 +36,7 @@ int gSONO = 0;
 int gSpinForce = 0;
 int gStrutFreeResidual = 0;
 int gMangleMode = 0;
+int gThreads = 0; /* 0 = use OpenMP default (omp_get_max_threads) */
 
 int gNumTubeColors = 5;   /* Note: We must keep this in sync with the gTubeColors array below */
 

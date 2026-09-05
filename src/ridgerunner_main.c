@@ -160,6 +160,9 @@ main( int argc, char* argv[] )
 
   struct arg_lit *arg_sfr = arg_lit0(NULL,"StrutFreeResidual","log the portion of residual on strut-free sections of curve");
 
+  struct arg_int  *arg_threads = arg_int0(NULL,"Threads","<#threads>",
+                                          "OpenMP threads for octrope + parallel line-search (default: OMP max)");
+
   struct arg_str  *arg_symmetry = arg_strn(NULL,"Symmetry","Z/pZ,D2,cplanes",
 					   0,1,"rotation/reflection symmetry group (around z-axis), or across all coordinate planes to enforce on curve");
 
@@ -180,7 +183,7 @@ main( int argc, char* argv[] )
 		      arg_animation, arg_timewarp,arg_mangler,arg_manglesteps,arg_cg,arg_eqit,/*arg_cstep_size,arg_maxcorr,*/
 		      arg_eqmult,arg_eq,arg_overstep,arg_mroverstep,
 		      arg_maxstep,arg_minstep,arg_snapinterval,arg_trynewton,
-		      arg_sono, arg_spin, arg_rcond, arg_sfr, arg_symmetry,
+		      arg_sono, arg_spin, arg_rcond, arg_sfr, arg_threads, arg_symmetry,
 
 		      arg_bl8,arg_dispopts,arg_bl9,
 		      arg_display,
@@ -341,6 +344,16 @@ main( int argc, char* argv[] )
 
   if (arg_spin->count > 0) { gSpinForce = 1; }
 
+  if (arg_threads->count > 0) {
+    gThreads = arg_threads->ival[0];
+    if (gThreads < 1) {
+      fprintf(stderr, "ridgerunner: --Threads must be >= 1 (got %d)\n", gThreads);
+      arg_freetable(argtable,sizeof(argtable)/sizeof(argtable[0]));
+      exit(1);
+    }
+    octrope_set_threads(gThreads);
+  }
+
   if (arg_symmetry->count > 0) { 
 
     if (arg_animation->count == 0) {
@@ -454,26 +467,22 @@ main( int argc, char* argv[] )
 
   /* We now open the local directory for storing output. */
   
-  char cmdline[1024];
-  
-  sprintf(cmdline,"rm -fr %s.rr",state.basename);
-  system_or_die(cmdline, __FILE__ , __LINE__ );
+  char outdir[1024];
 
-  sprintf(cmdline,"mkdir %s.rr",state.basename);
-  system_or_die(cmdline, __FILE__ , __LINE__ );
-  
-  sprintf(cmdline,"mkdir %s.rr/logfiles",state.basename);
-  system_or_die(cmdline, __FILE__ , __LINE__ );
-  
+  snprintf(outdir, sizeof(outdir), "%s.rr", state.basename);
+  rr_rmtree_or_die(outdir, __FILE__, __LINE__);
+  rr_mkdir_or_die(outdir, __FILE__, __LINE__);
+
+  snprintf(outdir, sizeof(outdir), "%s.rr/logfiles", state.basename);
+  rr_mkdir_or_die(outdir, __FILE__, __LINE__);
+
   if (arg_suppressfiles->count == 0) {
-    
-    sprintf(cmdline,"mkdir %s.rr/vectfiles",state.basename);
-    system_or_die(cmdline, __FILE__ , __LINE__ );
-    
+    snprintf(outdir, sizeof(outdir), "%s.rr/vectfiles", state.basename);
+    rr_mkdir_or_die(outdir, __FILE__, __LINE__);
   }
-  
-  sprintf(cmdline,"mkdir %s.rr/snapshots",state.basename);
-  system_or_die(cmdline, __FILE__ , __LINE__ );
+
+  snprintf(outdir, sizeof(outdir), "%s.rr/snapshots", state.basename);
+  rr_mkdir_or_die(outdir, __FILE__, __LINE__);
 
   /* We now initialize the log with a lot of (hopefully) helpful information
      about the run. */
@@ -819,7 +828,7 @@ main( int argc, char* argv[] )
 	  state.minminrad );
   
   // use amd column ordering if the user hasn't specified something else
-  setenv("COL_ORDERING", "amd", 0);
+  rr_setenv("COL_ORDERING", "amd", 0);
     
   open_runtime_logs(&state,'w');
   parse_display_arg(&state,arg_display);

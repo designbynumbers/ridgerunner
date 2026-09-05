@@ -26,11 +26,12 @@
 
 #include<config.h>
 
-#include "ncurses.h"         
-
+#ifdef CURSES_DISPLAY
+#include "ncurses.h"
 /* Ncurses rudely stomps the "bool" type without checking to see if it's already */
 /* defined (say, by stdbool.h). As a result, it must appear before we include    */
 /* portability (and hence stdbool). */
+#endif
 
 #include "portability.h"
 #include "errors.h"
@@ -74,6 +75,7 @@ extern int gSONO; /* Always do a dlen step */
 extern int gSpinForce; /* Add a spin component to the force */
 extern int gStrutFreeResidual; /* Log the portion of residual on strut-free sections of curve */
 extern int gMangleMode; /* Go into MangleMode and try to change configuration */
+extern int gThreads; /* OpenMP threads for octrope + parallel line search (0 = default) */
 
 #ifdef CURSES_DISPLAY
 
@@ -325,6 +327,10 @@ double stepScore(plCurve *inLink, search_state *inState, plc_vector *stepDir, do
 usually equal to to length when there are no struts and ropelength
 when there are struts, but changes to include a weighted length for
 free sections when Timewarp is turned on. */
+
+void score_steps_parallel(plCurve *inLink, search_state *inState, plc_vector *dVdt,
+                          const double *steps, double *scores, int n);
+/* Evaluate stepScore for n independent step sizes (OpenMP when available). */
 
 void bsearch_stepper( plCurve** inLink, search_state* inState );
 /*

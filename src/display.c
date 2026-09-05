@@ -332,6 +332,7 @@ void update_runtime_display(plCurve *inLink,search_state *inState)
   }
 
   printf("\n");
+  fflush(stdout);
 
 #endif
 
@@ -367,21 +368,28 @@ void refresh_gv_display(plCurve *L)
      /* be able to write to /tmp. */
 
 {
-
   FILE *curvepipe;
+  char curvepath[4096], strutpath[4096], dlpath[4096], dvpath[4096];
+
+  rr_temp_path(curvepath, sizeof(curvepath), "curvepipe.oogl");
+  rr_temp_path(strutpath, sizeof(strutpath), "struts.vect");
+  rr_temp_path(dlpath, sizeof(dlpath), "dl.vect");
+  rr_temp_path(dvpath, sizeof(dvpath), "dVdt.vect");
 
   /* Open the curve file and update it. */
 
-  curvepipe = fopen("/tmp/curvepipe.oogl","w");
-  plCurve_draw(curvepipe,L);
-  fclose(curvepipe);
+  curvepipe = fopen(curvepath,"w");
+  if (curvepipe != NULL) {
+    plCurve_draw(curvepipe,L);
+    fclose(curvepipe);
+  }
 
   /* Now tell Geomview about the situation. */
 
-  fprintf(gclpipe,"(geometry curve { < /tmp/curvepipe.oogl})\n");
-  fprintf(gclpipe,"(geometry struts { < /tmp/struts.vect})\n");
-  fprintf(gclpipe,"(geometry dl { < /tmp/dl.vect})\n");
-  fprintf(gclpipe,"(geometry dVdt { < /tmp/dVdt.vect})\n");
+  fprintf(gclpipe,"(geometry curve { < %s})\n", curvepath);
+  fprintf(gclpipe,"(geometry struts { < %s})\n", strutpath);
+  fprintf(gclpipe,"(geometry dl { < %s})\n", dlpath);
+  fprintf(gclpipe,"(geometry dVdt { < %s})\n", dvpath);
     
   fprintf(gclpipe,"(look g0)\n");
 

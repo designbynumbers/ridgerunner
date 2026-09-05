@@ -23,6 +23,8 @@ permissions:
 jobs:
   tarball:
     name: Build source tarball and publish release
+    # Windows zip tags are handled by windows-release.yml (v*-win* / v*-windows*).
+    if: ${{ !contains(github.ref_name, '-win') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
